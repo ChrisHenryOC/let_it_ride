@@ -8,6 +8,10 @@ import random
 
 from let_it_ride.core.card import Card, Rank, Suit
 
+# Canonical deck created once at module load - reused via shallow copy
+# since Card objects are immutable (frozen dataclass)
+_CANONICAL_DECK: list[Card] = [Card(rank, suit) for suit in Suit for rank in Rank]
+
 
 class DeckEmptyError(Exception):
     """Raised when attempting to deal from an empty or insufficient deck."""
@@ -22,13 +26,8 @@ class Deck:
 
     def __init__(self) -> None:
         """Initialize a new deck with all 52 cards."""
-        self._cards: list[Card] = self._create_full_deck()
+        self._cards: list[Card] = list(_CANONICAL_DECK)
         self._dealt: list[Card] = []
-
-    @staticmethod
-    def _create_full_deck() -> list[Card]:
-        """Create a standard 52-card deck."""
-        return [Card(rank, suit) for suit in Suit for rank in Rank]
 
     def shuffle(self, rng: random.Random) -> None:
         """Shuffle the remaining cards using Fisher-Yates algorithm.
@@ -67,8 +66,8 @@ class Deck:
                 f"Cannot deal {count} cards, only {len(self._cards)} remaining"
             )
 
-        dealt = self._cards[-count:]
-        self._cards = self._cards[:-count]
+        # Use pop() for O(1) removal from end, avoiding list slice allocation
+        dealt = [self._cards.pop() for _ in range(count)]
         self._dealt.extend(dealt)
         return dealt
 
@@ -89,7 +88,7 @@ class Deck:
         This restores the deck to a full 52-card state.
         Cards are not shuffled; call shuffle() after reset() if needed.
         """
-        self._cards = self._create_full_deck()
+        self._cards = list(_CANONICAL_DECK)
         self._dealt = []
 
     def __len__(self) -> int:
