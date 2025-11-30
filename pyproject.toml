@@ -1,0 +1,113 @@
+[tool.poetry]
+name = "let-it-ride"
+version = "0.1.0"
+description = "Let It Ride Strategy Simulator - A Python application to simulate the casino card game and analyze play/betting strategies"
+authors = ["ChrisHenryOC"]
+readme = "README.md"
+packages = [{ include = "let_it_ride", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pydantic = "^2.0"
+pyyaml = "^6.0"
+typer = "^0.15"
+rich = "^13.0"
+click = "^8.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-cov = "^6.0"
+mypy = "^1.8"
+ruff = "^0.3"
+types-PyYAML = "^6.0"
+pytest-randomly = "^3.15"
+
+[tool.poetry.group.viz.dependencies]
+matplotlib = "^3.8"
+plotly = "^5.18"
+
+[tool.poetry.scripts]
+let-it-ride = "let_it_ride.cli:app"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--cov=src/let_it_ride",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "-v",
+]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_configs = true
+show_error_codes = true
+show_column_numbers = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = ["matplotlib.*", "plotly.*"]
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["let_it_ride"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.coverage.run]
+source = ["src/let_it_ride"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
