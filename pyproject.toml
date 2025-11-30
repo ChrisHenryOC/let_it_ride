@@ -21,6 +21,7 @@ mypy = "^1.8"
 ruff = "^0.3"
 types-PyYAML = "^6.0"
 pytest-randomly = "^3.15"
+scipy = {version = ">=1.11", python = ">=3.11"}
 
 [tool.poetry.group.viz.dependencies]
 matplotlib = "^3.8"
