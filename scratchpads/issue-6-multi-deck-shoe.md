@@ -13,13 +13,13 @@ After analysis, it was determined that multi-deck shoes are not a realistic scen
 - The deck is reshuffled between hands
 - There is no "shoe penetration" or card counting opportunity
 
-Therefore, this issue and the related Composition-Dependent Strategy (Issue #39) have been cancelled.
+Therefore, this issue and the related Composition-Dependent Strategy (Issue #36) have been cancelled.
 
 ## Impact Assessment
 
 ### Cancelled Issues
-1. **Issue #6** (GitHub #6): Multi-Deck Shoe Implementation
-2. **Issue #39** (GitHub #39): Composition-Dependent Strategy
+1. **Issue #3** (GitHub #6): Multi-Deck Shoe Implementation
+2. **Issue #36** (GitHub #39): Composition-Dependent Strategy
 
 ### Updated Documents
 1. `docs/let_it_ride_requirements.md`:

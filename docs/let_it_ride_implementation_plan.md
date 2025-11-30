@@ -336,8 +336,7 @@ class SimulationConfig(BaseModel):
     workers: int | Literal["auto"] = "auto"
 
 class DeckConfig(BaseModel):
-    num_decks: Literal[1, 2, 4, 6, 8] = 1
-    penetration: float = Field(ge=0.25, le=0.90, default=0.75)
+    shuffle_algorithm: Literal["fisher_yates", "cryptographic"] = "fisher_yates"
 
 # ... additional config models
 ```
