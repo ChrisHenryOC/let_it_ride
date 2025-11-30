@@ -117,38 +117,15 @@ class Deck:
 
 ---
 
-### Issue #3: Multi-Deck Shoe Implementation
+### ~~Issue #3: Multi-Deck Shoe Implementation~~ [CANCELLED]
 
-**Labels:** `foundation`, `priority-high`, `game-engine`
+**Status:** CANCELLED - Not needed. Each hand uses a freshly shuffled single deck.
 
-**Description:**
+**Original Description:**
 Extend deck handling to support multi-deck shoes (2, 4, 6, 8 decks) with penetration-based reshuffle triggers.
 
-**Acceptance Criteria:**
-- [ ] `Shoe` class supporting configurable deck count
-- [ ] Cut card placement based on penetration percentage
-- [ ] Automatic reshuffle detection when cut card reached
-- [ ] Shoe composition tracking (cards remaining by rank/suit)
-- [ ] Unit tests for shoe mechanics and composition tracking
-
-**Dependencies:** Issue #2
-
-**Files to Create:**
-- `src/let_it_ride/core/shoe.py`
-- `tests/unit/core/test_shoe.py`
-
-**Key Types:**
-```python
-class Shoe:
-    def __init__(self, num_decks: int, penetration: float, rng: random.Random)
-    def deal(self, count: int = 1) -> list[Card]
-    def needs_reshuffle(self) -> bool
-    def reshuffle(self) -> None
-    def composition(self) -> dict[Rank, int]
-    def high_card_ratio(self) -> float
-```
-
-**Estimated Scope:** ~200 lines
+**Cancellation Reason:**
+After analysis, multi-deck shoes are not a realistic scenario for Let It Ride simulation. In practice, each hand is dealt from a freshly shuffled single deck.
 
 ---
 
@@ -492,7 +469,7 @@ Implement the main game engine that orchestrates dealing, decisions, and payout 
 - [ ] Support for both main game and bonus bet
 - [ ] Integration tests for complete hand flow
 
-**Dependencies:** Issues #3, #6, #9, #10
+**Dependencies:** Issues #2, #6, #9, #10
 
 **Files to Create:**
 - `src/let_it_ride/core/game_engine.py`
@@ -1064,7 +1041,6 @@ Create comprehensive sample configuration files demonstrating all features.
 - [ ] Basic strategy baseline config
 - [ ] Conservative strategy config
 - [ ] Aggressive strategy config
-- [ ] Multi-deck shoe config
 - [ ] Bonus betting comparison config
 - [ ] Each config documented with comments
 
@@ -1074,7 +1050,6 @@ Create comprehensive sample configuration files demonstrating all features.
 - `configs/basic_strategy.yaml`
 - `configs/conservative.yaml`
 - `configs/aggressive.yaml`
-- `configs/multi_deck.yaml`
 - `configs/bonus_comparison.yaml`
 
 **Estimated Scope:** ~300 lines (YAML)
@@ -1131,26 +1106,15 @@ Profile and optimize to meet performance targets (100k hands/second).
 
 ## Phase 7: Advanced Features (Issues 36-40)
 
-### Issue #36: Composition-Dependent Strategy
+### ~~Issue #36: Composition-Dependent Strategy~~ [CANCELLED]
 
-**Labels:** `advanced`, `priority-low`, `strategy`
+**Status:** CANCELLED - Not applicable without multi-deck shoes.
 
-**Description:**
+**Original Description:**
 Implement strategy that adjusts based on remaining shoe composition.
 
-**Acceptance Criteria:**
-- [ ] Track high card ratio in shoe
-- [ ] Adjust ride/pull thresholds based on composition
-- [ ] Configuration for threshold values
-- [ ] Unit tests for adjustment logic
-
-**Dependencies:** Issues #3, #10
-
-**Files to Create:**
-- `src/let_it_ride/strategy/composition_dependent.py`
-- `tests/unit/strategy/test_composition_dependent.py`
-
-**Estimated Scope:** ~200 lines
+**Cancellation Reason:**
+This feature was dependent on multi-deck shoe support (Issue #3). Since each hand uses a freshly shuffled single deck, composition-dependent strategies are not applicable.
 
 ---
 
@@ -1313,17 +1277,19 @@ Blocked by: #X, #Y
 
 ```
 Phase 1: Foundation
-#1 ─┬─► #2 ─► #3
+#1 ─┬─► #2
     ├─► #4 ─► #6
     ├─► #5 ─► #6
     ├─► #7
     └─► #8
 
+Note: #3 (Multi-Deck Shoe) is CANCELLED
+
 Phase 2: Game Logic
 #2,#4,#5 ─► #9
 #7 ─► #10 ─► #11
 #7,#8 ─► #12
-#3,#6,#9,#10 ─► #13
+#2,#6,#9,#10 ─► #13
 #8 ─► #14
 
 Phase 3: Bankroll/Session
@@ -1347,7 +1313,7 @@ Phase 6: CLI
 All ─► #34 ─► #35
 
 Phase 7: Advanced
-#3,#10 ─► #36
+#36 is CANCELLED (was dependent on #3)
 #14 ─► #37
 #25 ─► #38
 #29,#30 ─► #39
@@ -1374,13 +1340,17 @@ All ─► #40
 
 | Phase | Issues | Focus | Est. Total Lines |
 |-------|--------|-------|------------------|
-| 1 | #1-8 | Foundation | ~1,850 |
+| 1 | #1-2, #4-8 | Foundation (Note: #3 cancelled) | ~1,650 |
 | 2 | #9-14 | Game Logic | ~1,500 |
 | 3 | #15-19 | Bankroll/Session | ~950 |
 | 4 | #20-24 | Simulation | ~1,050 |
 | 5 | #25-30 | Analytics | ~1,050 |
 | 6 | #31-35 | CLI/Integration | ~1,150 |
-| 7 | #36-40 | Advanced | ~1,400 |
-| **Total** | **40** | | **~9,000** |
+| 7 | #37-40 | Advanced (Note: #36 cancelled) | ~1,200 |
+| **Total** | **38** | | **~8,550** |
 
-This plan provides 40 well-scoped issues that Claude Code can execute against, with clear acceptance criteria and dependency tracking for efficient parallel development.
+This plan provides 38 well-scoped issues that Claude Code can execute against, with clear acceptance criteria and dependency tracking for efficient parallel development.
+
+**Cancelled Issues:**
+- Issue #3 (Multi-Deck Shoe Implementation) - Not needed; each hand uses freshly shuffled single deck
+- Issue #36 (Composition-Dependent Strategy) - Dependent on #3, not applicable

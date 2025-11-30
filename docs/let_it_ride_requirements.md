@@ -58,16 +58,9 @@ The application must support configurable paytables. Default paytable:
 
 ### 2.3 Deck Configuration
 
-#### 2.3.1 Single Deck Mode
 - Standard 52-card deck
 - Reshuffled after each hand
-- Baseline for comparison
-
-#### 2.3.2 Multi-Deck Shoe Mode
-- Support for 2, 4, 6, or 8 deck shoes
-- Configurable penetration (typically 50-75%)
-- Reshuffle when cut card reached
-- Track dealt cards for composition analysis
+- Each hand is dealt from a freshly shuffled deck
 
 ### 2.4 Three Card Bonus Rules
 
@@ -148,10 +141,6 @@ The Three Card Bonus is an optional side bet placed before cards are dealt:
 | FR-104 | Calculate payouts based on configurable paytable | Must |
 | FR-105 | Support configurable house rules/variations | Should |
 | FR-106 | Track all dealt cards for statistical validation | Must |
-| FR-107 | Implement multi-deck shoe (2, 4, 6, 8 decks) | Must |
-| FR-108 | Support configurable shoe penetration | Must |
-| FR-109 | Track shoe composition for analysis | Must |
-| FR-110 | Implement cut card mechanics for reshuffle trigger | Must |
 
 ### 3.2 Strategy Engine (FR-200)
 
@@ -163,8 +152,7 @@ The Three Card Bonus is an optional side bet placed before cards are dealt:
 | FR-204 | Implement "always let it ride" baseline strategy | Must |
 | FR-205 | Implement "always pull" baseline strategy | Must |
 | FR-206 | Support conditional strategies based on hand potential | Should |
-| FR-207 | Support composition-dependent strategy (multi-deck) | Should |
-| FR-208 | Support machine learning/genetic algorithm strategy discovery | Could |
+| FR-207 | Support machine learning/genetic algorithm strategy discovery | Could |
 
 ### 3.3 Betting/Bankroll Management (FR-300)
 
@@ -197,7 +185,6 @@ The Three Card Bonus is an optional side bet placed before cards are dealt:
 | FR-503 | Checkpoint/resume long-running simulations | Could |
 | FR-504 | Validate simulation accuracy against known probabilities | Must |
 | FR-505 | Support seeded RNG for reproducibility | Must |
-| FR-506 | Support single-deck and multi-deck simulation modes | Must |
 
 ### 3.6 Analytics & Reporting (FR-600)
 
@@ -212,7 +199,6 @@ The Three Card Bonus is an optional side bet placed before cards are dealt:
 | FR-607 | Export results to CSV/JSON | Must |
 | FR-608 | Generate visualization charts (matplotlib/plotly) | Should |
 | FR-609 | Calculate hand frequency distribution vs. theoretical | Must |
-| FR-610 | Compare single-deck vs. multi-deck outcomes | Must |
 
 ### 3.7 Three Card Bonus Engine (FR-700)
 
@@ -342,28 +328,14 @@ simulation:
 
 ```yaml
 deck:
-  # Number of decks in shoe
-  # Type: integer, Required: yes
-  # Values: 1, 2, 4, 6, 8
-  num_decks: 1
-  
-  # Shoe penetration before reshuffle (multi-deck only)
-  # Type: float, Required: if num_decks > 1
-  # Range: 0.25 - 0.90
-  # Represents percentage of shoe dealt before cut card
-  penetration: 0.75
-  
   # Shuffle algorithm
   # Type: string, Required: no
   # Values: "fisher_yates", "cryptographic"
   # Default: "fisher_yates"
   shuffle_algorithm: "fisher_yates"
-  
-  # Track composition for analysis
-  # Type: boolean, Required: no
-  # Default: true for multi-deck, false for single
-  track_composition: true
 ```
+
+Note: The simulator uses a standard 52-card deck that is reshuffled after each hand.
 
 ### 5.4 Bankroll Configuration
 
@@ -543,8 +515,8 @@ bankroll:
 strategy:
   # Strategy type selection
   # Type: string, Required: yes
-  # Values: "basic", "always_ride", "always_pull", "conservative", 
-  #         "aggressive", "composition_dependent", "custom"
+  # Values: "basic", "always_ride", "always_pull", "conservative",
+  #         "aggressive", "custom"
   type: "basic"
   
   # Configuration for each strategy type:
@@ -578,35 +550,15 @@ strategy:
     # Let it ride with any draw
     # Type: boolean
     ride_on_draws: true
-    
+
     # Include inside straights
     # Type: boolean
     include_gutshots: true
-    
+
     # Include backdoor flush draws
     # Type: boolean
     include_backdoor_flush: true
-  
-  # --- composition_dependent ---
-  # Adjusts strategy based on remaining deck composition (multi-deck)
-  composition_dependent:
-    # Enable for multi-deck shoes only
-    # Type: boolean
-    enabled: true
-    
-    # Adjustment factors for rich/poor deck
-    # Increase ride frequency when deck is rich in high cards
-    high_card_threshold: 0.52  # ride more when >52% high cards remain
-    low_card_threshold: 0.48   # pull more when <48% high cards remain
-    
-    # Specific card tracking
-    track_cards:
-      - "T"  # Tens
-      - "J"  # Jacks
-      - "Q"  # Queens
-      - "K"  # Kings
-      - "A"  # Aces
-  
+
   # --- custom ---
   custom:
     # Define custom rules for each decision point
@@ -702,11 +654,6 @@ is_open_straight_draw: boolean    # True if open-ended straight draw
 is_inside_straight_draw: boolean  # True if gutshot straight draw
 is_straight_flush_draw: boolean   # True if drawing to straight flush
 is_royal_draw: boolean    # True if drawing to royal flush
-
-# Deck composition (multi-deck only)
-deck_high_card_ratio: float  # Ratio of high cards remaining
-deck_suit_ratio: dict        # Remaining cards by suit
-cards_remaining: integer     # Cards left in shoe
 
 # Session context
 session_profit: float     # Current session profit/loss
@@ -1110,10 +1057,7 @@ simulation:
   detailed_logging: false
 
 deck:
-  num_decks: 6
-  penetration: 0.75
   shuffle_algorithm: "fisher_yates"
-  track_composition: true
 
 bankroll:
   starting_amount: 500.00
@@ -1249,8 +1193,6 @@ output:
 
 5. **Variance Reduction**: Can betting adjustments reduce variance without significantly impacting expected value?
 
-6. **Multi-Deck Effects**: Does shoe penetration create exploitable situations?
-
 ### 7.2 Bonus Betting Research Questions
 
 1. **Standalone Viability**: What is the true cost per hand of bonus betting under each paytable?
@@ -1270,7 +1212,6 @@ output:
 | Basic Strategy | Mathematically optimal decisions | Baseline (lowest house edge) |
 | Conservative | Pull except with made hands | Lower variance, lower EV |
 | Aggressive | Let it ride more often | Higher variance |
-| Composition-Dependent | Adjust for multi-deck shoe state | May find small edges |
 
 ---
 
@@ -1282,7 +1223,6 @@ output:
 |-------|------|-------------|
 | hand_id | integer | Unique hand identifier |
 | session_id | integer | Parent session identifier |
-| shoe_id | integer | Shoe identifier (multi-deck) |
 | cards_player | string | Player's 3 cards |
 | cards_community | string | 2 community cards |
 | decision_bet1 | string | "ride" or "pull" |
@@ -1339,7 +1279,6 @@ output:
 - All 22,100 possible 3-card hands evaluate correctly
 - Payout calculations match paytables
 - Basic strategy decisions match published charts
-- Multi-deck shoe deals correct number of cards before reshuffle
 - All betting progression systems calculate correctly
 
 ### 9.2 Integration Tests
@@ -1353,7 +1292,6 @@ output:
 
 - Simulated hand frequencies match theoretical probabilities (chi-square test)
 - Expected value converges to theoretical house edge over large samples
-- Multi-deck composition tracking is accurate
 
 ---
 
@@ -1386,7 +1324,6 @@ output:
 ## 12. Future Considerations
 
 - Additional side bet analysis (other bonus bets)
-- Card counting viability analysis for multi-deck
 - Web-based interface for interactive exploration
 - Machine learning strategy optimization
 - Multi-player table simulation
