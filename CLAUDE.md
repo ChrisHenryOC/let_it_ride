@@ -81,3 +81,28 @@ Simulations are configured via YAML files. Key sections:
 - Throughput: ≥100,000 hands/second
 - Memory: <4GB RAM for 10M hands
 - Hand evaluation accuracy: 100%
+
+## GitHub CLI Tips
+
+### Posting PR Inline Comments
+
+Use `position` (integer) not `line` or `subject_type`. The position is the line number in the diff hunk:
+
+```bash
+gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments \
+  --method POST \
+  -f body="Comment text" \
+  -f path="path/to/file.py" \
+  -f commit_id="$(gh pr view PR_NUMBER --json headRefOid -q .headRefOid)" \
+  -F position=53
+```
+
+Note: Use `-F position=53` (capital F) to pass as integer, not `-f position=53` (string).
+
+## Issue Numbering Convention
+
+This project has two numbering systems:
+- **Implementation Plan Issue #**: Sequential numbers in `docs/let_it_ride_implementation_plan.md` (e.g., "Issue #2")
+- **GitHub Issue #**: Actual GitHub issue numbers, titled with the plan number (e.g., GitHub #5 is titled "#2: Card and Deck Implementation")
+
+When documenting, always clarify which numbering system is being used, e.g., "Issue #2 (GitHub #5)".
