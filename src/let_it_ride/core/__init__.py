@@ -9,5 +9,25 @@ This module contains the fundamental game mechanics including:
 
 from let_it_ride.core.card import Card, Rank, Suit
 from let_it_ride.core.deck import Deck, DeckEmptyError
+from let_it_ride.core.hand_evaluator import (
+    FiveCardHandRank,
+    HandResult,
+    evaluate_five_card_hand,
+)
+from let_it_ride.core.three_card_evaluator import (
+    ThreeCardHandRank,
+    evaluate_three_card_hand,
+)
 
-__all__ = ["Card", "Rank", "Suit", "Deck", "DeckEmptyError"]
+__all__ = [
+    "Card",
+    "Rank",
+    "Suit",
+    "Deck",
+    "DeckEmptyError",
+    "FiveCardHandRank",
+    "HandResult",
+    "evaluate_five_card_hand",
+    "ThreeCardHandRank",
+    "evaluate_three_card_hand",
+]
