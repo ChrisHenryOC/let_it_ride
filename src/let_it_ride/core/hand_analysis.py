@@ -38,10 +38,13 @@ class HandAnalysis:
         gaps: Number of gaps in the longest potential straight sequence.
 
         has_paying_hand: True if hand already qualifies for payout (pair 10+).
-        has_pair: True if hand contains any pair.
+        has_pair: True if hand contains exactly one pair (not two pair, not
+            trips or better).
         has_high_pair: True if hand contains pair of 10s or better.
         has_trips: True if hand contains three of a kind.
-        pair_rank: The rank of the pair if one exists, None otherwise.
+        pair_rank: The rank of the pair if exactly one pair exists, None
+            otherwise. Not set for two pair, trips, or better hands since
+            in Let It Ride only the hand type matters, not the specific ranks.
 
         is_flush_draw: True if 3+ cards of same suit (potential flush).
         is_straight_draw: True if hand has straight potential.
@@ -84,30 +87,29 @@ def _count_high_cards(rank_values: Sequence[int]) -> int:
     return sum(1 for v in rank_values if v in _HIGH_CARD_VALUES)
 
 
-def _get_suit_counts(cards: Sequence[Card]) -> dict[str, int]:
-    """Get count of cards per suit, keyed by suit value."""
-    counts: dict[str, int] = {}
-    for card in cards:
-        suit_key = card.suit.value
-        counts[suit_key] = counts.get(suit_key, 0) + 1
-    return counts
-
-
 def _get_max_suited(cards: Sequence[Card]) -> tuple[int, list[Card]]:
     """Get the maximum suited count and the cards of that suit.
+
+    Uses a single pass through the cards for efficiency.
 
     Returns:
         Tuple of (max_count, suited_cards) where suited_cards are the cards
         of the most frequent suit.
     """
-    suit_counts = _get_suit_counts(cards)
-    if not suit_counts:
+    if not cards:
         return 0, []
 
-    max_suit = max(suit_counts.keys(), key=lambda s: suit_counts[s])
-    max_count = suit_counts[max_suit]
-    suited_cards = [c for c in cards if c.suit.value == max_suit]
-    return max_count, suited_cards
+    # Single-pass grouping by suit
+    suit_groups: dict[str, list[Card]] = {}
+    for card in cards:
+        suit_key = card.suit.value
+        if suit_key not in suit_groups:
+            suit_groups[suit_key] = []
+        suit_groups[suit_key].append(card)
+
+    # Find the suit with maximum count
+    max_group = max(suit_groups.values(), key=len)
+    return len(max_group), max_group
 
 
 def _analyze_straight_potential(
@@ -387,15 +389,17 @@ def analyze_four_cards(cards: Sequence[Card]) -> HandAnalysis:
     pair_rank: Rank | None = None
     has_high_pair = False
 
-    # For pair or two pair, find the highest pair rank
-    if has_pair or has_two_pair:
-        pair_values = [v for v, count in rank_counts.items() if count == 2]
-        if pair_values:
-            highest_pair = max(pair_values)
-            pair_rank = Rank(highest_pair)
-            has_high_pair = highest_pair in _HIGH_CARD_VALUES
+    # Only set pair_rank for single pairs (not two pair, trips, etc.)
+    # In Let It Ride, only the hand type matters, not the specific ranks
+    if has_pair:
+        for v, count in rank_counts.items():
+            if count == 2:
+                pair_rank = Rank(v)
+                has_high_pair = v in _HIGH_CARD_VALUES
+                break
 
     # Determine if we have a paying hand
+    # Two pair is a paying hand regardless of which pairs
     has_paying_hand = has_trips or has_high_pair or has_two_pair
 
     # Check for draws

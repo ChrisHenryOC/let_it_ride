@@ -139,12 +139,15 @@ class TestThreeCardTrips:
         assert analysis.has_trips is True
         assert analysis.has_paying_hand is True
         assert analysis.has_pair is False  # Trips is not a pair
+        # In Let It Ride, only hand type matters - pair_rank not set for trips
+        assert analysis.pair_rank is None
 
     def test_trip_aces(self) -> None:
         """Trip aces should be detected with correct high card count."""
         analysis = analyze_three_cards(make_hand("Ah As Ad"))
         assert analysis.has_trips is True
         assert analysis.high_cards == 3
+        assert analysis.pair_rank is None  # Not set for trips
 
 
 class TestThreeCardPairs:
@@ -319,6 +322,9 @@ class TestFourCardTrips:
         analysis = analyze_four_cards(hand)
         assert analysis.has_trips is True
         assert analysis.has_paying_hand is True
+        assert analysis.has_pair is False  # Trips is not a pair
+        # In Let It Ride, only hand type matters - pair_rank not set for trips
+        assert analysis.pair_rank is None
 
 
 class TestFourCardPairs:
@@ -351,6 +357,8 @@ class TestFourCardTwoPair:
         # Two pair is NOT has_pair (has_pair is for single pair only)
         assert analysis.has_pair is False
         assert analysis.has_paying_hand is True
+        # In Let It Ride, only hand type matters - pair_rank not set for two pair
+        assert analysis.pair_rank is None
 
 
 class TestFourCardFlushDraws:

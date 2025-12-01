@@ -86,18 +86,35 @@ Simulations are configured via YAML files. Key sections:
 
 ### Posting PR Inline Comments
 
-Use `position` (integer) not `line` or `subject_type`. The position is the line number in the diff hunk:
+Use `position` (integer) not `line` or `subject_type`. The position is the line number **within the diff hunk**, not the file line number.
+
+**Calculating the correct position:**
+
+1. Save the PR diff: `gh pr diff PR_NUMBER > /tmp/pr.diff`
+2. Find where the target file's diff starts (look for `diff --git a/path/to/file`)
+3. Find the `@@` hunk header line number in the combined diff
+4. Calculate: `position = target_line_in_diff - hunk_header_line`
+
+**Example:** If a file's `@@` line is at line 182 in the diff, and you want to comment on what appears at line 223, the position is `223 - 181 = 42` (the @@ line itself is position 1).
 
 ```bash
+# First, examine the diff to find correct positions
+gh pr diff PR_NUMBER > /tmp/pr.diff
+cat -n /tmp/pr.diff | grep -A 5 "the code you want to comment on"
+
+# Then post with the calculated position
 gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments \
   --method POST \
   -f body="Comment text" \
   -f path="path/to/file.py" \
   -f commit_id="$(gh pr view PR_NUMBER --json headRefOid -q .headRefOid)" \
-  -F position=53
+  -F position=42
 ```
 
-Note: Use `-F position=53` (capital F) to pass as integer, not `-f position=53` (string).
+**Important:**
+- Use `-F position=42` (capital F) to pass as integer, not `-f position=42` (string)
+- The position is relative to the diff hunk, NOT the absolute file line number
+- Always verify positions by examining the actual diff output before posting comments
 
 ## Issue Numbering Convention
 
