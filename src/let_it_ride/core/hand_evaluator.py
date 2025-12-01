@@ -118,10 +118,15 @@ def evaluate_five_card_hand(cards: Sequence[Card]) -> HandResult:
         HandResult with rank, primary_cards, and kickers.
 
     Raises:
-        ValueError: If not exactly 5 cards provided.
+        ValueError: If not exactly 5 cards provided or duplicate cards detected.
     """
     if len(cards) != 5:
         raise ValueError(f"Expected 5 cards, got {len(cards)}")
+
+    # Validate no duplicate cards
+    unique_cards = {(c.rank, c.suit) for c in cards}
+    if len(unique_cards) != 5:
+        raise ValueError("Duplicate cards detected in hand")
 
     # Extract rank values and suits for faster processing
     rank_values = [card.rank.value for card in cards]

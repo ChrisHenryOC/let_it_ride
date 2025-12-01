@@ -10,7 +10,7 @@ Implement accurate 5-card poker hand evaluation for the main game payouts. This 
 
 ## Key Requirements
 
-1. **FiveCardHandRank enum** - 10 distinct hand ranks from Royal Flush (10) to High Card (0)
+1. **FiveCardHandRank enum** - 11 distinct hand ranks from Royal Flush (10) to High Card (0)
 2. **HandResult dataclass** - Contains rank, primary cards, and kickers
 3. **evaluate_five_card_hand()** function - Takes 5 cards, returns HandResult
 4. **Edge cases**: Wheel straight (A-2-3-4-5), steel wheel (suited A-2-3-4-5)
@@ -86,7 +86,7 @@ class HandResult:
 
 ## Test Cases (from requirements)
 
-- All 10 hand ranks with multiple examples each
+- All 11 hand ranks with multiple examples each
 - Wheel straight (A-2-3-4-5)
 - Steel wheel (A-2-3-4-5 suited)
 - Royal flush (each suit)
