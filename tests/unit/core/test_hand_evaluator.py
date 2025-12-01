@@ -523,4 +523,6 @@ class TestPerformance:
         assert total_evaluated >= 100_000
 
         # Target is <1s; using 2s threshold for CI variability
-        assert elapsed < 2.0, f"Target <1s, got {elapsed:.3f}s for {total_evaluated} hands"
+        assert (
+            elapsed < 2.0
+        ), f"Target <1s, got {elapsed:.3f}s for {total_evaluated} hands"

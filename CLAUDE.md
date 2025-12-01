@@ -114,3 +114,7 @@ When referencing issues:
 - Use `LIR-4 (GitHub #7)` when both contexts are relevant
 
 This convention prevents confusion between plan numbers and GitHub's auto-assigned issue numbers.
+
+## Scratchpads
+
+Scratchpad files are placed in /scratchpads
