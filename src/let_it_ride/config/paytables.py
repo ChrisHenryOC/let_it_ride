@@ -5,6 +5,7 @@ three-card bonus bet, including payout calculation and validation.
 """
 
 from dataclasses import dataclass
+from functools import cache
 
 from let_it_ride.core.hand_evaluator import FiveCardHandRank
 from let_it_ride.core.three_card_evaluator import ThreeCardHandRank
@@ -114,6 +115,7 @@ class BonusPaytable:
                 )
 
 
+@cache
 def standard_main_paytable() -> MainGamePaytable:
     """Create the standard main game paytable.
 
@@ -148,6 +150,7 @@ def standard_main_paytable() -> MainGamePaytable:
     )
 
 
+@cache
 def bonus_paytable_a() -> BonusPaytable:
     """Create bonus paytable variant A (lower volatility).
 
@@ -178,6 +181,7 @@ def bonus_paytable_a() -> BonusPaytable:
     )
 
 
+@cache
 def bonus_paytable_b() -> BonusPaytable:
     """Create bonus paytable variant B (default).
 
@@ -208,6 +212,7 @@ def bonus_paytable_b() -> BonusPaytable:
     )
 
 
+@cache
 def bonus_paytable_c(progressive_payout: int = 1000) -> BonusPaytable:
     """Create bonus paytable variant C (progressive).
 

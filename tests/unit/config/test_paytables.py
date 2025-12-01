@@ -241,6 +241,14 @@ class TestBonusPaytable:
         paytable = bonus_paytable_c(progressive_payout=5000)
         assert paytable.payouts[ThreeCardHandRank.MINI_ROYAL] == 5000
 
+    def test_paytable_c_negative_progressive_fails_validation(self) -> None:
+        """Paytable C with negative progressive payout should fail validation."""
+        paytable = bonus_paytable_c(progressive_payout=-100)
+
+        with pytest.raises(PaytableValidationError) as exc_info:
+            paytable.validate()
+        assert "negative payout" in str(exc_info.value)
+
     @pytest.mark.parametrize(
         "rank,bet,expected_payout",
         [
