@@ -4,11 +4,17 @@ This module contains the fundamental game mechanics including:
 - Card and Deck representations
 - Multi-deck Shoe implementation
 - Hand evaluation (5-card and 3-card)
+- Hand analysis for strategy decisions
 - Game state management
 """
 
 from let_it_ride.core.card import Card, Rank, Suit
 from let_it_ride.core.deck import Deck, DeckEmptyError
+from let_it_ride.core.hand_analysis import (
+    HandAnalysis,
+    analyze_four_cards,
+    analyze_three_cards,
+)
 from let_it_ride.core.hand_evaluator import (
     FiveCardHandRank,
     HandResult,
@@ -30,4 +36,7 @@ __all__ = [
     "evaluate_five_card_hand",
     "ThreeCardHandRank",
     "evaluate_three_card_hand",
+    "HandAnalysis",
+    "analyze_three_cards",
+    "analyze_four_cards",
 ]
