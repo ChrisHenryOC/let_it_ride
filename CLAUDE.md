@@ -101,8 +101,16 @@ Note: Use `-F position=53` (capital F) to pass as integer, not `-f position=53` 
 
 ## Issue Numbering Convention
 
-This project has two numbering systems:
-- **Implementation Plan Issue #**: Sequential numbers in `docs/let_it_ride_implementation_plan.md` (e.g., "Issue #2")
-- **GitHub Issue #**: Actual GitHub issue numbers, titled with the plan number (e.g., GitHub #5 is titled "#2: Card and Deck Implementation")
+This project uses **LIR-prefixed identifiers** to distinguish implementation plan items from GitHub issue numbers:
 
-When documenting, always clarify which numbering system is being used, e.g., "Issue #2 (GitHub #5)".
+- **LIR-N**: Implementation plan item number (e.g., "LIR-4" for Five-Card Hand Evaluation)
+- **GitHub #N**: The actual GitHub issue number (e.g., GitHub #7)
+
+GitHub issue titles use the format `LIR-N: Title` (e.g., "LIR-4: Five-Card Hand Evaluation").
+
+When referencing issues:
+- Use `LIR-4` when discussing the implementation plan item
+- Use `GitHub #7` when discussing the GitHub issue itself
+- Use `LIR-4 (GitHub #7)` when both contexts are relevant
+
+This convention prevents confusion between plan numbers and GitHub's auto-assigned issue numbers.
