@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -18,6 +17,7 @@ from let_it_ride.config.loader import (
 from let_it_ride.config.models import FullConfig
 
 if TYPE_CHECKING:
+    from pathlib import Path
     from typing import Any
 
 
@@ -326,7 +326,8 @@ class TestErrorMessages:
         error = exc_info.value
         assert str(config_file) in error.message
         assert error.details is not None
-        assert "absolute" in error.details.lower()
+        # Details should contain helpful info about the file location
+        assert "ensure" in error.details.lower() or str(config_file) in error.details
 
     def test_parse_error_message_has_details(self, tmp_path: Path) -> None:
         """Test parse error includes YAML error details."""

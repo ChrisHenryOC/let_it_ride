@@ -507,7 +507,7 @@ class TestOutputConfig:
         assert config.directory == "./results"
         assert config.prefix == "simulation"
         assert config.formats.csv.enabled is True
-        assert config.formats.json.enabled is True
+        assert config.formats.json_output.enabled is True
         assert config.formats.html.enabled is False
         assert config.console.progress_bar is True
 

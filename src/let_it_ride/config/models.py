@@ -53,7 +53,7 @@ class SimulationConfig(BaseModel):
     detailed_logging: bool = False
 
     @model_validator(mode="after")
-    def validate_workers(self) -> "SimulationConfig":
+    def validate_workers(self) -> SimulationConfig:
         """Validate workers is positive if numeric."""
         if isinstance(self.workers, int) and self.workers < 1:
             raise ValueError("workers must be positive or 'auto'")
@@ -291,7 +291,7 @@ class BankrollConfig(BaseModel):
     betting_system: BettingSystemConfig = Field(default_factory=BettingSystemConfig)
 
     @model_validator(mode="after")
-    def validate_bet_vs_bankroll(self) -> "BankrollConfig":
+    def validate_bet_vs_bankroll(self) -> BankrollConfig:
         """Validate that base bet doesn't exceed starting bankroll."""
         min_required = self.base_bet * 3  # Need 3 betting circles
         if self.starting_amount < min_required:
@@ -430,7 +430,7 @@ class StaticBonusConfig(BaseModel):
     ratio: Annotated[float, Field(gt=0, le=1.0)] | None = None
 
     @model_validator(mode="after")
-    def validate_amount_or_ratio(self) -> "StaticBonusConfig":
+    def validate_amount_or_ratio(self) -> StaticBonusConfig:
         """Ensure amount or ratio is set, not both."""
         if self.amount is not None and self.ratio is not None:
             raise ValueError("Specify either amount or ratio, not both")
@@ -899,14 +899,16 @@ class OutputFormatsConfig(BaseModel):
 
     Attributes:
         csv: CSV output configuration.
-        json: JSON output configuration.
+        json_output: JSON output configuration (YAML key: "json").
         html: HTML output configuration.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     csv: CsvOutputConfig = Field(default_factory=CsvOutputConfig)
-    json: JsonOutputConfig = Field(default_factory=JsonOutputConfig)
+    json_output: JsonOutputConfig = Field(
+        default_factory=JsonOutputConfig, alias="json"
+    )
     html: HtmlOutputConfig = Field(default_factory=HtmlOutputConfig)
 
 
