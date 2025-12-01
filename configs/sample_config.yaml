@@ -1,0 +1,262 @@
+# Let It Ride Strategy Simulator - Sample Configuration
+# This file demonstrates all available configuration options.
+# See docs/let_it_ride_requirements.md Section 5 for full documentation.
+#
+# Most fields have sensible defaults - a minimal configuration file
+# can be as simple as an empty file or just the sections you want to customize.
+
+# ------------------------------------------------------------------
+# METADATA - Optional information about this configuration
+# ------------------------------------------------------------------
+metadata:
+  name: "Sample Configuration"
+  description: "Demonstrates all configuration options for Let It Ride simulator"
+  version: "1.0"
+  author: "Your Name"
+  created: "2024-01-15"
+
+# ------------------------------------------------------------------
+# SIMULATION - Core simulation parameters
+# ------------------------------------------------------------------
+simulation:
+  # Number of complete sessions to simulate (1 - 100,000,000)
+  num_sessions: 100000
+
+  # Maximum hands per session (1 - 10,000)
+  hands_per_session: 200
+
+  # Random seed for reproducibility (null for true randomness)
+  random_seed: 42
+
+  # Number of parallel workers ("auto" uses all CPU cores, or specify integer)
+  workers: "auto"
+
+  # Report progress every N sessions
+  progress_interval: 10000
+
+  # Enable detailed per-hand logging (warning: creates large output)
+  detailed_logging: false
+
+# ------------------------------------------------------------------
+# DECK - Deck configuration
+# ------------------------------------------------------------------
+deck:
+  # Shuffle algorithm: "fisher_yates" (fast) or "cryptographic" (better randomness)
+  shuffle_algorithm: "fisher_yates"
+
+# ------------------------------------------------------------------
+# BANKROLL - Bankroll and betting management
+# ------------------------------------------------------------------
+bankroll:
+  # Starting bankroll in dollars (must be > 0)
+  starting_amount: 500.00
+
+  # Base bet per circle - total initial wager = base_bet * 3 (must be > 0)
+  base_bet: 5.00
+
+  # Session stop conditions (any triggered ends the session)
+  stop_conditions:
+    # Stop when profit reaches this amount (null = no limit)
+    win_limit: 250.00
+
+    # Stop when loss reaches this amount (null = no limit)
+    loss_limit: 200.00
+
+    # Stop after this many hands (null = no limit)
+    max_hands: 200
+
+    # Stop after this duration in minutes (null = no limit)
+    max_duration_minutes: null
+
+    # Stop if bankroll drops below minimum bet requirement
+    stop_on_insufficient_funds: true
+
+  # Betting progression system
+  betting_system:
+    # Type: flat, proportional, martingale, reverse_martingale,
+    #       paroli, dalembert, fibonacci, custom
+    type: "flat"
+
+    # --- Example: Proportional betting config ---
+    # proportional:
+    #   bankroll_percentage: 0.03
+    #   min_bet: 5.00
+    #   max_bet: 100.00
+    #   round_to: 1.00
+
+    # --- Example: Martingale betting config ---
+    # martingale:
+    #   loss_multiplier: 2.0
+    #   reset_on_win: true
+    #   max_bet: 500.00
+    #   max_progressions: 6
+
+# ------------------------------------------------------------------
+# STRATEGY - Main game strategy
+# ------------------------------------------------------------------
+strategy:
+  # Type: basic, always_ride, always_pull, conservative, aggressive, custom
+  type: "basic"
+
+  # --- Example: Conservative strategy config ---
+  # conservative:
+  #   made_hands_only: true
+  #   min_strength_bet1: 7
+  #   min_strength_bet2: 5
+
+  # --- Example: Aggressive strategy config ---
+  # aggressive:
+  #   ride_on_draws: true
+  #   include_gutshots: true
+  #   include_backdoor_flush: true
+
+  # --- Example: Custom strategy rules ---
+  # custom:
+  #   bet1_rules:
+  #     - condition: "has_paying_hand"
+  #       action: "ride"
+  #     - condition: "is_royal_draw"
+  #       action: "ride"
+  #     - condition: "default"
+  #       action: "pull"
+  #   bet2_rules:
+  #     - condition: "has_paying_hand"
+  #       action: "ride"
+  #     - condition: "is_flush_draw"
+  #       action: "ride"
+  #     - condition: "default"
+  #       action: "pull"
+
+# ------------------------------------------------------------------
+# BONUS_STRATEGY - Three Card Bonus betting strategy
+# ------------------------------------------------------------------
+bonus_strategy:
+  # Enable/disable bonus betting
+  enabled: false
+
+  # Paytable: paytable_a, paytable_b, paytable_c, custom
+  paytable: "paytable_b"
+
+  # Bonus bet limits
+  limits:
+    min_bet: 1.00
+    max_bet: 25.00
+    increment: 1.00
+
+  # Strategy type: never, always, static, bankroll_conditional,
+  #                streak_based, session_conditional, combined, custom
+  type: "never"
+
+  # --- Example: Static bonus betting ---
+  # type: "static"
+  # static:
+  #   amount: 1.00
+  #   # Or use ratio instead of amount:
+  #   # ratio: 0.2
+
+  # --- Example: Bankroll conditional betting ---
+  # type: "bankroll_conditional"
+  # bankroll_conditional:
+  #   base_amount: 1.00
+  #   min_session_profit: 25.00
+  #   max_drawdown: 0.25
+  #   scaling:
+  #     enabled: true
+  #     tiers:
+  #       - min_profit: 25
+  #         max_profit: 75
+  #         bet_amount: 1.00
+  #       - min_profit: 75
+  #         max_profit: 150
+  #         bet_amount: 2.00
+  #       - min_profit: 150
+  #         max_profit: null
+  #         bet_amount: 5.00
+
+# ------------------------------------------------------------------
+# PAYTABLES - Payout configurations
+# ------------------------------------------------------------------
+paytables:
+  # Main game paytable
+  main_game:
+    # Type: standard, liberal, tight, custom
+    type: "standard"
+
+    # --- Example: Custom main paytable ---
+    # type: "custom"
+    # custom:
+    #   royal_flush: 1000
+    #   straight_flush: 200
+    #   four_of_a_kind: 50
+    #   full_house: 11
+    #   flush: 8
+    #   straight: 5
+    #   three_of_a_kind: 3
+    #   two_pair: 2
+    #   pair_tens_or_better: 1
+
+  # Bonus paytable
+  bonus:
+    # Type: paytable_a, paytable_b, paytable_c, custom
+    type: "paytable_b"
+
+    # --- Example: Custom bonus paytable ---
+    # type: "custom"
+    # custom:
+    #   mini_royal: 100
+    #   straight_flush: 40
+    #   three_of_a_kind: 30
+    #   straight: 5
+    #   flush: 4
+    #   pair: 1
+
+# ------------------------------------------------------------------
+# OUTPUT - Results and reporting
+# ------------------------------------------------------------------
+output:
+  # Output directory for results
+  directory: "./results"
+
+  # Filename prefix
+  prefix: "simulation"
+
+  # Timestamp format for filenames
+  timestamp_format: "%Y%m%d_%H%M%S"
+
+  # Output formats
+  formats:
+    csv:
+      enabled: true
+      include_hands: false      # Per-hand details (large files)
+      include_sessions: true    # Per-session summaries
+      include_aggregate: true   # Overall statistics
+
+    json:
+      enabled: true
+      pretty: true
+      include_config: true      # Include config in output
+
+    html:
+      enabled: false
+      include_charts: true
+      chart_library: "plotly"   # plotly or matplotlib
+
+  # Visualizations
+  visualizations:
+    enabled: true
+    charts:
+      - type: "session_outcomes_histogram"
+        title: "Distribution of Session Outcomes"
+      - type: "bankroll_trajectory"
+        title: "Sample Bankroll Trajectories"
+        sample_sessions: 100
+      - type: "hand_frequency"
+        title: "Hand Frequency vs. Theoretical"
+    format: "png"               # png, svg, html
+    dpi: 150
+
+  # Console output
+  console:
+    progress_bar: true
+    verbosity: 1                # 0-3
+    show_summary: true
