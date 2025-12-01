@@ -45,6 +45,9 @@ addopts = [
     "--cov-report=html",
     "-v",
 ]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 
 [tool.mypy]
 python_version = "3.10"
