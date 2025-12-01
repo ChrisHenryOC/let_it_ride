@@ -116,6 +116,28 @@ gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments \
 - The position is relative to the diff hunk, NOT the absolute file line number
 - Always verify positions by examining the actual diff output before posting comments
 
+### Responding to PR Review Comments
+
+When making changes in response to a PR review comment (especially those tagged with `@claude`):
+
+1. Make the requested code changes
+2. **Reply to the original comment** explaining what was changed
+3. Commit and push the changes
+
+To reply to an inline comment:
+
+```bash
+# Find the comment ID
+gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments --jq '.[] | {id, body: .body[:50]}'
+
+# Reply to the comment
+gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments/COMMENT_ID/replies \
+  --method POST \
+  -f body="Done. Updated X to do Y. See commit abc123."
+```
+
+Keep replies concise - briefly state what was changed and reference the commit if helpful.
+
 ## Issue Numbering Convention
 
 This project uses **LIR-prefixed identifiers** to distinguish implementation plan items from GitHub issue numbers:
