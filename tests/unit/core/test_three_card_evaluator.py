@@ -95,15 +95,6 @@ class TestEvaluateThreeCardHand:
         with pytest.raises(ValueError, match="Expected 3 cards"):
             evaluate_three_card_hand(four_cards)
 
-    def test_rejects_duplicate_cards(self) -> None:
-        """Should raise ValueError if duplicate cards are provided."""
-        duplicate_cards = [
-            Card(Rank.ACE, Suit.HEARTS),
-            Card(Rank.ACE, Suit.HEARTS),  # duplicate
-            Card(Rank.KING, Suit.HEARTS),
-        ]
-        with pytest.raises(ValueError, match="Duplicate cards"):
-            evaluate_three_card_hand(duplicate_cards)
 
 
 class TestMiniRoyal:

@@ -106,38 +106,52 @@ def evaluate_three_card_hand(cards: Sequence[Card]) -> ThreeCardHandRank:
         ThreeCardHandRank indicating the hand type.
 
     Raises:
-        ValueError: If not exactly 3 cards provided or duplicate cards detected.
+        ValueError: If not exactly 3 cards provided.
     """
     if len(cards) != 3:
         raise ValueError(f"Expected 3 cards, got {len(cards)}")
 
-    # Validate no duplicate cards
-    unique_cards = {(c.rank, c.suit) for c in cards}
-    if len(unique_cards) != 3:
-        raise ValueError("Duplicate cards detected in hand")
+    # Direct unpacking avoids list/dict allocations on this hot path.
+    # This function is called millions of times during simulation, so
+    # avoiding temporary object creation improves throughput significantly.
+    c0, c1, c2 = cards
+    r0, r1, r2 = c0.rank.value, c1.rank.value, c2.rank.value
+    s0, s1, s2 = c0.suit, c1.suit, c2.suit
 
-    # Extract rank values and suits for processing
-    rank_values = [card.rank.value for card in cards]
-    suits = [card.suit for card in cards]
+    # Manual 3-element sort (sorting network) avoids sorted() allocation.
+    # Three comparisons and at most three swaps to sort 3 elements in-place.
+    if r0 > r1:
+        r0, r1 = r1, r0
+    if r1 > r2:
+        r1, r2 = r2, r1
+    if r0 > r1:
+        r0, r1 = r1, r0
+    # Now r0 <= r1 <= r2
 
-    # Build rank frequency
-    rank_counts: dict[int, int] = {}
-    for v in rank_values:
-        rank_counts[v] = rank_counts.get(v, 0) + 1
-
-    unique_ranks = len(rank_counts)
+    # Determine unique rank count directly (avoids dict allocation)
+    if r0 == r1 == r2:
+        unique_ranks = 1
+    elif r0 == r1 or r1 == r2:
+        # After sorting, r0 == r2 implies all equal (already handled above)
+        unique_ranks = 2
+    else:
+        unique_ranks = 3
 
     # Check for flush (all same suit)
-    first_suit = suits[0]
-    is_flush = suits[1] == first_suit and suits[2] == first_suit
+    is_flush = s0 == s1 == s2
 
-    # Check for straight
-    sorted_values = sorted(rank_values)
-    is_straight = unique_ranks == 3 and _is_three_card_straight(sorted_values)
+    # Check for straight (only possible with 3 unique ranks)
+    # Wheel (A-2-3): sorted values are [2, 3, 14]
+    # Regular consecutive: r2 - r0 == 2 and r1 - r0 == 1
+    is_straight = unique_ranks == 3 and (
+        (r0 == 2 and r1 == 3 and r2 == 14)  # Wheel
+        or (r2 - r0 == 2 and r1 - r0 == 1)  # Consecutive
+    )
 
     # Determine hand rank
     if is_flush and is_straight:
-        if _is_mini_royal(sorted_values):
+        # Mini Royal: Q-K-A suited (12, 13, 14)
+        if r0 == 12 and r1 == 13 and r2 == 14:
             return ThreeCardHandRank.MINI_ROYAL
         return ThreeCardHandRank.STRAIGHT_FLUSH
 
