@@ -4,6 +4,10 @@
 
 This document outlines a phased implementation plan for the Let It Ride Strategy Simulator. The plan is structured as GitHub issues sized appropriately for Claude Code execution—each issue is scoped to be completable in a single focused session (typically 30-90 minutes of agent work).
 
+## Issue Numbering Convention
+
+Implementation items use **LIR-prefixed identifiers** (e.g., LIR-1, LIR-4) to distinguish them from GitHub's auto-assigned issue numbers. GitHub issue titles follow the format `LIR-N: Title`.
+
 ## Issue Sizing Philosophy
 
 **Optimal Issue Characteristics for Claude Code:**
@@ -41,9 +45,9 @@ let-it-ride-simulator/
 
 ---
 
-## Phase 1: Foundation (Issues 1-8)
+## Phase 1: Foundation (LIR-1 through LIR-8)
 
-### Issue #1: Project Scaffolding and Development Environment
+### LIR-1: Project Scaffolding and Development Environment
 
 **Labels:** `foundation`, `priority-critical`, `setup`
 
@@ -76,7 +80,7 @@ Set up the Python project structure with Poetry, configure development tooling (
 
 ---
 
-### Issue #2: Card and Deck Implementation
+### LIR-2: Card and Deck Implementation
 
 **Labels:** `foundation`, `priority-critical`, `game-engine`
 
@@ -90,7 +94,7 @@ Implement the fundamental card representation and single-deck management with Fi
 - [ ] Comprehensive unit tests for card creation and deck operations
 - [ ] Shuffling produces statistically uniform distribution (test with chi-square)
 
-**Dependencies:** Issue #1
+**Dependencies:** LIR-1
 
 **Files to Create:**
 - `src/let_it_ride/core/card.py`
@@ -117,7 +121,7 @@ class Deck:
 
 ---
 
-### ~~Issue #3: Multi-Deck Shoe Implementation~~ [CANCELLED]
+### ~~LIR-3: Multi-Deck Shoe Implementation~~ [CANCELLED]
 
 **Status:** CANCELLED - Not needed. Each hand uses a freshly shuffled single deck.
 
@@ -129,7 +133,7 @@ After analysis, multi-deck shoes are not a realistic scenario for Let It Ride si
 
 ---
 
-### Issue #4: Five-Card Hand Evaluation
+### LIR-4: Five-Card Hand Evaluation
 
 **Labels:** `foundation`, `priority-critical`, `game-engine`
 
@@ -143,7 +147,7 @@ Implement accurate 5-card poker hand evaluation for the main game payouts.
 - [ ] Unit tests covering all 10 hand ranks with multiple examples
 - [ ] Performance: evaluate 100,000 hands in under 1 second
 
-**Dependencies:** Issue #2
+**Dependencies:** LIR-2
 
 **Files to Create:**
 - `src/let_it_ride/core/hand_evaluator.py`
@@ -178,7 +182,7 @@ def evaluate_five_card_hand(cards: Sequence[Card]) -> HandResult
 
 ---
 
-### Issue #5: Three-Card Hand Evaluation (Bonus Bet)
+### LIR-5: Three-Card Hand Evaluation (Bonus Bet)
 
 **Labels:** `foundation`, `priority-high`, `game-engine`
 
@@ -192,7 +196,7 @@ Implement 3-card poker hand evaluation for the Three Card Bonus side bet.
 - [ ] Unit tests covering all 7 hand types
 - [ ] Validation against known probabilities (22,100 total combinations)
 
-**Dependencies:** Issue #2
+**Dependencies:** LIR-2
 
 **Files to Create:**
 - `src/let_it_ride/core/three_card_evaluator.py`
@@ -216,7 +220,7 @@ def evaluate_three_card_hand(cards: Sequence[Card]) -> ThreeCardHandRank
 
 ---
 
-### Issue #6: Paytable Configuration System
+### LIR-6: Paytable Configuration System
 
 **Labels:** `foundation`, `priority-high`, `config`
 
@@ -230,7 +234,7 @@ Implement configurable paytables for both main game and bonus bet with payout ca
 - [ ] Paytable validation (all ranks covered, positive payouts)
 - [ ] Unit tests for payout calculations across all paytables
 
-**Dependencies:** Issues #4, #5
+**Dependencies:** LIR-4, LIR-5
 
 **Files to Create:**
 - `src/let_it_ride/config/paytables.py`
@@ -255,7 +259,7 @@ class BonusPaytable:
 
 ---
 
-### Issue #7: Hand Analysis Utilities
+### LIR-7: Hand Analysis Utilities
 
 **Labels:** `foundation`, `priority-high`, `strategy`
 
@@ -270,7 +274,7 @@ Implement hand analysis functions that identify draws, potential, and characteri
 - [ ] High card counting, gap analysis for straight draws
 - [ ] Unit tests for all draw detection scenarios
 
-**Dependencies:** Issue #2
+**Dependencies:** LIR-2
 
 **Files to Create:**
 - `src/let_it_ride/core/hand_analysis.py`
@@ -304,7 +308,7 @@ def analyze_four_cards(cards: Sequence[Card]) -> HandAnalysis
 
 ---
 
-### Issue #8: YAML Configuration Schema and Loader
+### LIR-8: YAML Configuration Schema and Loader
 
 **Labels:** `foundation`, `priority-high`, `config`
 
@@ -319,7 +323,7 @@ Implement YAML configuration loading with validation using Pydantic models.
 - [ ] Unit tests for valid and invalid configurations
 - [ ] Sample configuration file
 
-**Dependencies:** Issue #1
+**Dependencies:** LIR-1
 
 **Files to Create:**
 - `src/let_it_ride/config/models.py`
@@ -345,9 +349,9 @@ class DeckConfig(BaseModel):
 
 ---
 
-## Phase 2: Game Logic (Issues 9-14)
+## Phase 2: Game Logic (LIR-9 through LIR-14)
 
-### Issue #9: Let It Ride Hand State Machine
+### LIR-9: Let It Ride Hand State Machine
 
 **Labels:** `game-logic`, `priority-critical`
 
@@ -360,7 +364,7 @@ Implement the core hand state machine that tracks a single hand through all deci
 - [ ] Bet tracking (which bets are still in play)
 - [ ] Unit tests for all state transitions
 
-**Dependencies:** Issues #2, #4, #5
+**Dependencies:** LIR-2, LIR-4, LIR-5
 
 **Files to Create:**
 - `src/let_it_ride/core/hand_state.py`
@@ -370,7 +374,7 @@ Implement the core hand state machine that tracks a single hand through all deci
 
 ---
 
-### Issue #10: Basic Strategy Implementation
+### LIR-10: Basic Strategy Implementation
 
 **Labels:** `game-logic`, `priority-critical`, `strategy`
 
@@ -384,7 +388,7 @@ Implement the mathematically optimal basic strategy for pull/ride decisions.
 - [ ] Unit tests validating against known optimal decisions
 - [ ] 100% accuracy against strategy chart test cases
 
-**Dependencies:** Issue #7
+**Dependencies:** LIR-7
 
 **Files to Create:**
 - `src/let_it_ride/strategy/basic.py`
@@ -406,7 +410,7 @@ class BasicStrategy(Strategy):
 
 ---
 
-### Issue #11: Baseline Strategies (Always Ride / Always Pull)
+### LIR-11: Baseline Strategies (Always Ride / Always Pull)
 
 **Labels:** `game-logic`, `priority-high`, `strategy`
 
@@ -419,7 +423,7 @@ Implement the baseline comparison strategies for variance analysis.
 - [ ] Unit tests confirming correct behavior
 - [ ] Both implement the `Strategy` protocol
 
-**Dependencies:** Issue #10
+**Dependencies:** LIR-10
 
 **Files to Create:**
 - `src/let_it_ride/strategy/baseline.py`
@@ -429,7 +433,7 @@ Implement the baseline comparison strategies for variance analysis.
 
 ---
 
-### Issue #12: Custom Strategy Configuration Parser
+### LIR-12: Custom Strategy Configuration Parser
 
 **Labels:** `game-logic`, `priority-medium`, `strategy`
 
@@ -443,7 +447,7 @@ Implement custom strategy rule parsing from YAML configuration.
 - [ ] Support for conservative and aggressive presets
 - [ ] Unit tests for rule parsing and evaluation
 
-**Dependencies:** Issues #7, #8
+**Dependencies:** LIR-7, LIR-8
 
 **Files to Create:**
 - `src/let_it_ride/strategy/custom.py`
@@ -454,7 +458,7 @@ Implement custom strategy rule parsing from YAML configuration.
 
 ---
 
-### Issue #13: Game Engine Orchestration
+### LIR-13: Game Engine Orchestration
 
 **Labels:** `game-logic`, `priority-critical`
 
@@ -468,7 +472,7 @@ Implement the main game engine that orchestrates dealing, decisions, and payout 
 - [ ] Support for both main game and bonus bet
 - [ ] Integration tests for complete hand flow
 
-**Dependencies:** Issues #2, #6, #9, #10
+**Dependencies:** LIR-2, LIR-6, LIR-9, LIR-10
 
 **Files to Create:**
 - `src/let_it_ride/core/game_engine.py`
@@ -501,7 +505,7 @@ class GameEngine:
 
 ---
 
-### Issue #14: Bonus Betting Strategies
+### LIR-14: Bonus Betting Strategies
 
 **Labels:** `game-logic`, `priority-high`, `strategy`
 
@@ -515,7 +519,7 @@ Implement the various bonus betting strategies (never, always, static, condition
 - [ ] Configuration parsing for all bonus strategy types
 - [ ] Unit tests for each strategy type
 
-**Dependencies:** Issue #8
+**Dependencies:** LIR-8
 
 **Files to Create:**
 - `src/let_it_ride/strategy/bonus.py`
@@ -541,9 +545,9 @@ class BonusContext:
 
 ---
 
-## Phase 3: Bankroll and Session Management (Issues 15-19)
+## Phase 3: Bankroll and Session Management (LIR-15 through LIR-19)
 
-### Issue #15: Bankroll Tracker
+### LIR-15: Bankroll Tracker
 
 **Labels:** `bankroll`, `priority-critical`
 
@@ -558,7 +562,7 @@ Implement bankroll tracking with high water mark and drawdown calculation.
 - [ ] Balance history for visualization
 - [ ] Unit tests for all tracking scenarios
 
-**Dependencies:** Issue #1
+**Dependencies:** LIR-1
 
 **Files to Create:**
 - `src/let_it_ride/bankroll/tracker.py`
@@ -583,7 +587,7 @@ class BankrollTracker:
 
 ---
 
-### Issue #16: Flat Betting System
+### LIR-16: Flat Betting System
 
 **Labels:** `bankroll`, `priority-critical`
 
@@ -596,7 +600,7 @@ Implement the flat (constant) betting system as the baseline.
 - [ ] Validation that bet doesn't exceed bankroll
 - [ ] Unit tests
 
-**Dependencies:** Issue #15
+**Dependencies:** LIR-15
 
 **Files to Create:**
 - `src/let_it_ride/bankroll/betting_systems.py`
@@ -606,7 +610,7 @@ Implement the flat (constant) betting system as the baseline.
 
 ---
 
-### Issue #17: Progressive Betting Systems
+### LIR-17: Progressive Betting Systems
 
 **Labels:** `bankroll`, `priority-medium`
 
@@ -621,7 +625,7 @@ Implement progressive betting systems (Martingale, Paroli, D'Alembert, Fibonacci
 - [ ] All systems respect min/max bet limits
 - [ ] Unit tests for each system's progression logic
 
-**Dependencies:** Issue #16
+**Dependencies:** LIR-16
 
 **Files to Modify:**
 - `src/let_it_ride/bankroll/betting_systems.py`
@@ -631,7 +635,7 @@ Implement progressive betting systems (Martingale, Paroli, D'Alembert, Fibonacci
 
 ---
 
-### Issue #18: Session State Management
+### LIR-18: Session State Management
 
 **Labels:** `session`, `priority-critical`
 
@@ -645,7 +649,7 @@ Implement session lifecycle management with stop conditions.
 - [ ] Session outcome determination (win/loss/push)
 - [ ] Unit tests for all stop conditions
 
-**Dependencies:** Issues #13, #15
+**Dependencies:** LIR-13, LIR-15
 
 **Files to Create:**
 - `src/let_it_ride/simulation/session.py`
@@ -674,7 +678,7 @@ class Session:
 
 ---
 
-### Issue #19: Session Result Data Structures
+### LIR-19: Session Result Data Structures
 
 **Labels:** `session`, `priority-high`
 
@@ -688,7 +692,7 @@ Define comprehensive data structures for session results and hand records.
 - [ ] Hand distribution counting
 - [ ] Unit tests for data structure completeness
 
-**Dependencies:** Issue #13
+**Dependencies:** LIR-13
 
 **Files to Create:**
 - `src/let_it_ride/simulation/results.py`
@@ -698,9 +702,9 @@ Define comprehensive data structures for session results and hand records.
 
 ---
 
-## Phase 4: Simulation Infrastructure (Issues 20-24)
+## Phase 4: Simulation Infrastructure (LIR-20 through LIR-24)
 
-### Issue #20: Simulation Controller (Sequential)
+### LIR-20: Simulation Controller (Sequential)
 
 **Labels:** `simulation`, `priority-critical`
 
@@ -714,7 +718,7 @@ Implement the main simulation controller for running multiple sessions sequentia
 - [ ] Support for seeded RNG (reproducibility)
 - [ ] Integration tests for multi-session runs
 
-**Dependencies:** Issue #18
+**Dependencies:** LIR-18
 
 **Files to Create:**
 - `src/let_it_ride/simulation/controller.py`
@@ -731,7 +735,7 @@ class SimulationController:
 
 ---
 
-### Issue #21: Parallel Session Execution
+### LIR-21: Parallel Session Execution
 
 **Labels:** `simulation`, `priority-high`
 
@@ -745,7 +749,7 @@ Add parallel execution support using multiprocessing.
 - [ ] Proper RNG seeding per worker (avoid correlation)
 - [ ] Integration tests for parallel correctness
 
-**Dependencies:** Issue #20
+**Dependencies:** LIR-20
 
 **Files to Modify:**
 - `src/let_it_ride/simulation/controller.py`
@@ -758,7 +762,7 @@ Add parallel execution support using multiprocessing.
 
 ---
 
-### Issue #22: Simulation Results Aggregation
+### LIR-22: Simulation Results Aggregation
 
 **Labels:** `simulation`, `priority-critical`
 
@@ -773,7 +777,7 @@ Implement aggregation of results across all sessions into summary statistics.
 - [ ] Merge results from parallel workers
 - [ ] Unit tests for statistical calculations
 
-**Dependencies:** Issue #19
+**Dependencies:** LIR-19
 
 **Files to Create:**
 - `src/let_it_ride/simulation/aggregation.py`
@@ -783,7 +787,7 @@ Implement aggregation of results across all sessions into summary statistics.
 
 ---
 
-### Issue #23: Statistical Validation Module
+### LIR-23: Statistical Validation Module
 
 **Labels:** `simulation`, `priority-high`, `analytics`
 
@@ -797,7 +801,7 @@ Implement validation that simulation results match theoretical probabilities.
 - [ ] Validation report generation
 - [ ] Unit tests with known distributions
 
-**Dependencies:** Issue #22
+**Dependencies:** LIR-22
 
 **Files to Create:**
 - `src/let_it_ride/analytics/validation.py`
@@ -807,7 +811,7 @@ Implement validation that simulation results match theoretical probabilities.
 
 ---
 
-### Issue #24: RNG Quality and Seeding
+### LIR-24: RNG Quality and Seeding
 
 **Labels:** `simulation`, `priority-medium`
 
@@ -821,7 +825,7 @@ Implement proper RNG management for reproducibility and statistical quality.
 - [ ] Basic randomness quality tests
 - [ ] Unit tests for reproducibility
 
-**Dependencies:** Issue #1
+**Dependencies:** LIR-1
 
 **Files to Create:**
 - `src/let_it_ride/simulation/rng.py`
@@ -831,9 +835,9 @@ Implement proper RNG management for reproducibility and statistical quality.
 
 ---
 
-## Phase 5: Analytics and Reporting (Issues 25-30)
+## Phase 5: Analytics and Reporting (LIR-25 through LIR-30)
 
-### Issue #25: Core Statistics Calculator
+### LIR-25: Core Statistics Calculator
 
 **Labels:** `analytics`, `priority-critical`
 
@@ -848,7 +852,7 @@ Implement calculation of all primary statistics from simulation results.
 - [ ] Percentile calculations
 - [ ] Unit tests with known data sets
 
-**Dependencies:** Issue #22
+**Dependencies:** LIR-22
 
 **Files to Create:**
 - `src/let_it_ride/analytics/statistics.py`
@@ -858,7 +862,7 @@ Implement calculation of all primary statistics from simulation results.
 
 ---
 
-### Issue #26: Strategy Comparison Analytics
+### LIR-26: Strategy Comparison Analytics
 
 **Labels:** `analytics`, `priority-high`
 
@@ -872,7 +876,7 @@ Implement statistical comparison between different strategies.
 - [ ] Comparison report generation
 - [ ] Unit tests for comparison logic
 
-**Dependencies:** Issue #25
+**Dependencies:** LIR-25
 
 **Files to Create:**
 - `src/let_it_ride/analytics/comparison.py`
@@ -882,7 +886,7 @@ Implement statistical comparison between different strategies.
 
 ---
 
-### Issue #27: CSV Export
+### LIR-27: CSV Export
 
 **Labels:** `reporting`, `priority-critical`
 
@@ -896,7 +900,7 @@ Implement CSV export for session summaries and aggregate statistics.
 - [ ] Configurable field selection
 - [ ] Integration tests for file output
 
-**Dependencies:** Issue #22
+**Dependencies:** LIR-22
 
 **Files to Create:**
 - `src/let_it_ride/analytics/export_csv.py`
@@ -906,7 +910,7 @@ Implement CSV export for session summaries and aggregate statistics.
 
 ---
 
-### Issue #28: JSON Export
+### LIR-28: JSON Export
 
 **Labels:** `reporting`, `priority-high`
 
@@ -920,7 +924,7 @@ Implement JSON export with full configuration preservation.
 - [ ] Schema documentation
 - [ ] Integration tests
 
-**Dependencies:** Issue #22
+**Dependencies:** LIR-22
 
 **Files to Create:**
 - `src/let_it_ride/analytics/export_json.py`
@@ -930,7 +934,7 @@ Implement JSON export with full configuration preservation.
 
 ---
 
-### Issue #29: Visualization - Session Outcome Histogram
+### LIR-29: Visualization - Session Outcome Histogram
 
 **Labels:** `visualization`, `priority-medium`
 
@@ -945,7 +949,7 @@ Implement histogram visualization of session outcomes using matplotlib.
 - [ ] PNG and SVG export
 - [ ] Integration test generating sample chart
 
-**Dependencies:** Issue #22
+**Dependencies:** LIR-22
 
 **Files to Create:**
 - `src/let_it_ride/analytics/visualizations/histogram.py`
@@ -955,7 +959,7 @@ Implement histogram visualization of session outcomes using matplotlib.
 
 ---
 
-### Issue #30: Visualization - Bankroll Trajectory
+### LIR-30: Visualization - Bankroll Trajectory
 
 **Labels:** `visualization`, `priority-medium`
 
@@ -969,7 +973,7 @@ Implement bankroll trajectory line charts for sample sessions.
 - [ ] Configurable session sampling
 - [ ] PNG and SVG export
 
-**Dependencies:** Issue #29
+**Dependencies:** LIR-29
 
 **Files to Create:**
 - `src/let_it_ride/analytics/visualizations/trajectory.py`
@@ -978,9 +982,9 @@ Implement bankroll trajectory line charts for sample sessions.
 
 ---
 
-## Phase 6: CLI and Integration (Issues 31-35)
+## Phase 6: CLI and Integration (LIR-31 through LIR-35)
 
-### Issue #31: CLI Entry Point
+### LIR-31: CLI Entry Point
 
 **Labels:** `cli`, `priority-critical`
 
@@ -995,7 +999,7 @@ Implement the main CLI using Click or Typer.
 - [ ] Verbosity control
 - [ ] Integration tests for CLI
 
-**Dependencies:** Issues #8, #20
+**Dependencies:** LIR-8, LIR-20
 
 **Files to Create:**
 - `src/let_it_ride/cli.py`
@@ -1005,7 +1009,7 @@ Implement the main CLI using Click or Typer.
 
 ---
 
-### Issue #32: Console Output Formatting
+### LIR-32: Console Output Formatting
 
 **Labels:** `cli`, `priority-high`
 
@@ -1019,7 +1023,7 @@ Implement formatted console output for results summary.
 - [ ] Colorized win/loss indicators
 - [ ] Unit tests for formatters
 
-**Dependencies:** Issue #31
+**Dependencies:** LIR-31
 
 **Files to Create:**
 - `src/let_it_ride/cli/formatters.py`
@@ -1029,7 +1033,7 @@ Implement formatted console output for results summary.
 
 ---
 
-### Issue #33: Sample Configuration Files
+### LIR-33: Sample Configuration Files
 
 **Labels:** `documentation`, `priority-high`
 
@@ -1043,7 +1047,7 @@ Create comprehensive sample configuration files demonstrating all features.
 - [ ] Bonus betting comparison config
 - [ ] Each config documented with comments
 
-**Dependencies:** Issue #8
+**Dependencies:** LIR-8
 
 **Files to Create:**
 - `configs/basic_strategy.yaml`
@@ -1055,7 +1059,7 @@ Create comprehensive sample configuration files demonstrating all features.
 
 ---
 
-### Issue #34: End-to-End Integration Test
+### LIR-34: End-to-End Integration Test
 
 **Labels:** `testing`, `priority-critical`
 
@@ -1079,7 +1083,7 @@ Implement comprehensive end-to-end tests validating the complete simulation pipe
 
 ---
 
-### Issue #35: Performance Optimization and Benchmarking
+### LIR-35: Performance Optimization and Benchmarking
 
 **Labels:** `performance`, `priority-medium`
 
@@ -1093,7 +1097,7 @@ Profile and optimize to meet performance targets (100k hands/second).
 - [ ] Memory usage validation (<4GB for 10M hands)
 - [ ] Performance regression tests
 
-**Dependencies:** Issue #34
+**Dependencies:** LIR-34
 
 **Files to Create:**
 - `benchmarks/benchmark_throughput.py`
@@ -1103,9 +1107,9 @@ Profile and optimize to meet performance targets (100k hands/second).
 
 ---
 
-## Phase 7: Advanced Features (Issues 36-40)
+## Phase 7: Advanced Features (LIR-36 through LIR-40)
 
-### ~~Issue #36: Composition-Dependent Strategy~~ [CANCELLED]
+### ~~LIR-36: Composition-Dependent Strategy~~ [CANCELLED]
 
 **Status:** CANCELLED - Not applicable without multi-deck shoes.
 
@@ -1113,11 +1117,11 @@ Profile and optimize to meet performance targets (100k hands/second).
 Implement strategy that adjusts based on remaining shoe composition.
 
 **Cancellation Reason:**
-This feature was dependent on multi-deck shoe support (Issue #3). Since each hand uses a freshly shuffled single deck, composition-dependent strategies are not applicable.
+This feature was dependent on multi-deck shoe support (LIR-3). Since each hand uses a freshly shuffled single deck, composition-dependent strategies are not applicable.
 
 ---
 
-### Issue #37: Streak-Based Bonus Strategy
+### LIR-37: Streak-Based Bonus Strategy
 
 **Labels:** `advanced`, `priority-low`, `strategy`
 
@@ -1130,7 +1134,7 @@ Implement bonus betting that adjusts based on win/loss streaks.
 - [ ] Multiplier and reset logic
 - [ ] Unit tests for streak scenarios
 
-**Dependencies:** Issue #14
+**Dependencies:** LIR-14
 
 **Files to Modify:**
 - `src/let_it_ride/strategy/bonus.py`
@@ -1140,7 +1144,7 @@ Implement bonus betting that adjusts based on win/loss streaks.
 
 ---
 
-### Issue #38: Risk of Ruin Calculator
+### LIR-38: Risk of Ruin Calculator
 
 **Labels:** `analytics`, `priority-low`
 
@@ -1153,7 +1157,7 @@ Implement risk of ruin calculation for various bankroll levels.
 - [ ] Risk curves for different bankroll multiples
 - [ ] Visualization of risk curves
 
-**Dependencies:** Issue #25
+**Dependencies:** LIR-25
 
 **Files to Create:**
 - `src/let_it_ride/analytics/risk_of_ruin.py`
@@ -1163,7 +1167,7 @@ Implement risk of ruin calculation for various bankroll levels.
 
 ---
 
-### Issue #39: HTML Report Generation
+### LIR-39: HTML Report Generation
 
 **Labels:** `reporting`, `priority-low`
 
@@ -1177,7 +1181,7 @@ Implement HTML report generation with embedded visualizations.
 - [ ] Statistics tables
 - [ ] Template-based generation (Jinja2)
 
-**Dependencies:** Issues #29, #30
+**Dependencies:** LIR-29, LIR-30
 
 **Files to Create:**
 - `src/let_it_ride/analytics/export_html.py`
@@ -1188,7 +1192,7 @@ Implement HTML report generation with embedded visualizations.
 
 ---
 
-### Issue #40: Documentation and User Guide
+### LIR-40: Documentation and User Guide
 
 **Labels:** `documentation`, `priority-medium`
 
@@ -1227,7 +1231,7 @@ Create comprehensive documentation for installation, usage, and strategy referen
 3. **Batch Creation Script**: Use the GitHub CLI (`gh`) to batch-create issues:
 
 ```bash
-# Example: Create Issue #1
+# Example: Create LIR-1
 gh issue create \
   --title "Project Scaffolding and Development Environment" \
   --body "$(cat issues/issue-01.md)" \
@@ -1276,58 +1280,58 @@ Blocked by: #X, #Y
 
 ```
 Phase 1: Foundation
-#1 ─┬─► #2
-    ├─► #4 ─► #6
-    ├─► #5 ─► #6
-    ├─► #7
-    └─► #8
+LIR-1 ─┬─► LIR-2
+       ├─► LIR-4 ─► LIR-6
+       ├─► LIR-5 ─► LIR-6
+       ├─► LIR-7
+       └─► LIR-8
 
-Note: #3 (Multi-Deck Shoe) is CANCELLED
+Note: LIR-3 (Multi-Deck Shoe) is CANCELLED
 
 Phase 2: Game Logic
-#2,#4,#5 ─► #9
-#7 ─► #10 ─► #11
-#7,#8 ─► #12
-#2,#6,#9,#10 ─► #13
-#8 ─► #14
+LIR-2,LIR-4,LIR-5 ─► LIR-9
+LIR-7 ─► LIR-10 ─► LIR-11
+LIR-7,LIR-8 ─► LIR-12
+LIR-2,LIR-6,LIR-9,LIR-10 ─► LIR-13
+LIR-8 ─► LIR-14
 
 Phase 3: Bankroll/Session
-#1 ─► #15 ─► #16 ─► #17
-#13,#15 ─► #18
-#13 ─► #19
+LIR-1 ─► LIR-15 ─► LIR-16 ─► LIR-17
+LIR-13,LIR-15 ─► LIR-18
+LIR-13 ─► LIR-19
 
 Phase 4: Simulation
-#18 ─► #20 ─► #21
-#19 ─► #22 ─► #23
-#1 ─► #24
+LIR-18 ─► LIR-20 ─► LIR-21
+LIR-19 ─► LIR-22 ─► LIR-23
+LIR-1 ─► LIR-24
 
 Phase 5: Analytics
-#22 ─► #25 ─► #26
-#22 ─► #27, #28
-#22 ─► #29 ─► #30
+LIR-22 ─► LIR-25 ─► LIR-26
+LIR-22 ─► LIR-27, LIR-28
+LIR-22 ─► LIR-29 ─► LIR-30
 
 Phase 6: CLI
-#8,#20 ─► #31 ─► #32
-#8 ─► #33
-All ─► #34 ─► #35
+LIR-8,LIR-20 ─► LIR-31 ─► LIR-32
+LIR-8 ─► LIR-33
+All ─► LIR-34 ─► LIR-35
 
 Phase 7: Advanced
-#36 is CANCELLED (was dependent on #3)
-#14 ─► #37
-#25 ─► #38
-#29,#30 ─► #39
-All ─► #40
+LIR-36 is CANCELLED (was dependent on LIR-3)
+LIR-14 ─► LIR-37
+LIR-25 ─► LIR-38
+LIR-29,LIR-30 ─► LIR-39
+All ─► LIR-40
 ```
 
 ---
 
 ## Execution Recommendations
 
-1. **Start with Phase 1 in Order**: Issues #1-#8 establish the foundation. Complete #1 first, then #2 can begin immediately.
+1. **Start with Phase 1 in Order**: LIR-1 through LIR-8 establish the foundation. Complete LIR-1 first, then LIR-2 can begin immediately.
 
 2. **Parallel Tracks After Foundation**: Once Phase 1 is complete, Phases 2-4 can progress in parallel on separate branches.
 
-3. **Integration Points**: Issues #13 (Game Engine) and #20 (Simulation Controller) are critical integration points—allocate extra review time.
+3. **Integration Points**: LIR-13 (Game Engine) and LIR-20 (Simulation Controller) are critical integration points—allocate extra review time.
 
 4. **Testing Cadence**: Run the full test suite after completing each phase before merging to main.
 
@@ -1337,19 +1341,19 @@ All ─► #40
 
 ## Summary
 
-| Phase | Issues | Focus | Est. Total Lines |
-|-------|--------|-------|------------------|
-| 1 | #1-2, #4-8 | Foundation (Note: #3 cancelled) | ~1,650 |
-| 2 | #9-14 | Game Logic | ~1,500 |
-| 3 | #15-19 | Bankroll/Session | ~950 |
-| 4 | #20-24 | Simulation | ~1,050 |
-| 5 | #25-30 | Analytics | ~1,050 |
-| 6 | #31-35 | CLI/Integration | ~1,150 |
-| 7 | #37-40 | Advanced (Note: #36 cancelled) | ~1,200 |
+| Phase | Items | Focus | Est. Total Lines |
+|-------|-------|-------|------------------|
+| 1 | LIR-1, LIR-2, LIR-4 through LIR-8 | Foundation (Note: LIR-3 cancelled) | ~1,650 |
+| 2 | LIR-9 through LIR-14 | Game Logic | ~1,500 |
+| 3 | LIR-15 through LIR-19 | Bankroll/Session | ~950 |
+| 4 | LIR-20 through LIR-24 | Simulation | ~1,050 |
+| 5 | LIR-25 through LIR-30 | Analytics | ~1,050 |
+| 6 | LIR-31 through LIR-35 | CLI/Integration | ~1,150 |
+| 7 | LIR-37 through LIR-40 | Advanced (Note: LIR-36 cancelled) | ~1,200 |
 | **Total** | **38** | | **~8,550** |
 
 This plan provides 38 well-scoped issues that Claude Code can execute against, with clear acceptance criteria and dependency tracking for efficient parallel development.
 
-**Cancelled Issues:**
-- Issue #3 (Multi-Deck Shoe Implementation) - Not needed; each hand uses freshly shuffled single deck
-- Issue #36 (Composition-Dependent Strategy) - Dependent on #3, not applicable
+**Cancelled Items:**
+- LIR-3 (Multi-Deck Shoe Implementation) - Not needed; each hand uses freshly shuffled single deck
+- LIR-36 (Composition-Dependent Strategy) - Dependent on LIR-3, not applicable
