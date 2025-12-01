@@ -115,6 +115,13 @@ class ProportionalBettingConfig(BaseModel):
     max_bet: Annotated[float, Field(gt=0)] = 100.0
     round_to: Annotated[float, Field(gt=0)] = 1.0
 
+    @model_validator(mode="after")
+    def validate_bet_limits(self) -> ProportionalBettingConfig:
+        """Validate that min_bet does not exceed max_bet."""
+        if self.min_bet > self.max_bet:
+            raise ValueError("min_bet cannot exceed max_bet")
+        return self
+
 
 class MartingaleBettingConfig(BaseModel):
     """Configuration for Martingale betting system.
@@ -193,6 +200,13 @@ class DAlembertBettingConfig(BaseModel):
     min_bet: Annotated[float, Field(gt=0)] = 5.0
     max_bet: Annotated[float, Field(gt=0)] = 500.0
 
+    @model_validator(mode="after")
+    def validate_bet_limits(self) -> DAlembertBettingConfig:
+        """Validate that min_bet does not exceed max_bet."""
+        if self.min_bet > self.max_bet:
+            raise ValueError("min_bet cannot exceed max_bet")
+        return self
+
 
 class FibonacciBettingConfig(BaseModel):
     """Configuration for Fibonacci betting system.
@@ -233,6 +247,13 @@ class CustomBettingConfig(BaseModel):
     min_bet: Annotated[float, Field(gt=0)] = 5.0
     max_bet: Annotated[float, Field(gt=0)] = 500.0
 
+    @model_validator(mode="after")
+    def validate_bet_limits(self) -> CustomBettingConfig:
+        """Validate that min_bet does not exceed max_bet."""
+        if self.min_bet > self.max_bet:
+            raise ValueError("min_bet cannot exceed max_bet")
+        return self
+
 
 class BettingSystemConfig(BaseModel):
     """Configuration for betting progression system.
@@ -268,6 +289,24 @@ class BettingSystemConfig(BaseModel):
     dalembert: DAlembertBettingConfig | None = None
     fibonacci: FibonacciBettingConfig | None = None
     custom: CustomBettingConfig | None = None
+
+    @model_validator(mode="after")
+    def validate_type_config_match(self) -> BettingSystemConfig:
+        """Validate that required config is provided for non-flat betting types."""
+        type_to_config = {
+            "proportional": self.proportional,
+            "martingale": self.martingale,
+            "reverse_martingale": self.reverse_martingale,
+            "paroli": self.paroli,
+            "dalembert": self.dalembert,
+            "fibonacci": self.fibonacci,
+            "custom": self.custom,
+        }
+        if self.type in type_to_config and type_to_config[self.type] is None:
+            raise ValueError(
+                f"'{self.type}' betting system requires '{self.type}' config"
+            )
+        return self
 
 
 class BankrollConfig(BaseModel):
@@ -403,6 +442,13 @@ class BonusLimitsConfig(BaseModel):
     max_bet: Annotated[float, Field(gt=0)] = 25.0
     increment: Annotated[float, Field(gt=0)] = 1.0
 
+    @model_validator(mode="after")
+    def validate_bet_limits(self) -> BonusLimitsConfig:
+        """Validate that min_bet does not exceed max_bet."""
+        if self.min_bet > self.max_bet:
+            raise ValueError("min_bet cannot exceed max_bet")
+        return self
+
 
 class AlwaysBonusConfig(BaseModel):
     """Configuration for always bonus betting.
@@ -453,6 +499,13 @@ class ProfitTier(BaseModel):
     min_profit: float = 0
     max_profit: float | None = None
     bet_amount: Annotated[float, Field(ge=0)] = 1.0
+
+    @model_validator(mode="after")
+    def validate_tier_range(self) -> ProfitTier:
+        """Validate that min_profit is less than max_profit when max_profit is set."""
+        if self.max_profit is not None and self.min_profit >= self.max_profit:
+            raise ValueError("min_profit must be less than max_profit")
+        return self
 
 
 class ScalingConfig(BaseModel):
@@ -688,6 +741,13 @@ class CustomBonusStrategyConfig(BaseModel):
     expression: str = "1.0 if session_profit > 0 else 0.0"
     min_bet: Annotated[float, Field(ge=0)] = 0.0
     max_bet: Annotated[float, Field(gt=0)] = 25.0
+
+    @model_validator(mode="after")
+    def validate_bet_limits(self) -> CustomBonusStrategyConfig:
+        """Validate that min_bet does not exceed max_bet."""
+        if self.min_bet > self.max_bet:
+            raise ValueError("min_bet cannot exceed max_bet")
+        return self
 
 
 class BonusStrategyConfig(BaseModel):

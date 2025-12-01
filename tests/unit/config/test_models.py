@@ -12,12 +12,16 @@ from let_it_ride.config.models import (
     BonusLimitsConfig,
     BonusStrategyConfig,
     ConservativeStrategyConfig,
+    CustomBettingConfig,
+    CustomBonusStrategyConfig,
+    DAlembertBettingConfig,
     DeckConfig,
     FullConfig,
     MartingaleBettingConfig,
     MetadataConfig,
     OutputConfig,
     PaytablesConfig,
+    ProfitTier,
     ProportionalBettingConfig,
     SimulationConfig,
     StaticBonusConfig,
@@ -608,3 +612,167 @@ class TestFullConfig:
         assert config.bankroll.stop_conditions.win_limit == 250.0
         assert config.bonus_strategy.enabled is True
         assert config.output.prefix == "test"
+
+
+class TestMinMaxBetValidation:
+    """Tests for min_bet/max_bet cross-field validation."""
+
+    def test_proportional_betting_min_bet_exceeds_max_bet(self) -> None:
+        """Test ProportionalBettingConfig rejects min_bet > max_bet."""
+        with pytest.raises(ValidationError) as exc_info:
+            ProportionalBettingConfig(min_bet=100.0, max_bet=50.0)
+        assert "min_bet cannot exceed max_bet" in str(exc_info.value)
+
+    def test_proportional_betting_valid_min_max(self) -> None:
+        """Test ProportionalBettingConfig accepts valid min_bet <= max_bet."""
+        config = ProportionalBettingConfig(min_bet=10.0, max_bet=100.0)
+        assert config.min_bet == 10.0
+        assert config.max_bet == 100.0
+
+    def test_proportional_betting_equal_min_max(self) -> None:
+        """Test ProportionalBettingConfig accepts min_bet == max_bet."""
+        config = ProportionalBettingConfig(min_bet=50.0, max_bet=50.0)
+        assert config.min_bet == config.max_bet
+
+    def test_dalembert_betting_min_bet_exceeds_max_bet(self) -> None:
+        """Test DAlembertBettingConfig rejects min_bet > max_bet."""
+        with pytest.raises(ValidationError) as exc_info:
+            DAlembertBettingConfig(min_bet=600.0, max_bet=500.0)
+        assert "min_bet cannot exceed max_bet" in str(exc_info.value)
+
+    def test_dalembert_betting_valid_min_max(self) -> None:
+        """Test DAlembertBettingConfig accepts valid min_bet <= max_bet."""
+        config = DAlembertBettingConfig(min_bet=5.0, max_bet=500.0)
+        assert config.min_bet == 5.0
+        assert config.max_bet == 500.0
+
+    def test_custom_betting_min_bet_exceeds_max_bet(self) -> None:
+        """Test CustomBettingConfig rejects min_bet > max_bet."""
+        with pytest.raises(ValidationError) as exc_info:
+            CustomBettingConfig(min_bet=100.0, max_bet=50.0)
+        assert "min_bet cannot exceed max_bet" in str(exc_info.value)
+
+    def test_custom_betting_valid_min_max(self) -> None:
+        """Test CustomBettingConfig accepts valid min_bet <= max_bet."""
+        config = CustomBettingConfig(min_bet=5.0, max_bet=500.0)
+        assert config.min_bet == 5.0
+        assert config.max_bet == 500.0
+
+    def test_bonus_limits_min_bet_exceeds_max_bet(self) -> None:
+        """Test BonusLimitsConfig rejects min_bet > max_bet."""
+        with pytest.raises(ValidationError) as exc_info:
+            BonusLimitsConfig(min_bet=30.0, max_bet=25.0)
+        assert "min_bet cannot exceed max_bet" in str(exc_info.value)
+
+    def test_bonus_limits_valid_min_max(self) -> None:
+        """Test BonusLimitsConfig accepts valid min_bet <= max_bet."""
+        config = BonusLimitsConfig(min_bet=1.0, max_bet=25.0)
+        assert config.min_bet == 1.0
+        assert config.max_bet == 25.0
+
+    def test_custom_bonus_strategy_min_bet_exceeds_max_bet(self) -> None:
+        """Test CustomBonusStrategyConfig rejects min_bet > max_bet."""
+        with pytest.raises(ValidationError) as exc_info:
+            CustomBonusStrategyConfig(min_bet=30.0, max_bet=25.0)
+        assert "min_bet cannot exceed max_bet" in str(exc_info.value)
+
+    def test_custom_bonus_strategy_valid_min_max(self) -> None:
+        """Test CustomBonusStrategyConfig accepts valid min_bet <= max_bet."""
+        config = CustomBonusStrategyConfig(min_bet=0.0, max_bet=25.0)
+        assert config.min_bet == 0.0
+        assert config.max_bet == 25.0
+
+
+class TestBettingSystemTypeConfigMatch:
+    """Tests for BettingSystemConfig type-config match validation."""
+
+    def test_flat_type_no_config_required(self) -> None:
+        """Test flat betting type doesn't require additional config."""
+        config = BettingSystemConfig(type="flat")
+        assert config.type == "flat"
+
+    def test_proportional_type_without_config_fails(self) -> None:
+        """Test proportional type without config raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            BettingSystemConfig(type="proportional")
+        assert "'proportional' betting system requires 'proportional' config" in str(
+            exc_info.value
+        )
+
+    def test_proportional_type_with_config_succeeds(self) -> None:
+        """Test proportional type with config succeeds."""
+        config = BettingSystemConfig(
+            type="proportional", proportional=ProportionalBettingConfig()
+        )
+        assert config.type == "proportional"
+        assert config.proportional is not None
+
+    def test_martingale_type_without_config_fails(self) -> None:
+        """Test martingale type without config raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            BettingSystemConfig(type="martingale")
+        assert "'martingale' betting system requires 'martingale' config" in str(
+            exc_info.value
+        )
+
+    def test_martingale_type_with_config_succeeds(self) -> None:
+        """Test martingale type with config succeeds."""
+        config = BettingSystemConfig(
+            type="martingale", martingale=MartingaleBettingConfig()
+        )
+        assert config.type == "martingale"
+        assert config.martingale is not None
+
+    def test_dalembert_type_without_config_fails(self) -> None:
+        """Test dalembert type without config raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            BettingSystemConfig(type="dalembert")
+        assert "'dalembert' betting system requires 'dalembert' config" in str(
+            exc_info.value
+        )
+
+    def test_custom_type_without_config_fails(self) -> None:
+        """Test custom type without config raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            BettingSystemConfig(type="custom")
+        assert "'custom' betting system requires 'custom' config" in str(exc_info.value)
+
+    def test_custom_type_with_config_succeeds(self) -> None:
+        """Test custom type with config succeeds."""
+        config = BettingSystemConfig(type="custom", custom=CustomBettingConfig())
+        assert config.type == "custom"
+        assert config.custom is not None
+
+
+class TestProfitTierValidation:
+    """Tests for ProfitTier tier range validation."""
+
+    def test_valid_tier_range(self) -> None:
+        """Test valid profit tier with min_profit < max_profit."""
+        tier = ProfitTier(min_profit=0.0, max_profit=100.0, bet_amount=5.0)
+        assert tier.min_profit == 0.0
+        assert tier.max_profit == 100.0
+
+    def test_no_max_profit_valid(self) -> None:
+        """Test tier with no max_profit is valid."""
+        tier = ProfitTier(min_profit=100.0, max_profit=None, bet_amount=10.0)
+        assert tier.min_profit == 100.0
+        assert tier.max_profit is None
+
+    def test_min_profit_equals_max_profit_invalid(self) -> None:
+        """Test tier with min_profit == max_profit raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            ProfitTier(min_profit=50.0, max_profit=50.0, bet_amount=5.0)
+        assert "min_profit must be less than max_profit" in str(exc_info.value)
+
+    def test_min_profit_exceeds_max_profit_invalid(self) -> None:
+        """Test tier with min_profit > max_profit raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            ProfitTier(min_profit=100.0, max_profit=50.0, bet_amount=5.0)
+        assert "min_profit must be less than max_profit" in str(exc_info.value)
+
+    def test_negative_min_profit_valid(self) -> None:
+        """Test tier with negative min_profit is valid."""
+        tier = ProfitTier(min_profit=-100.0, max_profit=0.0, bet_amount=1.0)
+        assert tier.min_profit == -100.0
+        assert tier.max_profit == 0.0
