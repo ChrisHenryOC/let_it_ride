@@ -14,6 +14,7 @@ from let_it_ride.config.models import (
     ConservativeStrategyConfig,
     CustomBettingConfig,
     CustomBonusStrategyConfig,
+    CustomStrategyConfig,
     DAlembertBettingConfig,
     DeckConfig,
     FullConfig,
@@ -337,17 +338,30 @@ class TestStrategyConfig:
         assert config.type == "basic"
 
     def test_all_strategy_types(self) -> None:
-        """Test all valid strategy types."""
-        for strategy_type in [
-            "basic",
-            "always_ride",
-            "always_pull",
-            "conservative",
-            "aggressive",
-            "custom",
-        ]:
+        """Test all valid strategy types with required configs."""
+        # Types that don't require config sections
+        for strategy_type in ["basic", "always_ride", "always_pull"]:
             config = StrategyConfig(type=strategy_type)  # type: ignore[arg-type]
             assert config.type == strategy_type
+
+        # Types that require config sections - tested with valid configs
+        config = StrategyConfig(
+            type="conservative",
+            conservative=ConservativeStrategyConfig(),
+        )
+        assert config.type == "conservative"
+
+        config = StrategyConfig(
+            type="aggressive",
+            aggressive=AggressiveStrategyConfig(),
+        )
+        assert config.type == "aggressive"
+
+        config = StrategyConfig(
+            type="custom",
+            custom=CustomStrategyConfig(),
+        )
+        assert config.type == "custom"
 
     def test_invalid_strategy_type(self) -> None:
         """Test invalid strategy type raises error."""
@@ -379,6 +393,39 @@ class TestStrategyConfig:
         assert config.type == "aggressive"
         assert config.aggressive is not None
         assert config.aggressive.include_gutshots is False
+
+    def test_conservative_type_without_config_raises_error(self) -> None:
+        """Test conservative type without config section raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            StrategyConfig(type="conservative")
+        assert "requires 'conservative' config section" in str(exc_info.value)
+
+    def test_aggressive_type_without_config_raises_error(self) -> None:
+        """Test aggressive type without config section raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            StrategyConfig(type="aggressive")
+        assert "requires 'aggressive' config section" in str(exc_info.value)
+
+    def test_custom_type_without_config_raises_error(self) -> None:
+        """Test custom type without config section raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            StrategyConfig(type="custom")
+        assert "requires 'custom' config section" in str(exc_info.value)
+
+    def test_basic_type_without_config_is_valid(self) -> None:
+        """Test basic type works without config section."""
+        config = StrategyConfig(type="basic")
+        assert config.type == "basic"
+
+    def test_always_ride_without_config_is_valid(self) -> None:
+        """Test always_ride type works without config section."""
+        config = StrategyConfig(type="always_ride")
+        assert config.type == "always_ride"
+
+    def test_always_pull_without_config_is_valid(self) -> None:
+        """Test always_pull type works without config section."""
+        config = StrategyConfig(type="always_pull")
+        assert config.type == "always_pull"
 
 
 class TestConservativeStrategyConfig:
@@ -435,6 +482,53 @@ class TestBonusStrategyConfig:
         for paytable in ["paytable_a", "paytable_b", "paytable_c", "custom"]:
             config = BonusStrategyConfig(paytable=paytable)  # type: ignore[arg-type]
             assert config.paytable == paytable
+
+    def test_always_type_without_config_raises_error(self) -> None:
+        """Test always type without config section raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            BonusStrategyConfig(type="always")
+        assert "requires 'always' config section" in str(exc_info.value)
+
+    def test_static_type_without_config_raises_error(self) -> None:
+        """Test static type without config section raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            BonusStrategyConfig(type="static")
+        assert "requires 'static' config section" in str(exc_info.value)
+
+    def test_bankroll_conditional_type_without_config_raises_error(self) -> None:
+        """Test bankroll_conditional type without config section raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            BonusStrategyConfig(type="bankroll_conditional")
+        assert "requires 'bankroll_conditional' config section" in str(exc_info.value)
+
+    def test_streak_based_type_without_config_raises_error(self) -> None:
+        """Test streak_based type without config section raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            BonusStrategyConfig(type="streak_based")
+        assert "requires 'streak_based' config section" in str(exc_info.value)
+
+    def test_session_conditional_type_without_config_raises_error(self) -> None:
+        """Test session_conditional type without config section raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            BonusStrategyConfig(type="session_conditional")
+        assert "requires 'session_conditional' config section" in str(exc_info.value)
+
+    def test_combined_type_without_config_raises_error(self) -> None:
+        """Test combined type without config section raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            BonusStrategyConfig(type="combined")
+        assert "requires 'combined' config section" in str(exc_info.value)
+
+    def test_custom_type_without_config_raises_error(self) -> None:
+        """Test custom type without config section raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            BonusStrategyConfig(type="custom")
+        assert "requires 'custom' config section" in str(exc_info.value)
+
+    def test_never_type_without_config_is_valid(self) -> None:
+        """Test never type works without config section."""
+        config = BonusStrategyConfig(type="never")
+        assert config.type == "never"
 
 
 class TestStaticBonusConfig:
@@ -518,8 +612,8 @@ class TestOutputConfig:
     def test_verbosity_range(self) -> None:
         """Test verbosity values in range 0-3."""
         for level in [0, 1, 2, 3]:
-            config = OutputConfig()
-            config.console.verbosity = level
+            config = OutputConfig(console={"verbosity": level})
+            assert config.console.verbosity == level
 
     def test_verbosity_above_range(self) -> None:
         """Test verbosity above 3 raises error."""

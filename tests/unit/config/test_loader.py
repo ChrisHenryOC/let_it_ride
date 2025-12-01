@@ -375,13 +375,8 @@ class TestConfigurationIntegration:
 
     def test_all_strategy_types_loadable(self, tmp_path: Path) -> None:
         """Test all strategy types can be loaded."""
-        for strategy in [
-            "basic",
-            "always_ride",
-            "always_pull",
-            "conservative",
-            "aggressive",
-        ]:
+        # Simple strategy types that don't require config sections
+        for strategy in ["basic", "always_ride", "always_pull"]:
             config_file = tmp_path / f"{strategy}.yaml"
             config_file.write_text(
                 f"""
@@ -391,6 +386,31 @@ strategy:
             )
             config = load_config(config_file)
             assert config.strategy.type == strategy
+
+        # Strategy types that require config sections
+        config_file = tmp_path / "conservative.yaml"
+        config_file.write_text(
+            """
+strategy:
+  type: conservative
+  conservative:
+    made_hands_only: true
+"""
+        )
+        config = load_config(config_file)
+        assert config.strategy.type == "conservative"
+
+        config_file = tmp_path / "aggressive.yaml"
+        config_file.write_text(
+            """
+strategy:
+  type: aggressive
+  aggressive:
+    ride_on_draws: true
+"""
+        )
+        config = load_config(config_file)
+        assert config.strategy.type == "aggressive"
 
     def test_all_bonus_strategy_types_loadable(self, tmp_path: Path) -> None:
         """Test all bonus strategy types can be loaded."""

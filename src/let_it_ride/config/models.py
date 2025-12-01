@@ -426,6 +426,20 @@ class StrategyConfig(BaseModel):
     aggressive: AggressiveStrategyConfig | None = None
     custom: CustomStrategyConfig | None = None
 
+    @model_validator(mode="after")
+    def validate_type_config_match(self) -> StrategyConfig:
+        """Validate that required config is provided for strategies that need it."""
+        type_to_config = {
+            "conservative": self.conservative,
+            "aggressive": self.aggressive,
+            "custom": self.custom,
+        }
+        if self.type in type_to_config and type_to_config[self.type] is None:
+            raise ValueError(
+                f"'{self.type}' strategy requires '{self.type}' config section"
+            )
+        return self
+
 
 class BonusLimitsConfig(BaseModel):
     """Configuration for bonus bet limits.
@@ -790,6 +804,24 @@ class BonusStrategyConfig(BaseModel):
     session_conditional: SessionConditionalBonusConfig | None = None
     combined: CombinedBonusConfig | None = None
     custom: CustomBonusStrategyConfig | None = None
+
+    @model_validator(mode="after")
+    def validate_type_config_match(self) -> BonusStrategyConfig:
+        """Validate that required config is provided for bonus strategies that need it."""
+        type_to_config = {
+            "always": self.always,
+            "static": self.static,
+            "bankroll_conditional": self.bankroll_conditional,
+            "streak_based": self.streak_based,
+            "session_conditional": self.session_conditional,
+            "combined": self.combined,
+            "custom": self.custom,
+        }
+        if self.type in type_to_config and type_to_config[self.type] is None:
+            raise ValueError(
+                f"'{self.type}' bonus strategy requires '{self.type}' config section"
+            )
+        return self
 
 
 class CustomMainPaytableConfig(BaseModel):
