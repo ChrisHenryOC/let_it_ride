@@ -20,6 +20,12 @@ from let_it_ride.core.hand_evaluator import (
     HandResult,
     evaluate_five_card_hand,
 )
+from let_it_ride.core.hand_state import (
+    Decision,
+    HandPhase,
+    HandState,
+    InvalidPhaseError,
+)
 from let_it_ride.core.three_card_evaluator import (
     ThreeCardHandRank,
     evaluate_three_card_hand,
@@ -39,4 +45,8 @@ __all__ = [
     "HandAnalysis",
     "analyze_three_cards",
     "analyze_four_cards",
+    "Decision",
+    "HandPhase",
+    "HandState",
+    "InvalidPhaseError",
 ]
