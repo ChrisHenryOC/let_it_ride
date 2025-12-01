@@ -50,52 +50,6 @@ class ThreeCardHandRank(Enum):
         return self.value >= other.value
 
 
-# Pre-computed for straight detection: valid 3-card straight patterns
-# Each tuple is (low_value, mid_value, high_value)
-# Ace can be low (1) in A-2-3 or high (14) in Q-K-A
-_WHEEL_VALUES = (2, 3, 14)  # A-2-3 where Ace is low
-_BROADWAY_VALUES = (12, 13, 14)  # Q-K-A (Mini Royal if suited)
-
-
-def _is_three_card_straight(sorted_values: list[int]) -> bool:
-    """Check if three sorted rank values form a valid straight.
-
-    Valid straights:
-    - A-2-3 (wheel): Ace plays low
-    - Any 3 consecutive values: 2-3-4, 3-4-5, ..., Q-K-A
-
-    Invalid:
-    - K-A-2 (no wraparound allowed)
-
-    Args:
-        sorted_values: Three rank values sorted in ascending order.
-
-    Returns:
-        True if the values form a valid 3-card straight.
-    """
-    # Check for wheel (A-2-3): values would be [2, 3, 14]
-    if tuple(sorted_values) == _WHEEL_VALUES:
-        return True
-
-    # Check for regular consecutive values (including Q-K-A)
-    return (
-        sorted_values[2] - sorted_values[0] == 2
-        and sorted_values[1] - sorted_values[0] == 1
-    )
-
-
-def _is_mini_royal(sorted_values: list[int]) -> bool:
-    """Check if the hand is specifically AKQ (Mini Royal pattern).
-
-    Args:
-        sorted_values: Three rank values sorted in ascending order.
-
-    Returns:
-        True if the values are Q-K-A (12, 13, 14).
-    """
-    return tuple(sorted_values) == _BROADWAY_VALUES
-
-
 def evaluate_three_card_hand(cards: Sequence[Card]) -> ThreeCardHandRank:
     """Evaluate a three-card poker hand for bonus bet.
 

@@ -67,6 +67,16 @@ class TestThreeCardHandRank:
         assert mini >= mini
         assert mini <= mini
 
+    def test_comparison_with_incompatible_type_returns_not_implemented(self) -> None:
+        """Comparing with non-ThreeCardHandRank should return NotImplemented."""
+        rank = ThreeCardHandRank.MINI_ROYAL
+        assert rank.__lt__(42) is NotImplemented
+        assert rank.__le__(42) is NotImplemented
+        assert rank.__gt__(42) is NotImplemented
+        assert rank.__ge__(42) is NotImplemented
+        assert rank.__lt__("MINI_ROYAL") is NotImplemented
+        assert rank.__gt__(None) is NotImplemented
+
 
 class TestEvaluateThreeCardHand:
     """Tests for evaluate_three_card_hand function."""
@@ -94,6 +104,38 @@ class TestEvaluateThreeCardHand:
         ]
         with pytest.raises(ValueError, match="Expected 3 cards"):
             evaluate_three_card_hand(four_cards)
+
+
+class TestDuplicateCardHandling:
+    """Tests documenting behavior with duplicate cards.
+
+    Note: The evaluator does NOT validate for duplicate cards for performance
+    reasons (hot path). Callers must ensure cards are unique. These tests
+    document the current behavior when duplicates are passed.
+    """
+
+    def test_duplicate_cards_not_validated(self) -> None:
+        """Evaluator does not raise on duplicate cards (caller responsibility)."""
+        # Three identical cards - evaluator sees this as three of a kind
+        duplicate_hand = [
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.HEARTS),
+        ]
+        # No exception raised - evaluator trusts caller to provide valid hands
+        result = evaluate_three_card_hand(duplicate_hand)
+        # With duplicates, the evaluator interprets based on rank values
+        assert result == ThreeCardHandRank.THREE_OF_A_KIND
+
+    def test_two_duplicate_cards_interpreted_as_pair(self) -> None:
+        """Two duplicate cards are interpreted based on rank values."""
+        duplicate_hand = [
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.ACE, Suit.HEARTS),
+            Card(Rank.KING, Suit.SPADES),
+        ]
+        result = evaluate_three_card_hand(duplicate_hand)
+        assert result == ThreeCardHandRank.PAIR
 
 
 

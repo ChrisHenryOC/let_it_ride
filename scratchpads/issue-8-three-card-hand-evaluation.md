@@ -47,7 +47,7 @@ Implement 3-card poker hand evaluation for the Three Card Bonus side bet in Let 
 
 ### Step 2: evaluate_three_card_hand()
 Algorithm:
-1. Validate exactly 3 cards, no duplicates
+1. Validate exactly 3 cards
 2. Check flush (all same suit)
 3. Check straight (3 consecutive ranks, handling A-2-3 and A-K-Q)
 4. Determine hand type:
