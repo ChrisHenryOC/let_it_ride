@@ -118,6 +118,74 @@ def rng() -> random.Random:
     return random.Random(42)
 
 
+class TestBetValidation:
+    """Test input validation for bet amounts."""
+
+    def test_zero_base_bet_raises_error(
+        self, deck: Deck, main_paytable: MainGamePaytable, rng: random.Random
+    ) -> None:
+        """Zero base_bet raises ValueError."""
+        engine = GameEngine(
+            deck=deck,
+            strategy=AlwaysRideStrategy(),
+            main_paytable=main_paytable,
+            bonus_paytable=None,
+            rng=rng,
+        )
+
+        with pytest.raises(ValueError, match="base_bet must be positive"):
+            engine.play_hand(hand_id=1, base_bet=0.0)
+
+    def test_negative_base_bet_raises_error(
+        self, deck: Deck, main_paytable: MainGamePaytable, rng: random.Random
+    ) -> None:
+        """Negative base_bet raises ValueError."""
+        engine = GameEngine(
+            deck=deck,
+            strategy=AlwaysRideStrategy(),
+            main_paytable=main_paytable,
+            bonus_paytable=None,
+            rng=rng,
+        )
+
+        with pytest.raises(ValueError, match="base_bet must be positive"):
+            engine.play_hand(hand_id=1, base_bet=-5.0)
+
+    def test_negative_bonus_bet_raises_error(
+        self,
+        deck: Deck,
+        main_paytable: MainGamePaytable,
+        bonus_paytable: BonusPaytable,
+        rng: random.Random,
+    ) -> None:
+        """Negative bonus_bet raises ValueError."""
+        engine = GameEngine(
+            deck=deck,
+            strategy=AlwaysRideStrategy(),
+            main_paytable=main_paytable,
+            bonus_paytable=bonus_paytable,
+            rng=rng,
+        )
+
+        with pytest.raises(ValueError, match="bonus_bet cannot be negative"):
+            engine.play_hand(hand_id=1, base_bet=5.0, bonus_bet=-1.0)
+
+    def test_zero_bonus_bet_is_valid(
+        self, deck: Deck, main_paytable: MainGamePaytable, rng: random.Random
+    ) -> None:
+        """Zero bonus_bet is valid (no bonus bet placed)."""
+        engine = GameEngine(
+            deck=deck,
+            strategy=AlwaysRideStrategy(),
+            main_paytable=main_paytable,
+            bonus_paytable=None,
+            rng=rng,
+        )
+
+        result = engine.play_hand(hand_id=1, base_bet=5.0, bonus_bet=0.0)
+        assert result.bonus_bet == 0.0
+
+
 class TestGameEngineBasicFlow:
     """Test basic game engine functionality."""
 
@@ -269,22 +337,19 @@ class TestMainGamePayout:
     """Test main game payout calculation."""
 
     def test_losing_hand_zero_payout(
-        self, deck: Deck, main_paytable: MainGamePaytable, rng: random.Random
+        self, main_paytable: MainGamePaytable
     ) -> None:
         """Losing hands (high card, low pair) have zero payout."""
-        engine = GameEngine(
-            deck=deck,
-            strategy=AlwaysRideStrategy(),
-            main_paytable=main_paytable,
-            bonus_paytable=None,
-            rng=rng,
-        )
-
         # Play many hands to find a losing one
         for seed in range(100):
-            test_rng = random.Random(seed)
+            engine = GameEngine(
+                deck=Deck(),
+                strategy=AlwaysRideStrategy(),
+                main_paytable=main_paytable,
+                bonus_paytable=None,
+                rng=random.Random(seed),
+            )
             result = engine.play_hand(hand_id=1, base_bet=5.0)
-            engine._rng = test_rng  # Reset RNG for next hand
 
             if result.final_hand_rank in (
                 FiveCardHandRank.HIGH_CARD,
@@ -298,20 +363,18 @@ class TestMainGamePayout:
         pytest.skip("Could not find a losing hand in test runs")
 
     def test_paying_hand_positive_payout(
-        self, deck: Deck, main_paytable: MainGamePaytable
+        self, main_paytable: MainGamePaytable
     ) -> None:
         """Paying hands have positive payout."""
-        engine = GameEngine(
-            deck=deck,
-            strategy=AlwaysRideStrategy(),
-            main_paytable=main_paytable,
-            bonus_paytable=None,
-            rng=random.Random(42),
-        )
-
         # Play many hands to find a paying one
         for seed in range(200):
-            engine._rng = random.Random(seed)
+            engine = GameEngine(
+                deck=Deck(),
+                strategy=AlwaysRideStrategy(),
+                main_paytable=main_paytable,
+                bonus_paytable=None,
+                rng=random.Random(seed),
+            )
             result = engine.play_hand(hand_id=1, base_bet=5.0)
 
             if result.final_hand_rank.value >= FiveCardHandRank.PAIR_TENS_OR_BETTER.value:
@@ -325,19 +388,17 @@ class TestNetResult:
     """Test net result calculation."""
 
     def test_losing_hand_negative_net(
-        self, deck: Deck, main_paytable: MainGamePaytable
+        self, main_paytable: MainGamePaytable
     ) -> None:
         """Losing hand has negative net result equal to bets at risk."""
-        engine = GameEngine(
-            deck=deck,
-            strategy=AlwaysRideStrategy(),
-            main_paytable=main_paytable,
-            bonus_paytable=None,
-            rng=random.Random(42),
-        )
-
         for seed in range(100):
-            engine._rng = random.Random(seed)
+            engine = GameEngine(
+                deck=Deck(),
+                strategy=AlwaysRideStrategy(),
+                main_paytable=main_paytable,
+                bonus_paytable=None,
+                rng=random.Random(seed),
+            )
             result = engine.play_hand(hand_id=1, base_bet=5.0)
 
             if result.main_payout == 0:
@@ -347,19 +408,17 @@ class TestNetResult:
         pytest.skip("Could not find a losing hand in test runs")
 
     def test_winning_hand_positive_net(
-        self, deck: Deck, main_paytable: MainGamePaytable
+        self, main_paytable: MainGamePaytable
     ) -> None:
         """Winning hand has positive net result equal to payout."""
-        engine = GameEngine(
-            deck=deck,
-            strategy=AlwaysRideStrategy(),
-            main_paytable=main_paytable,
-            bonus_paytable=None,
-            rng=random.Random(42),
-        )
-
         for seed in range(200):
-            engine._rng = random.Random(seed)
+            engine = GameEngine(
+                deck=Deck(),
+                strategy=AlwaysRideStrategy(),
+                main_paytable=main_paytable,
+                bonus_paytable=None,
+                rng=random.Random(seed),
+            )
             result = engine.play_hand(hand_id=1, base_bet=5.0)
 
             if result.main_payout > 0:
@@ -417,10 +476,10 @@ class TestBonusBet:
         assert result.bonus_hand_rank is not None
         assert isinstance(result.bonus_hand_rank, ThreeCardHandRank)
 
-    def test_bonus_no_paytable_no_evaluation(
+    def test_bonus_bet_without_paytable_raises_error(
         self, deck: Deck, main_paytable: MainGamePaytable, rng: random.Random
     ) -> None:
-        """Bonus bet without paytable is not evaluated."""
+        """Bonus bet without paytable raises ValueError."""
         engine = GameEngine(
             deck=deck,
             strategy=AlwaysRideStrategy(),
@@ -429,29 +488,23 @@ class TestBonusBet:
             rng=rng,
         )
 
-        result = engine.play_hand(hand_id=1, base_bet=5.0, bonus_bet=1.0)
-
-        # Even with bonus_bet, no evaluation without paytable
-        assert result.bonus_hand_rank is None
-        assert result.bonus_payout == 0.0
+        with pytest.raises(ValueError, match="bonus_bet > 0 requires a bonus_paytable"):
+            engine.play_hand(hand_id=1, base_bet=5.0, bonus_bet=1.0)
 
     def test_losing_bonus_negative_contribution(
         self,
-        deck: Deck,
         main_paytable: MainGamePaytable,
         bonus_paytable: BonusPaytable,
     ) -> None:
         """Losing bonus bet contributes negatively to net result."""
-        engine = GameEngine(
-            deck=deck,
-            strategy=AlwaysRideStrategy(),
-            main_paytable=main_paytable,
-            bonus_paytable=bonus_paytable,
-            rng=random.Random(42),
-        )
-
         for seed in range(100):
-            engine._rng = random.Random(seed)
+            engine = GameEngine(
+                deck=Deck(),
+                strategy=AlwaysRideStrategy(),
+                main_paytable=main_paytable,
+                bonus_paytable=bonus_paytable,
+                rng=random.Random(seed),
+            )
             result = engine.play_hand(hand_id=1, base_bet=5.0, bonus_bet=1.0)
 
             # Most hands have HIGH_CARD bonus (loses)

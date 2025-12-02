@@ -101,7 +101,20 @@ class GameEngine:
 
         Returns:
             GameHandResult with complete hand details and payouts.
+
+        Raises:
+            ValueError: If base_bet is not positive or bonus_bet is negative.
+            ValueError: If bonus_bet > 0 but no bonus_paytable was configured.
         """
+        if base_bet <= 0:
+            raise ValueError(f"base_bet must be positive, got {base_bet}")
+        if bonus_bet < 0:
+            raise ValueError(f"bonus_bet cannot be negative, got {bonus_bet}")
+        if bonus_bet > 0 and self._bonus_paytable is None:
+            raise ValueError(
+                "bonus_bet > 0 requires a bonus_paytable to be configured"
+            )
+
         if context is None:
             context = StrategyContext(
                 session_profit=0.0,
@@ -137,7 +150,7 @@ class GameEngine:
 
         # Step 6: Second community card revealed (conceptually)
         # Step 7: Evaluate final 5-card hand
-        final_cards = list(player_cards) + list(community_cards)
+        final_cards = player_cards + community_cards
         hand_result = evaluate_five_card_hand(final_cards)
         final_hand_rank = hand_result.rank
 

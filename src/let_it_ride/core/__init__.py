@@ -8,9 +8,11 @@ This module contains the fundamental game mechanics including:
 - Game state management
 - Game engine orchestration
 
-Note: GameEngine and GameHandResult are not exported here to avoid
-circular imports with config.paytables. Import them directly from
-let_it_ride.core.game_engine.
+Note: GameEngine and GameHandResult are not exported here because
+game_engine.py imports from config.paytables, which in turn imports from
+core.hand_evaluator. Exporting GameEngine here would create a circular
+import: core/__init__ -> game_engine -> config.paytables -> core.hand_evaluator.
+Import them directly: from let_it_ride.core.game_engine import GameEngine
 """
 
 from let_it_ride.core.card import Card, Rank, Suit
