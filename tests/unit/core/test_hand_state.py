@@ -62,7 +62,6 @@ class TestHandStateCreation:
         assert state.bet2_decision is None
         assert state.bet1_active is True
         assert state.bet2_active is True
-        assert state.bet3_active is True
 
     def test_create_with_wrong_card_count(self) -> None:
         """Test that creating with wrong number of cards raises ValueError."""
@@ -202,7 +201,6 @@ class TestValidStateTransitions:
         # Verify all bets active
         assert hand_state.bet1_active is True
         assert hand_state.bet2_active is True
-        assert hand_state.bet3_active is True
 
     def test_full_game_flow_all_pull(
         self,
@@ -220,7 +218,7 @@ class TestValidStateTransitions:
         assert hand_state.phase == HandPhase.RESOLVED
         assert hand_state.bet1_active is False
         assert hand_state.bet2_active is False
-        assert hand_state.bet3_active is True  # Always true
+        # bet3 is always active per game rules (not tracked as field)
 
 
 class TestInvalidStateTransitions:

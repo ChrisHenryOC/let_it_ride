@@ -67,7 +67,9 @@ class HandState:
         bet2_decision: Player's decision on bet 2 (None until decided).
         bet1_active: Whether bet 1 is still in play.
         bet2_active: Whether bet 2 is still in play.
-        bet3_active: Whether bet 3 is still in play (always True).
+
+    Note:
+        Bet 3 is always active per game rules and is not tracked as a field.
     """
 
     player_cards: tuple[Card, Card, Card]
@@ -78,7 +80,6 @@ class HandState:
     bet2_decision: Decision | None = field(default=None)
     bet1_active: bool = field(default=True)
     bet2_active: bool = field(default=True)
-    bet3_active: bool = field(default=True)
 
     def __post_init__(self) -> None:
         """Validate initial state."""
@@ -210,7 +211,7 @@ class HandState:
         """Calculate the total amount of bets still in play.
 
         Returns:
-            Sum of base_bet for each active bet (bet1, bet2, bet3).
+            Sum of base_bet for each active bet (bet1, bet2, and bet3 which is always active).
         """
-        active_count = sum([self.bet1_active, self.bet2_active, self.bet3_active])
+        active_count = self.bet1_active + self.bet2_active + 1  # bet3 always active
         return self.base_bet * active_count
