@@ -147,7 +147,6 @@ BET1_SF_SPREAD5_WITH_2HIGH_RIDE = [
     (make_hand("8h Th Qh"), Decision.RIDE, "8TQ suited (2 gaps, 2 high)"),
     (make_hand("9h Jh Kh"), Decision.RIDE, "9JK suited (2 gaps, 2 high)"),
     (make_hand("Th Qh Ah"), Decision.RIDE, "TQA suited (2 gaps, 3 high) - also royal"),
-    (make_hand("9h Th Qh"), Decision.RIDE, "9TQ suited (spread 4 actually)"),
 ]
 
 # Spread 5 with only 1 high card -> PULL
@@ -225,21 +224,9 @@ BET2_OPEN_STRAIGHT_NO_HIGH_PULL = [
 ]
 
 # Rule 4: Four to inside straight with 4 high cards (10-J-Q-K) -> RIDE
-BET2_INSIDE_STRAIGHT_4HIGH_RIDE = [
-    (make_hand("Th Js Qd Kc"), Decision.RIDE, "TJQK - needs 9 or A"),
-    # Note: This is actually open-ended! Let me use proper inside straights:
-    # Inside straight with 4 highs would be like:
-    # T-J-Q-A (missing K) - but this has 4 highs and is inside
-]
-
-# Actually, the classic case for this rule is 10-J-Q-K which can complete
-# with 9 (lower) or A (higher). Let me check if this is actually inside.
-# 10-J-Q-K: consecutive, can get 9 or A. This is open-ended!
-
-# The rule says "inside straight with 4 high cards" - the only 4-card
-# inside straight that has 4 high cards is: missing one in the middle.
+# Inside straight with 4 high cards: missing one in the middle.
 # Examples: T-J-K-A (missing Q), T-Q-K-A (missing J), J-Q-K-A (missing T)
-BET2_INSIDE_STRAIGHT_4HIGH_RIDE_CORRECT = [
+BET2_INSIDE_STRAIGHT_4HIGH_RIDE = [
     (make_hand("Th Js Kd Ac"), Decision.RIDE, "TJKA - missing Q (inside, 4 high)"),
     (make_hand("Th Qs Kd Ac"), Decision.RIDE, "TQKA - missing J (inside, 4 high)"),
     (make_hand("Jh Qs Kd Ac"), Decision.RIDE, "JQKA - missing T (inside, 4 high)"),

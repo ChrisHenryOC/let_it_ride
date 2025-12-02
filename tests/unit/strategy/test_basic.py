@@ -23,7 +23,7 @@ from tests.fixtures.basic_strategy_cases import (
     BET1_SUITED_CONSECUTIVE_RIDE,
     BET1_UNSUITED_CONSECUTIVE_PULL,
     BET2_FLUSH_DRAWS_RIDE,
-    BET2_INSIDE_STRAIGHT_4HIGH_RIDE_CORRECT,
+    BET2_INSIDE_STRAIGHT_4HIGH_RIDE,
     BET2_INSIDE_STRAIGHT_UNDER_4HIGH_PULL,
     BET2_LOW_PAIRS_PULL,
     BET2_NO_DRAW_PULL,
@@ -322,7 +322,7 @@ class TestBet2StraightDraws:
         assert result == expected, f"{description}: expected {expected}, got {result}"
 
     @pytest.mark.parametrize(
-        "cards,expected,description", BET2_INSIDE_STRAIGHT_4HIGH_RIDE_CORRECT
+        "cards,expected,description", BET2_INSIDE_STRAIGHT_4HIGH_RIDE
     )
     def test_inside_straight_4high_ride(
         self,

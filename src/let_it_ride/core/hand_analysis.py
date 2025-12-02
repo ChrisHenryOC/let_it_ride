@@ -395,7 +395,8 @@ def analyze_three_cards(cards: Sequence[Card]) -> HandAnalysis:
     is_royal_draw = is_flush_draw and _is_royal_draw(suited_cards)
 
     # Check for excluded consecutive SF draws (A-2-3, 2-3-4 suited)
-    is_excluded = is_flush_draw and _is_excluded_sf_consecutive(suited_cards)
+    # Only check when we have a straight flush draw, not just any flush draw
+    is_excluded = is_straight_flush_draw and _is_excluded_sf_consecutive(suited_cards)
 
     # Calculate SF spread for strategy decisions
     sf_spread = _calculate_sf_spread(suited_cards) if is_straight_flush_draw else 0
