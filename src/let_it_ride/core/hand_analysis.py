@@ -55,6 +55,13 @@ class HandAnalysis:
         is_royal_draw: True if drawing to a royal flush (3+ suited royals).
 
         suited_high_cards: Count of high cards that are suited together.
+        is_excluded_sf_consecutive: True if this is A-2-3 or 2-3-4 suited, which
+            are specifically excluded from the "three suited consecutive" rule
+            in basic strategy due to their lower expected value.
+        straight_flush_spread: For suited cards forming a straight flush draw,
+            the span of those cards (max value - min value + 1). Used to
+            distinguish consecutive (spread 3), spread 4 (1 gap), and
+            spread 5 (2 gaps) for basic strategy decisions. 0 if not a SF draw.
     """
 
     # Card counts
@@ -80,6 +87,12 @@ class HandAnalysis:
 
     # Suited high card info
     suited_high_cards: int
+
+    # Excluded consecutive straight flush draw (A-2-3 or 2-3-4 suited)
+    is_excluded_sf_consecutive: bool
+
+    # Spread of suited cards for SF draw strategy decisions
+    straight_flush_spread: int
 
 
 def _count_high_cards(rank_values: Sequence[int]) -> int:
@@ -179,7 +192,7 @@ def _analyze_straight_potential(
                 if num_cards == 4 and len(rank_values) >= 4:
                     sorted_window = sorted(cards_in_window)
                     # Check if 4 cards are consecutive
-                    consecutive = (sorted_window[-1] - sorted_window[0] == 3)
+                    consecutive = sorted_window[-1] - sorted_window[0] == 3
 
                     if consecutive:
                         # 4 consecutive cards
@@ -219,6 +232,70 @@ def _is_royal_draw(suited_cards: Sequence[Card]) -> bool:
 
     # Need 3+ royal cards and must include Ace for a true royal draw
     return len(royal_suited) >= 3 and 14 in royal_suited
+
+
+def _calculate_sf_spread(suited_cards: Sequence[Card]) -> int:
+    """Calculate the spread (span) of suited cards for straight flush potential.
+
+    Spread is the range of values: (max - min + 1).
+    For example:
+    - 3-4-5: spread = 3 (consecutive)
+    - 3-4-6: spread = 4 (1 internal gap)
+    - 3-5-7: spread = 5 (2 internal gaps)
+
+    For hands with an Ace that could be low (wheel draws), uses the lower spread.
+
+    Args:
+        suited_cards: The suited cards to analyze.
+
+    Returns:
+        The spread value (0 if no SF draw potential, otherwise 3-5 typically).
+    """
+    if len(suited_cards) < 3:
+        return 0
+
+    values = sorted([c.rank.value for c in suited_cards])
+    regular_spread = values[-1] - values[0] + 1
+
+    # Check for ace-low (wheel) spread
+    has_ace = 14 in values
+    if has_ace and values[0] <= 5:
+        # Try ace as 1
+        ace_low_values = sorted([1 if v == 14 else v for v in values])
+        ace_low_spread = ace_low_values[-1] - ace_low_values[0] + 1
+        # Use the smaller spread (better for SF draw)
+        return min(regular_spread, ace_low_spread)
+
+    return regular_spread
+
+
+def _is_excluded_sf_consecutive(suited_cards: Sequence[Card]) -> bool:
+    """Check if suited cards form an excluded consecutive straight flush draw.
+
+    The basic strategy specifically excludes A-2-3 and 2-3-4 suited from
+    the "three suited in sequence" rule because they have lower expected
+    value than other consecutive suited hands.
+
+    Args:
+        suited_cards: The suited cards to check.
+
+    Returns:
+        True if the cards form A-2-3 or 2-3-4 suited, False otherwise.
+    """
+    if len(suited_cards) != 3:
+        return False
+
+    values = sorted([c.rank.value for c in suited_cards])
+
+    # Check for A-2-3 (values would be [2, 3, 14] when sorted by standard values)
+    if values == [2, 3, 14]:
+        return True
+
+    # Check for 2-3-4
+    if values == [2, 3, 4]:
+        return True
+
+    return False
 
 
 def _is_straight_flush_draw(suited_cards: Sequence[Card]) -> bool:
@@ -317,6 +394,12 @@ def analyze_three_cards(cards: Sequence[Card]) -> HandAnalysis:
     is_straight_flush_draw = is_flush_draw and _is_straight_flush_draw(suited_cards)
     is_royal_draw = is_flush_draw and _is_royal_draw(suited_cards)
 
+    # Check for excluded consecutive SF draws (A-2-3, 2-3-4 suited)
+    is_excluded = is_flush_draw and _is_excluded_sf_consecutive(suited_cards)
+
+    # Calculate SF spread for strategy decisions
+    sf_spread = _calculate_sf_spread(suited_cards) if is_straight_flush_draw else 0
+
     # Count suited high cards
     suited_high_cards = sum(
         1 for c in suited_cards if c.rank.value in _HIGH_CARD_VALUES
@@ -339,6 +422,8 @@ def analyze_three_cards(cards: Sequence[Card]) -> HandAnalysis:
         is_straight_flush_draw=is_straight_flush_draw,
         is_royal_draw=is_royal_draw,
         suited_high_cards=suited_high_cards,
+        is_excluded_sf_consecutive=is_excluded,
+        straight_flush_spread=sf_spread,
     )
 
 
@@ -418,6 +503,8 @@ def analyze_four_cards(cards: Sequence[Card]) -> HandAnalysis:
         1 for c in suited_cards if c.rank.value in _HIGH_CARD_VALUES
     )
 
+    # Note: is_excluded_sf_consecutive and straight_flush_spread only apply
+    # to 3-card hands (Bet 1). For 4-card hands, these are not used.
     return HandAnalysis(
         high_cards=high_cards,
         suited_cards=suited_count,
@@ -435,4 +522,6 @@ def analyze_four_cards(cards: Sequence[Card]) -> HandAnalysis:
         is_straight_flush_draw=is_straight_flush_draw,
         is_royal_draw=is_royal_draw,
         suited_high_cards=suited_high_cards,
+        is_excluded_sf_consecutive=False,
+        straight_flush_spread=0,
     )

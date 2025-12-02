@@ -324,9 +324,7 @@ class BankrollConfig(BaseModel):
 
     starting_amount: Annotated[float, Field(gt=0)] = 500.0
     base_bet: Annotated[float, Field(gt=0)] = 5.0
-    stop_conditions: StopConditionsConfig = Field(
-        default_factory=StopConditionsConfig
-    )
+    stop_conditions: StopConditionsConfig = Field(default_factory=StopConditionsConfig)
     betting_system: BettingSystemConfig = Field(default_factory=BettingSystemConfig)
 
     @model_validator(mode="after")
@@ -682,9 +680,7 @@ class SessionConditionalBonusConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     base_amount: Annotated[float, Field(gt=0)] = 1.0
-    conditions: SessionConditionsConfig = Field(
-        default_factory=SessionConditionsConfig
-    )
+    conditions: SessionConditionsConfig = Field(default_factory=SessionConditionsConfig)
 
 
 class RideCorrelationConfig(BaseModel):

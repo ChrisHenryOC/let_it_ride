@@ -657,9 +657,7 @@ class TestFullConfig:
     def test_nested_extra_fields_forbidden(self) -> None:
         """Test that extra fields in nested sections raise error."""
         with pytest.raises(ValidationError):
-            FullConfig(
-                simulation={"num_sessions": 1000, "unknown_field": "value"}
-            )
+            FullConfig(simulation={"num_sessions": 1000, "unknown_field": "value"})
 
     def test_full_valid_config(self) -> None:
         """Test a comprehensive valid configuration."""
