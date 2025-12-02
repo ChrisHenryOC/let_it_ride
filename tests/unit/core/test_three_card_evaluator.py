@@ -138,7 +138,6 @@ class TestDuplicateCardHandling:
         assert result == ThreeCardHandRank.PAIR
 
 
-
 class TestMiniRoyal:
     """Tests for Mini Royal detection."""
 

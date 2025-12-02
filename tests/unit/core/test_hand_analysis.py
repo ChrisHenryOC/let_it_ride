@@ -54,6 +54,8 @@ class TestHandAnalysisDataclass:
             is_straight_flush_draw=False,
             is_royal_draw=False,
             suited_high_cards=0,
+            is_excluded_sf_consecutive=False,
+            straight_flush_spread=0,
         )
         with pytest.raises(AttributeError):
             analysis.high_cards = 5  # type: ignore[misc]
@@ -77,6 +79,8 @@ class TestHandAnalysisDataclass:
             is_straight_flush_draw=True,
             is_royal_draw=True,
             suited_high_cards=3,
+            is_excluded_sf_consecutive=False,
+            straight_flush_spread=3,
         )
         analysis2 = HandAnalysis(
             high_cards=3,
@@ -95,6 +99,8 @@ class TestHandAnalysisDataclass:
             is_straight_flush_draw=True,
             is_royal_draw=True,
             suited_high_cards=3,
+            is_excluded_sf_consecutive=False,
+            straight_flush_spread=3,
         )
         assert analysis1 == analysis2
 
@@ -491,6 +497,65 @@ class TestSuitedHighCardCounting:
         assert analysis.suited_high_cards == 0
         assert analysis.high_cards == 0
         assert analysis.is_flush_draw is True
+
+
+class TestExcludedSFConsecutive:
+    """Tests for the is_excluded_sf_consecutive field.
+
+    This field detects A-2-3 and 2-3-4 suited, which are specifically
+    excluded from the basic strategy "three suited consecutive" rule.
+    """
+
+    def test_a23_suited_is_excluded(self) -> None:
+        """A-2-3 suited should be marked as excluded."""
+        analysis = analyze_three_cards(make_hand("Ah 2h 3h"))
+        assert analysis.is_excluded_sf_consecutive is True
+        assert analysis.is_straight_flush_draw is True
+
+    def test_234_suited_is_excluded(self) -> None:
+        """2-3-4 suited should be marked as excluded."""
+        analysis = analyze_three_cards(make_hand("2h 3h 4h"))
+        assert analysis.is_excluded_sf_consecutive is True
+        assert analysis.is_straight_flush_draw is True
+
+    def test_345_suited_not_excluded(self) -> None:
+        """3-4-5 suited should NOT be excluded."""
+        analysis = analyze_three_cards(make_hand("3h 4h 5h"))
+        assert analysis.is_excluded_sf_consecutive is False
+        assert analysis.is_straight_flush_draw is True
+
+    def test_789_suited_not_excluded(self) -> None:
+        """7-8-9 suited should NOT be excluded."""
+        analysis = analyze_three_cards(make_hand("7h 8h 9h"))
+        assert analysis.is_excluded_sf_consecutive is False
+        assert analysis.is_straight_flush_draw is True
+
+    def test_tjq_suited_not_excluded(self) -> None:
+        """T-J-Q suited should NOT be excluded."""
+        analysis = analyze_three_cards(make_hand("Th Jh Qh"))
+        assert analysis.is_excluded_sf_consecutive is False
+        assert analysis.is_straight_flush_draw is True
+
+    def test_a23_unsuited_not_excluded(self) -> None:
+        """A-2-3 unsuited should not be marked as excluded (not flush draw)."""
+        analysis = analyze_three_cards(make_hand("Ah 2s 3d"))
+        assert analysis.is_excluded_sf_consecutive is False
+        assert analysis.is_straight_flush_draw is False
+
+    def test_four_card_never_excluded(self) -> None:
+        """4-card hands should never have is_excluded_sf_consecutive True."""
+        analysis = analyze_four_cards(make_hand("Ah 2h 3h 4h"))
+        assert analysis.is_excluded_sf_consecutive is False
+
+    def test_different_suits_a23(self) -> None:
+        """A-2-3 in different suits (spades) should be excluded."""
+        analysis = analyze_three_cards(make_hand("As 2s 3s"))
+        assert analysis.is_excluded_sf_consecutive is True
+
+    def test_different_suits_234(self) -> None:
+        """2-3-4 in different suits (diamonds) should be excluded."""
+        analysis = analyze_three_cards(make_hand("2d 3d 4d"))
+        assert analysis.is_excluded_sf_consecutive is True
 
 
 class TestEdgeCases:
