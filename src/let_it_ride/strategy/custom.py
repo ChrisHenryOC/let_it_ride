@@ -127,12 +127,36 @@ def _tokenize(condition: str) -> list[str]:
 
     Returns:
         List of tokens (identifiers, operators, numbers).
+
+    Raises:
+        ConditionParseError: If the condition contains unrecognized characters.
     """
     tokens = []
-    for match in _TOKEN_PATTERN.finditer(condition.lower()):
+    lower_condition = condition.lower()
+    last_end = 0
+
+    for match in _TOKEN_PATTERN.finditer(lower_condition):
+        # Check for unrecognized characters between matches
+        if match.start() > last_end:
+            unrecognized = condition[last_end : match.start()]
+            raise ConditionParseError(
+                f"Unrecognized syntax '{unrecognized}' in condition. "
+                f"Use 'and'/'or' for boolean operators, not '&&'/'||'."
+            )
+        last_end = match.end()
+
         token = match.group(1)
         if not token.isspace():
             tokens.append(token)
+
+    # Check for unrecognized characters at the end
+    if last_end < len(condition):
+        unrecognized = condition[last_end:]
+        raise ConditionParseError(
+            f"Unrecognized syntax '{unrecognized}' in condition. "
+            f"Use 'and'/'or' for boolean operators, not '&&'/'||'."
+        )
+
     return tokens
 
 
