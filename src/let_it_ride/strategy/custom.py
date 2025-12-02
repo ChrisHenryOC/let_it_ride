@@ -49,9 +49,6 @@ _VALID_FIELDS = frozenset(
 # Pattern for valid identifiers (field names)
 _IDENTIFIER_PATTERN = re.compile(r"^[a-z_][a-z0-9_]*$")
 
-# Pattern for comparison operators
-_COMPARISON_PATTERN = re.compile(r"(>=|<=|>|<|==|!=)")
-
 # Pattern for tokenizing conditions
 _TOKEN_PATTERN = re.compile(
     r"(\s+|>=|<=|>|<|==|!=|\(|\)|and|or|not|\d+|[a-z_][a-z0-9_]*)"
