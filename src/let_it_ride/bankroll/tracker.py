@@ -12,14 +12,23 @@ class BankrollTracker:
     - Current balance
     - Peak balance (high water mark)
     - Maximum drawdown (largest peak-to-trough decline)
-    - Balance history for visualization
+    - Balance history for visualization (optional, disabled by default)
+
+    Memory considerations:
+        History tracking stores one float per hand. For 10M hands, this consumes
+        ~80MB. Enable only when visualization features (LIR-30) are needed.
     """
 
-    def __init__(self, starting_amount: float) -> None:
+    def __init__(
+        self, starting_amount: float, *, track_history: bool = False
+    ) -> None:
         """Initialize the bankroll tracker.
 
         Args:
             starting_amount: The starting bankroll amount.
+            track_history: If True, record balance after each transaction.
+                Disabled by default for memory efficiency. Enable when
+                visualization or detailed analysis is needed.
 
         Raises:
             ValueError: If starting_amount is negative.
@@ -32,6 +41,7 @@ class BankrollTracker:
         self._peak: float = starting_amount
         self._max_drawdown: float = 0.0
         self._peak_at_max_drawdown: float = starting_amount
+        self._track_history: bool = track_history
         self._history: list[float] = []
 
     def apply_result(self, amount: float) -> None:
@@ -41,7 +51,8 @@ class BankrollTracker:
             amount: The result amount. Positive for wins, negative for losses.
         """
         self._balance += amount
-        self._history.append(self._balance)
+        if self._track_history:
+            self._history.append(self._balance)
 
         # Update peak if we've reached a new high
         if self._balance > self._peak:
@@ -110,11 +121,45 @@ class BankrollTracker:
         """Return a copy of the balance history.
 
         The history contains the balance after each transaction.
+        Returns an empty list if track_history was False during initialization.
 
         Returns:
             A copy of the balance history list.
         """
         return self._history.copy()
+
+    @property
+    def history_length(self) -> int:
+        """Return the number of entries in the history without copying.
+
+        This is more efficient than len(history) when you only need the count.
+
+        Returns:
+            The number of balance entries recorded.
+        """
+        return len(self._history)
+
+    @property
+    def is_tracking_history(self) -> bool:
+        """Return whether history tracking is enabled."""
+        return self._track_history
+
+    def get_recent_history(self, n: int) -> list[float]:
+        """Return the most recent n balance entries.
+
+        This is more efficient than history[-n:] for large histories
+        as it avoids copying the entire list.
+
+        Args:
+            n: Number of recent entries to retrieve. If n exceeds the
+               history length, returns all available entries.
+
+        Returns:
+            A list of the most recent n balance values.
+        """
+        if n <= 0:
+            return []
+        return self._history[-n:]
 
     def __repr__(self) -> str:
         """Return a string representation of the tracker state."""

@@ -30,8 +30,20 @@ class TestBankrollTrackerInitialization:
 
     def test_initialization_history_is_empty(self) -> None:
         """Verify history is empty on initialization."""
-        tracker = BankrollTracker(1000.0)
+        tracker = BankrollTracker(1000.0, track_history=True)
         assert tracker.history == []
+
+    def test_initialization_history_tracking_disabled_by_default(self) -> None:
+        """Verify history tracking is disabled by default."""
+        tracker = BankrollTracker(1000.0)
+        assert not tracker.is_tracking_history
+        tracker.apply_result(100.0)
+        assert tracker.history == []
+
+    def test_initialization_history_tracking_enabled(self) -> None:
+        """Verify history tracking can be enabled."""
+        tracker = BankrollTracker(1000.0, track_history=True)
+        assert tracker.is_tracking_history
 
     def test_initialization_max_drawdown_is_zero(self) -> None:
         """Verify max drawdown starts at zero."""
@@ -81,11 +93,19 @@ class TestApplyResult:
         assert tracker.balance == -50.0
 
     def test_apply_result_updates_history(self) -> None:
-        """Verify each result is recorded in history."""
-        tracker = BankrollTracker(1000.0)
+        """Verify each result is recorded in history when tracking enabled."""
+        tracker = BankrollTracker(1000.0, track_history=True)
         tracker.apply_result(50.0)
         tracker.apply_result(-30.0)
         assert tracker.history == [1050.0, 1020.0]
+
+    def test_apply_result_does_not_update_history_when_disabled(self) -> None:
+        """Verify history is not updated when tracking is disabled."""
+        tracker = BankrollTracker(1000.0)
+        tracker.apply_result(50.0)
+        tracker.apply_result(-30.0)
+        assert tracker.history == []
+        assert tracker.history_length == 0
 
 
 class TestSessionProfit:
@@ -257,7 +277,7 @@ class TestHistory:
 
     def test_history_returns_copy(self) -> None:
         """Verify history returns a copy, not the internal list."""
-        tracker = BankrollTracker(1000.0)
+        tracker = BankrollTracker(1000.0, track_history=True)
         tracker.apply_result(100.0)
 
         history = tracker.history
@@ -267,12 +287,75 @@ class TestHistory:
 
     def test_history_order(self) -> None:
         """Verify history maintains chronological order."""
-        tracker = BankrollTracker(1000.0)
+        tracker = BankrollTracker(1000.0, track_history=True)
         tracker.apply_result(100.0)
         tracker.apply_result(-50.0)
         tracker.apply_result(25.0)
 
         assert tracker.history == [1100.0, 1050.0, 1075.0]
+
+    def test_history_length_property(self) -> None:
+        """Verify history_length returns correct count without copying."""
+        tracker = BankrollTracker(1000.0, track_history=True)
+        assert tracker.history_length == 0
+
+        tracker.apply_result(100.0)
+        assert tracker.history_length == 1
+
+        tracker.apply_result(-50.0)
+        tracker.apply_result(25.0)
+        assert tracker.history_length == 3
+
+
+class TestGetRecentHistory:
+    """Tests for get_recent_history method."""
+
+    def test_get_recent_history_returns_last_n_entries(self) -> None:
+        """Verify get_recent_history returns correct recent entries."""
+        tracker = BankrollTracker(1000.0, track_history=True)
+        tracker.apply_result(100.0)  # 1100
+        tracker.apply_result(-50.0)  # 1050
+        tracker.apply_result(25.0)  # 1075
+        tracker.apply_result(-10.0)  # 1065
+
+        assert tracker.get_recent_history(2) == [1075.0, 1065.0]
+        assert tracker.get_recent_history(3) == [1050.0, 1075.0, 1065.0]
+
+    def test_get_recent_history_with_n_larger_than_history(self) -> None:
+        """Verify returns all entries when n exceeds history length."""
+        tracker = BankrollTracker(1000.0, track_history=True)
+        tracker.apply_result(100.0)
+        tracker.apply_result(-50.0)
+
+        assert tracker.get_recent_history(10) == [1100.0, 1050.0]
+
+    def test_get_recent_history_with_zero_n(self) -> None:
+        """Verify returns empty list when n is zero."""
+        tracker = BankrollTracker(1000.0, track_history=True)
+        tracker.apply_result(100.0)
+
+        assert tracker.get_recent_history(0) == []
+
+    def test_get_recent_history_with_negative_n(self) -> None:
+        """Verify returns empty list when n is negative."""
+        tracker = BankrollTracker(1000.0, track_history=True)
+        tracker.apply_result(100.0)
+
+        assert tracker.get_recent_history(-5) == []
+
+    def test_get_recent_history_with_empty_history(self) -> None:
+        """Verify returns empty list when history is empty."""
+        tracker = BankrollTracker(1000.0, track_history=True)
+
+        assert tracker.get_recent_history(5) == []
+
+    def test_get_recent_history_when_tracking_disabled(self) -> None:
+        """Verify returns empty list when history tracking is disabled."""
+        tracker = BankrollTracker(1000.0)
+        tracker.apply_result(100.0)
+        tracker.apply_result(-50.0)
+
+        assert tracker.get_recent_history(2) == []
 
 
 class TestRepr:
@@ -330,7 +413,7 @@ class TestDrawdownScenarios:
 
     def test_volatile_session(self) -> None:
         """Verify tracking through volatile up-and-down session."""
-        tracker = BankrollTracker(1000.0)
+        tracker = BankrollTracker(1000.0, track_history=True)
 
         # Win, lose, win big, lose big
         tracker.apply_result(200.0)  # 1200, peak 1200
@@ -343,7 +426,7 @@ class TestDrawdownScenarios:
         assert tracker.max_drawdown == 700.0
         assert tracker.current_drawdown == 700.0
         assert tracker.session_profit == -200.0
-        assert len(tracker.history) == 4
+        assert tracker.history_length == 4
 
     def test_zero_starting_balance_scenario(self) -> None:
         """Verify behavior with zero starting balance."""
