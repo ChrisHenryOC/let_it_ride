@@ -140,19 +140,30 @@ Keep replies concise - briefly state what was changed and reference the commit i
 
 ## Issue Numbering Convention
 
-This project uses **LIR-prefixed identifiers** to distinguish implementation plan items from GitHub issue numbers:
+**CRITICAL:** This project uses **LIR-prefixed identifiers** to distinguish implementation plan items from GitHub issue numbers. These are NOT the same:
 
-- **LIR-N**: Implementation plan item number (e.g., "LIR-4" for Five-Card Hand Evaluation)
-- **GitHub #N**: The actual GitHub issue number (e.g., GitHub #7)
+- **LIR-N**: Implementation plan item number (e.g., "LIR-15" for Custom Strategy Configuration)
+- **GitHub #N**: The actual GitHub issue number (e.g., GitHub #15 might be a completely different issue)
 
-GitHub issue titles use the format `LIR-N: Title` (e.g., "LIR-4: Five-Card Hand Evaluation").
+GitHub issue titles use the format `LIR-N: Title` (e.g., "LIR-12: Custom Strategy Configuration Parser").
+
+### When the user requests work on an issue:
+
+1. **If user says "LIR-N"**: Look up the GitHub issue by searching for the title prefix `LIR-N:` using `gh issue list --search "LIR-N in:title"`. Do NOT assume GitHub issue #N is the same as LIR-N.
+
+2. **If user says "issue N" or "#N"**: Clarify whether they mean LIR-N (implementation plan) or GitHub #N (GitHub issue number).
+
+3. **Always verify**: Before starting work, confirm you have the correct issue by checking the title contains the expected LIR identifier.
+
+### Example:
+- User says: "Work on LIR-15"
+- Correct action: `gh issue list --search "LIR-15 in:title"` to find the GitHub issue
+- WRONG action: Assuming GitHub issue #15 is what they want
 
 When referencing issues:
 - Use `LIR-4` when discussing the implementation plan item
 - Use `GitHub #7` when discussing the GitHub issue itself
 - Use `LIR-4 (GitHub #7)` when both contexts are relevant
-
-This convention prevents confusion between plan numbers and GitHub's auto-assigned issue numbers.
 
 ## Scratchpads
 
