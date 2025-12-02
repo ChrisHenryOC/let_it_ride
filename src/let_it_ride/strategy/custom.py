@@ -15,7 +15,7 @@ Example configuration:
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from let_it_ride.core.hand_analysis import HandAnalysis
@@ -78,23 +78,30 @@ class StrategyRule:
 
     condition: str
     action: Decision
+    # Pre-tokenized condition for performance (computed in __post_init__)
+    _tokens: tuple[str, ...] = field(default=(), repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        """Validate the rule after creation."""
+        """Validate the rule after creation and pre-tokenize condition."""
         # Validate action is a Decision
         if not isinstance(self.action, Decision):
             raise TypeError(f"action must be a Decision, got {type(self.action)}")
 
-        # Validate condition syntax (unless it's "default")
+        # Validate condition syntax and pre-tokenize (unless it's "default")
         if self.condition != "default":
-            _validate_condition(self.condition)
+            tokens = _validate_and_tokenize(self.condition)
+            # Use object.__setattr__ since this is a frozen dataclass
+            object.__setattr__(self, "_tokens", tuple(tokens))
 
 
-def _validate_condition(condition: str) -> None:
-    """Validate a condition string for syntax and field references.
+def _validate_and_tokenize(condition: str) -> list[str]:
+    """Validate a condition string and return its tokens.
 
     Args:
         condition: The condition string to validate.
+
+    Returns:
+        List of validated tokens.
 
     Raises:
         ConditionParseError: If the condition has invalid syntax.
@@ -117,6 +124,8 @@ def _validate_condition(condition: str) -> None:
                 f"Invalid field '{token}' in condition. "
                 f"Valid fields are: {sorted(_VALID_FIELDS)}"
             )
+
+    return tokens
 
 
 def _tokenize(condition: str) -> list[str]:
@@ -160,28 +169,28 @@ def _tokenize(condition: str) -> list[str]:
     return tokens
 
 
-def _evaluate_condition(condition: str, analysis: HandAnalysis) -> bool:
-    """Evaluate a condition against a hand analysis.
+def _evaluate_rule(rule: StrategyRule, analysis: HandAnalysis) -> bool:
+    """Evaluate a rule's condition against a hand analysis.
 
     This function safely evaluates condition expressions without using eval().
-    It parses the condition and evaluates it using the HandAnalysis fields.
+    It uses pre-tokenized tokens from the rule for performance.
 
     Args:
-        condition: The condition string to evaluate.
+        rule: The strategy rule containing the condition and pre-tokenized tokens.
         analysis: The hand analysis to evaluate against.
 
     Returns:
         True if the condition matches, False otherwise.
     """
-    if condition == "default":
+    if rule.condition == "default":
         return True
 
-    tokens = _tokenize(condition)
-    if not tokens:
+    # Use pre-tokenized tokens for performance
+    if not rule._tokens:
         return False
 
     # Build expression tree and evaluate
-    return _evaluate_tokens(tokens, analysis)
+    return _evaluate_tokens(list(rule._tokens), analysis)
 
 
 def _evaluate_tokens(tokens: list[str], analysis: HandAnalysis) -> bool:
@@ -462,7 +471,7 @@ class CustomStrategy:
             ValueError: If no rule matches.
         """
         for rule in rules:
-            if _evaluate_condition(rule.condition, analysis):
+            if _evaluate_rule(rule, analysis):
                 return rule.action
 
         raise ValueError(
