@@ -6,6 +6,11 @@ This module contains the fundamental game mechanics including:
 - Hand evaluation (5-card and 3-card)
 - Hand analysis for strategy decisions
 - Game state management
+- Game engine orchestration
+
+Note: GameEngine and GameHandResult are not exported here to avoid
+circular imports with config.paytables. Import them directly from
+let_it_ride.core.game_engine.
 """
 
 from let_it_ride.core.card import Card, Rank, Suit
