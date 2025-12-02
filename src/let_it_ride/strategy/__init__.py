@@ -10,10 +10,23 @@ This module contains strategy implementations for pull/ride decisions:
 
 from let_it_ride.strategy.base import Decision, Strategy, StrategyContext
 from let_it_ride.strategy.basic import BasicStrategy
+from let_it_ride.strategy.custom import (
+    ConditionParseError,
+    CustomStrategy,
+    InvalidFieldError,
+    StrategyRule,
+)
+from let_it_ride.strategy.presets import aggressive_strategy, conservative_strategy
 
 __all__ = [
     "Decision",
     "Strategy",
     "StrategyContext",
     "BasicStrategy",
+    "ConditionParseError",
+    "CustomStrategy",
+    "InvalidFieldError",
+    "StrategyRule",
+    "aggressive_strategy",
+    "conservative_strategy",
 ]
