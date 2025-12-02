@@ -125,7 +125,26 @@ def _validate_and_tokenize(condition: str) -> list[str]:
                 f"Valid fields are: {sorted(_VALID_FIELDS)}"
             )
 
+    # Validate expression structure (catches syntax errors early)
+    _validate_expression_structure(tokens)
+
     return tokens
+
+
+def _validate_expression_structure(tokens: list[str]) -> None:
+    """Validate that tokens form a valid expression structure.
+
+    This performs a dry-run parse to catch syntax errors like unclosed
+    parentheses, missing operands, or trailing tokens at rule creation time.
+
+    Args:
+        tokens: List of tokens to validate.
+
+    Raises:
+        ConditionParseError: If the expression structure is invalid.
+    """
+    validator = _ExpressionValidator(tokens)
+    validator.validate()
 
 
 def _tokenize(condition: str) -> list[str]:
@@ -191,6 +210,87 @@ def _evaluate_rule(rule: StrategyRule, analysis: HandAnalysis) -> bool:
 
     # Build expression tree and evaluate
     return _evaluate_tokens(list(rule._tokens), analysis)
+
+
+class _ExpressionValidator:
+    """Validates expression structure without evaluating.
+
+    This mirrors the parser structure but only checks syntax validity,
+    allowing early detection of malformed expressions at rule creation time.
+    """
+
+    def __init__(self, tokens: list[str]) -> None:
+        self.tokens = tokens
+        self.pos = 0
+
+    def validate(self) -> None:
+        """Validate the full expression structure."""
+        self._or_expr()
+        # Ensure all tokens consumed
+        if self.pos < len(self.tokens):
+            raise ConditionParseError(
+                f"Unexpected token: {self.tokens[self.pos]} at position {self.pos}"
+            )
+
+    def _current(self) -> str | None:
+        """Get current token or None if exhausted."""
+        if self.pos < len(self.tokens):
+            return self.tokens[self.pos]
+        return None
+
+    def _advance(self) -> str | None:
+        """Advance to next token and return the previous one."""
+        token = self._current()
+        self.pos += 1
+        return token
+
+    def _or_expr(self) -> None:
+        """Validate OR expression: and_expr ('or' and_expr)*"""
+        self._and_expr()
+        while self._current() == "or":
+            self._advance()
+            self._and_expr()
+
+    def _and_expr(self) -> None:
+        """Validate AND expression: not_expr ('and' not_expr)*"""
+        self._not_expr()
+        while self._current() == "and":
+            self._advance()
+            self._not_expr()
+
+    def _not_expr(self) -> None:
+        """Validate NOT expression: 'not' not_expr | comparison"""
+        if self._current() == "not":
+            self._advance()
+            self._not_expr()
+        else:
+            self._comparison()
+
+    def _comparison(self) -> None:
+        """Validate comparison: primary (comp_op primary)?"""
+        self._primary()
+        comp_ops = (">=", "<=", ">", "<", "==", "!=")
+        if self._current() in comp_ops:
+            self._advance()
+            self._primary()
+
+    def _primary(self) -> None:
+        """Validate primary: field | number | '(' expression ')'"""
+        token = self._current()
+
+        if token is None:
+            raise ConditionParseError("Unexpected end of expression")
+
+        if token == "(":
+            self._advance()
+            self._or_expr()
+            if self._current() != ")":
+                raise ConditionParseError("Expected closing parenthesis")
+            self._advance()
+        elif token.isdigit() or token in _VALID_FIELDS:
+            self._advance()
+        else:
+            raise ConditionParseError(f"Unexpected token: {token}")
 
 
 def _evaluate_tokens(tokens: list[str], analysis: HandAnalysis) -> bool:
