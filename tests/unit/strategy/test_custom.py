@@ -114,6 +114,38 @@ class TestStrategyRule:
         with pytest.raises(FrozenInstanceError):
             rule.condition = "new_condition"  # type: ignore[misc]
 
+    def test_unclosed_parenthesis_raises_error(self) -> None:
+        """Test that unclosed parenthesis raises ConditionParseError."""
+        with pytest.raises(ConditionParseError) as exc_info:
+            StrategyRule(condition="(has_paying_hand", action=Decision.RIDE)
+        assert "parenthesis" in str(exc_info.value).lower()
+
+    def test_truncated_expression_raises_error(self) -> None:
+        """Test that truncated expression raises ConditionParseError."""
+        with pytest.raises(ConditionParseError) as exc_info:
+            StrategyRule(condition="high_cards >=", action=Decision.RIDE)
+        assert "end of expression" in str(exc_info.value).lower()
+
+    def test_trailing_tokens_raises_error(self) -> None:
+        """Test that trailing tokens raise ConditionParseError."""
+        with pytest.raises(ConditionParseError) as exc_info:
+            StrategyRule(condition="has_paying_hand has_pair", action=Decision.RIDE)
+        assert "unexpected token" in str(exc_info.value).lower()
+
+    def test_unrecognized_syntax_raises_error(self) -> None:
+        """Test that unrecognized syntax like && raises ConditionParseError."""
+        with pytest.raises(ConditionParseError) as exc_info:
+            StrategyRule(condition="has_paying_hand && is_flush_draw", action=Decision.RIDE)
+        assert "&&" in str(exc_info.value)
+        assert "and" in str(exc_info.value).lower()
+
+    def test_unrecognized_pipe_operator_raises_error(self) -> None:
+        """Test that || operator raises ConditionParseError with helpful message."""
+        with pytest.raises(ConditionParseError) as exc_info:
+            StrategyRule(condition="has_paying_hand || is_flush_draw", action=Decision.RIDE)
+        assert "||" in str(exc_info.value)
+        assert "or" in str(exc_info.value).lower()
+
 
 class TestConditionEvaluation:
     """Tests for condition evaluation logic."""
