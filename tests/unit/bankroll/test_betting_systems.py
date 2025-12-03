@@ -69,6 +69,33 @@ class TestBettingContext:
         assert context.streak == -4
         assert context.last_result == -25.0
 
+    def test_betting_context_is_frozen(self) -> None:
+        """Verify BettingContext is immutable (frozen)."""
+        context = BettingContext(
+            bankroll=1000.0,
+            starting_bankroll=1000.0,
+            session_profit=0.0,
+            last_result=None,
+            streak=0,
+            hands_played=0,
+        )
+        with pytest.raises(AttributeError):
+            context.bankroll = 500.0  # type: ignore[misc]
+
+    def test_betting_context_is_hashable(self) -> None:
+        """Verify BettingContext is hashable (enabled by frozen=True)."""
+        context = BettingContext(
+            bankroll=1000.0,
+            starting_bankroll=1000.0,
+            session_profit=0.0,
+            last_result=None,
+            streak=0,
+            hands_played=0,
+        )
+        # Should not raise - frozen dataclasses are hashable
+        hash_value = hash(context)
+        assert isinstance(hash_value, int)
+
 
 class TestFlatBettingInitialization:
     """Tests for FlatBetting initialization."""
@@ -226,6 +253,40 @@ class TestFlatBettingInsufficientBankroll:
             hands_played=55,
         )
         assert betting.get_bet(context) == 0.0
+
+    def test_get_bet_floating_point_precision_edge_case(self) -> None:
+        """Verify get_bet handles floating-point precision near base_bet."""
+        betting = FlatBetting(25.0)
+        # Bankroll extremely close to but not exactly equal to base_bet
+        # This tests floating-point precision handling
+        context = BettingContext(
+            bankroll=24.999999999999996,  # Just under 25.0 due to FP precision
+            starting_bankroll=1000.0,
+            session_profit=-975.0,
+            last_result=-25.0,
+            streak=-10,
+            hands_played=20,
+        )
+        # Should return the bankroll (slightly less than base bet)
+        result = betting.get_bet(context)
+        assert result == 24.999999999999996
+        assert result < 25.0
+
+    def test_get_bet_floating_point_precision_slightly_over(self) -> None:
+        """Verify get_bet handles floating-point precision slightly over base_bet."""
+        betting = FlatBetting(25.0)
+        # Bankroll just over base_bet due to FP precision
+        context = BettingContext(
+            bankroll=25.000000000000004,  # Just over 25.0 due to FP precision
+            starting_bankroll=1000.0,
+            session_profit=-975.0,
+            last_result=0.000000000000004,
+            streak=0,
+            hands_played=20,
+        )
+        # Should return the base bet (min of base_bet and bankroll)
+        result = betting.get_bet(context)
+        assert result == 25.0
 
 
 class TestFlatBettingRecordResult:

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class BettingContext:
     """Context for betting system decisions.
 
@@ -79,6 +79,8 @@ class FlatBetting:
     Always returns the same base bet amount, reduced only when
     the bankroll is insufficient to cover the full bet.
     """
+
+    __slots__ = ("_base_bet",)
 
     def __init__(self, base_bet: float) -> None:
         """Initialize the flat betting system.
