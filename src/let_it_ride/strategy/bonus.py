@@ -15,7 +15,7 @@ from typing import Protocol
 from let_it_ride.config.models import BonusStrategyConfig
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class BonusContext:
     """Context available to bonus strategy implementations.
 
@@ -91,6 +91,8 @@ class NeverBonusStrategy:
     bonus bet amount, effectively disabling the three-card bonus.
     """
 
+    __slots__ = ()
+
     def get_bonus_bet(
         self,
         context: BonusContext,  # noqa: ARG002
@@ -112,6 +114,8 @@ class AlwaysBonusStrategy:
     This strategy places the same bonus bet amount on every hand,
     clamped to the table limits.
     """
+
+    __slots__ = ("_amount",)
 
     def __init__(self, amount: float) -> None:
         """Initialize with a fixed bet amount.
@@ -142,6 +146,8 @@ class StaticBonusStrategy:
 
     Exactly one of amount or ratio must be specified.
     """
+
+    __slots__ = ("_amount", "_ratio")
 
     def __init__(
         self,
@@ -189,10 +195,19 @@ class BankrollConditionalBonusStrategy:
     This strategy only places bonus bets when certain conditions are met:
     - Session profit exceeds a minimum threshold
     - Bankroll ratio (current/starting) exceeds a minimum
-    - Drawdown from peak hasn't exceeded a maximum
+    - Drawdown from starting bankroll hasn't exceeded a maximum
 
     Can also scale bets based on profit tiers.
     """
+
+    __slots__ = (
+        "_base_amount",
+        "_min_session_profit",
+        "_min_bankroll_ratio",
+        "_profit_percentage",
+        "_max_drawdown",
+        "_scaling_tiers",
+    )
 
     def __init__(
         self,
@@ -213,8 +228,8 @@ class BankrollConditionalBonusStrategy:
                 required to bet. None means no minimum.
             profit_percentage: If set, bet this fraction of session profit
                 instead of base_amount. None uses base_amount.
-            max_drawdown: Maximum drawdown from peak as fraction (0-1).
-                If exceeded, no bonus bets. None means no limit.
+            max_drawdown: Maximum drawdown from starting bankroll as fraction
+                (0-1). If exceeded, no bonus bets. None means no limit.
             scaling_tiers: List of (min_profit, max_profit, bet_amount) tuples.
                 When profit is in range [min, max), use that bet_amount.
                 If None, uses base_amount.
@@ -248,10 +263,8 @@ class BankrollConditionalBonusStrategy:
             if current_ratio < self._min_bankroll_ratio:
                 return 0.0
 
-        # Check max drawdown condition
+        # Check max drawdown condition (drawdown from starting bankroll)
         if self._max_drawdown is not None and context.starting_bankroll > 0:
-            # Drawdown is measured from peak (starting_bankroll + max_profit_seen)
-            # For simplicity, we use starting bankroll as reference
             drawdown = (
                 context.starting_bankroll - context.bankroll
             ) / context.starting_bankroll
