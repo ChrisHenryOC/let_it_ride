@@ -96,7 +96,7 @@ class HandRecord:
 
         Raises:
             KeyError: If required field is missing.
-            TypeError: If field has wrong type.
+            ValueError: If field value cannot be converted to expected type.
         """
         return cls(
             hand_id=int(data["hand_id"]),

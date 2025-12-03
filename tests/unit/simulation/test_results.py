@@ -253,6 +253,20 @@ class TestHandRecordFromDict:
         with pytest.raises(KeyError):
             HandRecord.from_dict(data)
 
+    def test_from_dict_invalid_int_value_raises(self) -> None:
+        """Verify from_dict raises ValueError for non-convertible int values."""
+        data = create_sample_hand_record().to_dict()
+        data["hand_id"] = "not_an_int"
+        with pytest.raises(ValueError):
+            HandRecord.from_dict(data)
+
+    def test_from_dict_invalid_float_value_raises(self) -> None:
+        """Verify from_dict raises ValueError for non-convertible float values."""
+        data = create_sample_hand_record().to_dict()
+        data["base_bet"] = "not_a_float"
+        with pytest.raises(ValueError):
+            HandRecord.from_dict(data)
+
 
 # --- HandRecord.from_game_result Tests ---
 
@@ -357,6 +371,48 @@ class TestHandRecordFromGameResult:
             )
             assert record.final_hand_rank == rank.name.lower()
 
+    def test_from_game_result_all_decision_combinations(self) -> None:
+        """Verify from_game_result handles all decision combinations."""
+        decision_combinations = [
+            (Decision.RIDE, Decision.RIDE),
+            (Decision.RIDE, Decision.PULL),
+            (Decision.PULL, Decision.RIDE),
+            (Decision.PULL, Decision.PULL),
+        ]
+        for decision1, decision2 in decision_combinations:
+            # Create GameHandResult with specific decisions
+            player_cards = (
+                Card(Rank.ACE, Suit.HEARTS),
+                Card(Rank.KING, Suit.DIAMONDS),
+                Card(Rank.QUEEN, Suit.SPADES),
+            )
+            community_cards = (
+                Card(Rank.JACK, Suit.CLUBS),
+                Card(Rank.TEN, Suit.HEARTS),
+            )
+            game_result = GameHandResult(
+                hand_id=0,
+                player_cards=player_cards,
+                community_cards=community_cards,
+                decision_bet1=decision1,
+                decision_bet2=decision2,
+                final_hand_rank=FiveCardHandRank.STRAIGHT,
+                base_bet=25.0,
+                bets_at_risk=50.0,
+                main_payout=100.0,
+                bonus_bet=0.0,
+                bonus_hand_rank=None,
+                bonus_payout=0.0,
+                net_result=50.0,
+            )
+            record = HandRecord.from_game_result(
+                result=game_result,
+                session_id=1,
+                bankroll_after=1000.0,
+            )
+            assert record.decision_bet1 == decision1.value
+            assert record.decision_bet2 == decision2.value
+
 
 # --- count_hand_distribution Tests ---
 
@@ -431,6 +487,16 @@ class TestCountHandDistribution:
         assert len(result) == len(FiveCardHandRank)
         for rank in FiveCardHandRank:
             assert result[rank.name.lower()] == 1
+
+    def test_distribution_counts_unknown_rank_strings(self) -> None:
+        """Verify distribution counts arbitrary rank strings without validation.
+
+        This documents that count_hand_distribution does not validate rank names,
+        which is intentional for flexibility but means invalid data could propagate.
+        """
+        record = create_sample_hand_record(final_hand_rank="invalid_rank")
+        result = count_hand_distribution([record])
+        assert result == {"invalid_rank": 1}
 
 
 class TestCountHandDistributionFromRanks:
@@ -512,6 +578,16 @@ class TestGetDecisionFromString:
         with pytest.raises(ValueError) as exc_info:
             get_decision_from_string("")
         assert "Invalid decision string" in str(exc_info.value)
+
+    def test_whitespace_raises(self) -> None:
+        """Verify leading/trailing whitespace causes ValueError."""
+        with pytest.raises(ValueError):
+            get_decision_from_string(" ride ")
+
+    def test_whitespace_only_raises(self) -> None:
+        """Verify whitespace-only string raises ValueError."""
+        with pytest.raises(ValueError):
+            get_decision_from_string("   ")
 
 
 # --- Serialization Round-Trip Tests ---
