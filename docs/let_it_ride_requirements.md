@@ -1,5 +1,5 @@
 # Requirements Document: Let It Ride Strategy Simulator
-## Version 1.1
+## Version 1.2
 
 ---
 
@@ -127,6 +127,34 @@ The Three Card Bonus is an optional side bet placed before cards are dealt:
 | 7 | High Card | 16,440 | 74.39% |
 | **Total** | | **22,100** | **100%** |
 
+### 2.5 Dealer Card Handling
+
+Before dealing to players, the dealer performs the following:
+
+1. Dealer takes 3 cards from the top of the deck
+2. Dealer discards the top card (1 card removed from play, face down)
+3. The remaining 2 dealer cards are also discarded (not used in gameplay)
+4. **Net effect**: 3 cards are removed from the deck per round
+
+**Multi-Player Considerations:**
+- At a full table (6 players), the dealing order is:
+  1. Dealer discards 3 cards
+  2. Each player receives 3 cards (18 cards total for 6 players)
+  3. 2 community cards are dealt (shared by all players)
+  4. Total cards used per round: 3 + 18 + 2 = **23 cards**
+
+**Note**: Dealer discard is configurable in simulations. When disabled (default for backwards compatibility), dealing proceeds directly to player cards.
+
+### 2.6 Table Configuration
+
+Let It Ride tables typically seat 1-6 players:
+
+- All players at a table are dealt from the same shuffled deck
+- Community cards are shared by all players at the table
+- Each player makes independent pull/ride decisions based only on their own cards
+- Players cannot see other players' cards
+- The deck is reshuffled after each round (all players complete their hands)
+
 ---
 
 ## 3. Functional Requirements
@@ -217,6 +245,19 @@ The Three Card Bonus is an optional side bet placed before cards are dealt:
 | FR-714 | Implement session-outcome-conditional bonus betting | Should |
 | FR-715 | Implement streak-based bonus betting | Should |
 | FR-716 | Support custom bonus betting rules via configuration | Must |
+
+### 3.8 Multi-Player Table Engine (FR-800)
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-801 | Support configurable table size (1-6 players, default 1) | Must |
+| FR-802 | All players at table dealt from same deck per round | Must |
+| FR-803 | Community cards shared by all players at table | Must |
+| FR-804 | All players use same strategy (per simulation run) | Must |
+| FR-805 | Track results by seat position for analysis | Must |
+| FR-806 | Dealer discards 3 cards (top card method) before player deal | Should |
+| FR-807 | Default to single player for backwards compatibility | Must |
+| FR-808 | Support dealer discard enable/disable via configuration | Should |
 
 ---
 
@@ -335,7 +376,41 @@ deck:
   shuffle_algorithm: "fisher_yates"
 ```
 
-Note: The simulator uses a standard 52-card deck that is reshuffled after each hand.
+Note: The simulator uses a standard 52-card deck that is reshuffled after each round.
+
+### 5.3.1 Table Configuration
+
+```yaml
+table:
+  # Number of player seats at the table
+  # Type: integer, Required: no
+  # Range: 1 - 6
+  # Default: 1 (single player, backwards compatible)
+  num_seats: 1
+
+  # Whether to track results by seat position
+  # Type: boolean, Required: no
+  # Default: true when num_seats > 1, false otherwise
+  track_seat_positions: true
+```
+
+### 5.3.2 Dealer Configuration
+
+```yaml
+dealer:
+  # Enable dealer card discard before player deal
+  # Type: boolean, Required: no
+  # Default: false (backwards compatible)
+  discard_enabled: false
+
+  # Number of cards dealer discards (when enabled)
+  # Type: integer, Required: no
+  # Range: 1-3
+  # Default: 3 (dealer takes 3, discards top card, rest also discarded)
+  discard_cards: 3
+```
+
+Note: When dealer discard is enabled, the dealer removes 3 cards from the deck before dealing to players. This more accurately simulates real casino gameplay.
 
 ### 5.4 Bankroll Configuration
 
@@ -1212,6 +1287,16 @@ output:
 | Basic Strategy | Mathematically optimal decisions | Baseline (lowest house edge) |
 | Conservative | Pull except with made hands | Lower variance, lower EV |
 | Aggressive | Let it ride more often | Higher variance |
+
+### 7.4 Multi-Player Research Questions
+
+1. **Dealer Discard Impact**: Does dealer card removal measurably affect player outcomes vs. ideal dealing (no discard)?
+
+2. **Chair Position Effect**: Is there statistical variance in win rate by seat position (1-6)? Common player superstition suggests certain seats are "luckier."
+
+3. **Full Table vs Heads-Up**: How does playing at a full table (6 players, 23 cards used per round) affect individual expected value compared to heads-up play (1 player, 8 cards used)?
+
+4. **Card Removal Effects**: With 6 players, 21 cards (18 player + 3 dealer) are removed before community cards. Does this measurably affect the distribution of community card values?
 
 ---
 

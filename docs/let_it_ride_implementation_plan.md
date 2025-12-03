@@ -349,7 +349,7 @@ class DeckConfig(BaseModel):
 
 ---
 
-## Phase 2: Game Logic (LIR-9 through LIR-14)
+## Phase 2: Game Logic (LIR-9 through LIR-14, LIR-41)
 
 ### LIR-9: Let It Ride Hand State Machine
 
@@ -545,6 +545,42 @@ class BonusContext:
 
 ---
 
+### LIR-41: Dealer Discard Mechanics
+
+**Labels:** `game-logic`, `priority-medium`
+
+**Description:**
+Implement dealer card discard before dealing to players. The dealer takes 3 cards from the deck and discards the top card (all 3 are removed from play).
+
+**Acceptance Criteria:**
+- [ ] Add `DealerConfig` with `discard_enabled: bool` (default False)
+- [ ] GameEngine deals 3 to dealer position, discards before player deal
+- [ ] Discarded cards tracked for statistical validation
+- [ ] Backwards compatible: default behavior unchanged
+- [ ] Unit tests for dealer discard scenarios
+- [ ] Integration test verifying card removal from deck
+
+**Dependencies:** LIR-13
+
+**Files to Modify:**
+- `src/let_it_ride/core/game_engine.py`
+- `src/let_it_ride/config/models.py`
+
+**Files to Create:**
+- `tests/unit/core/test_dealer_mechanics.py`
+
+**Key Types:**
+```python
+@dataclass
+class DealerConfig:
+    discard_enabled: bool = False
+    discard_cards: int = 3  # How many cards dealer takes (top card discarded)
+```
+
+**Estimated Scope:** ~100 lines
+
+---
+
 ## Phase 3: Bankroll and Session Management (LIR-15 through LIR-19)
 
 ### LIR-15: Bankroll Tracker
@@ -702,6 +738,140 @@ Define comprehensive data structures for session results and hand records.
 
 ---
 
+## Phase 3.5: Multi-Player Foundation (LIR-42 through LIR-43)
+
+**Note:** This phase is a **blocking prerequisite** for Phase 4. Complete before starting simulation infrastructure.
+
+### LIR-42: Table Abstraction
+
+**Labels:** `game-logic`, `priority-high`, `multi-player`
+
+**Description:**
+Implement the Table class that orchestrates multiple player positions at a single table, dealing from a shared deck with shared community cards.
+
+**Acceptance Criteria:**
+- [ ] `Table` class orchestrating multiple player seats
+- [ ] `PlayerSeat` dataclass tracking seat number and results
+- [ ] Configurable table size (1-6 players, default 1)
+- [ ] All seats use the same strategy (per simulation)
+- [ ] Shared deck dealing across all seats
+- [ ] Shared community cards for all players
+- [ ] Integration with dealer discard (LIR-41)
+- [ ] Backwards compatible: single-seat behavior matches existing GameEngine
+- [ ] Unit tests for multi-player dealing
+
+**Dependencies:** LIR-13, LIR-41
+
+**Files to Create:**
+- `src/let_it_ride/core/table.py`
+- `tests/unit/core/test_table.py`
+
+**Key Types:**
+```python
+@dataclass
+class PlayerSeat:
+    seat_number: int  # 1-6
+    player_cards: tuple[Card, Card, Card]
+    decision_bet1: Decision
+    decision_bet2: Decision
+    final_hand_rank: FiveCardHandRank
+    net_result: float
+
+@dataclass
+class TableConfig:
+    num_seats: int = 1  # 1-6, default 1 for backwards compatibility
+    track_seat_positions: bool = True
+
+@dataclass
+class TableRoundResult:
+    community_cards: tuple[Card, Card]
+    dealer_discards: tuple[Card, ...] | None  # If dealer discard enabled
+    seat_results: list[PlayerSeat]
+
+class Table:
+    def __init__(
+        self,
+        config: TableConfig,
+        deck: Deck,
+        strategy: Strategy,
+        main_paytable: MainGamePaytable,
+        bonus_paytable: BonusPaytable | None,
+        dealer_config: DealerConfig,
+        rng: random.Random,
+    ) -> None
+
+    def play_round(
+        self,
+        round_id: int,
+        base_bet: float,
+        bonus_bet: float = 0.0,
+        context: StrategyContext | None = None,
+    ) -> TableRoundResult
+```
+
+**Estimated Scope:** ~300 lines
+
+---
+
+### LIR-43: Multi-Player Session Management
+
+**Labels:** `session`, `priority-high`, `multi-player`
+
+**Description:**
+Implement TableSession that manages bankrolls and stop conditions for multiple players at a table.
+
+**Acceptance Criteria:**
+- [ ] `TableSession` managing per-seat bankrolls
+- [ ] Per-seat stop condition tracking
+- [ ] Session ends when all seats hit stop conditions (or configurable subset)
+- [ ] Results aggregated by seat position
+- [ ] Integration with Table class (LIR-42)
+- [ ] Backwards compatible: single-seat behavior matches existing Session
+- [ ] Unit tests for multi-player session flow
+
+**Dependencies:** LIR-42, LIR-18
+
+**Files to Create:**
+- `src/let_it_ride/simulation/table_session.py`
+- `tests/unit/simulation/test_table_session.py`
+
+**Key Types:**
+```python
+@dataclass
+class TableSessionConfig:
+    table_config: TableConfig
+    starting_bankroll: float  # Same for all seats
+    base_bet: float
+    stop_conditions: StopConditionsConfig
+
+@dataclass
+class SeatSessionResult:
+    seat_number: int
+    session_result: SessionResult  # Reuse existing structure
+
+@dataclass
+class TableSessionResult:
+    seat_results: list[SeatSessionResult]
+    total_rounds: int
+    stop_reason: StopReason
+
+class TableSession:
+    def __init__(
+        self,
+        config: TableSessionConfig,
+        table: Table,
+        betting_system: BettingSystem,
+    ) -> None
+
+    def play_round(self) -> TableRoundResult
+    def should_stop(self) -> bool
+    def run_to_completion(self) -> TableSessionResult
+```
+
+**Estimated Scope:** ~250 lines
+
+---
+
 ## Phase 4: Simulation Infrastructure (LIR-20 through LIR-24)
 
 ### LIR-20: Simulation Controller (Sequential)
@@ -835,7 +1005,7 @@ Implement proper RNG management for reproducibility and statistical quality.
 
 ---
 
-## Phase 5: Analytics and Reporting (LIR-25 through LIR-30)
+## Phase 5: Analytics and Reporting (LIR-25 through LIR-30, LIR-44)
 
 ### LIR-25: Core Statistics Calculator
 
@@ -977,6 +1147,58 @@ Implement bankroll trajectory line charts for sample sessions.
 
 **Files to Create:**
 - `src/let_it_ride/analytics/visualizations/trajectory.py`
+
+**Estimated Scope:** ~150 lines
+
+---
+
+### LIR-44: Chair Position Analytics
+
+**Labels:** `analytics`, `priority-medium`, `multi-player`
+
+**Description:**
+Implement analytics for comparing results by seat position, answering the research question: "Does the seat you're in affect your winning percentage?"
+
+**Acceptance Criteria:**
+- [ ] Statistics aggregated by seat position (1-6)
+- [ ] Win rate by seat with confidence intervals
+- [ ] Chi-square test for seat position independence
+- [ ] Per-seat EV calculation
+- [ ] Visualization: win rate by seat bar chart
+- [ ] Report section for chair position analysis
+- [ ] Unit tests with known multi-player data
+
+**Dependencies:** LIR-43, LIR-25
+
+**Files to Create:**
+- `src/let_it_ride/analytics/chair_position.py`
+- `tests/unit/analytics/test_chair_position.py`
+
+**Key Types:**
+```python
+@dataclass
+class SeatStatistics:
+    seat_number: int
+    total_rounds: int
+    wins: int
+    losses: int
+    pushes: int
+    win_rate: float
+    win_rate_ci_lower: float
+    win_rate_ci_upper: float
+    expected_value: float
+    total_profit: float
+
+@dataclass
+class ChairPositionAnalysis:
+    seat_statistics: list[SeatStatistics]
+    chi_square_statistic: float
+    chi_square_p_value: float
+    is_position_independent: bool  # True if p > 0.05
+
+def analyze_chair_positions(results: list[TableSessionResult]) -> ChairPositionAnalysis
+def render_chair_position_chart(analysis: ChairPositionAnalysis, output_path: Path) -> None
+```
 
 **Estimated Scope:** ~150 lines
 
@@ -1294,11 +1516,16 @@ LIR-7 ─► LIR-10 ─► LIR-11
 LIR-7,LIR-8 ─► LIR-12
 LIR-2,LIR-6,LIR-9,LIR-10 ─► LIR-13
 LIR-8 ─► LIR-14
+LIR-13 ─► LIR-41 (Dealer Discard)
 
 Phase 3: Bankroll/Session
 LIR-1 ─► LIR-15 ─► LIR-16 ─► LIR-17
 LIR-13,LIR-15 ─► LIR-18
 LIR-13 ─► LIR-19
+
+Phase 3.5: Multi-Player Foundation (BLOCKING - complete before Phase 4)
+LIR-13,LIR-41 ─► LIR-42 (Table Abstraction)
+LIR-42,LIR-18 ─► LIR-43 (Multi-Player Session)
 
 Phase 4: Simulation
 LIR-18 ─► LIR-20 ─► LIR-21
@@ -1309,6 +1536,7 @@ Phase 5: Analytics
 LIR-22 ─► LIR-25 ─► LIR-26
 LIR-22 ─► LIR-27, LIR-28
 LIR-22 ─► LIR-29 ─► LIR-30
+LIR-43,LIR-25 ─► LIR-44 (Chair Position Analytics)
 
 Phase 6: CLI
 LIR-8,LIR-20 ─► LIR-31 ─► LIR-32
@@ -1329,13 +1557,17 @@ All ─► LIR-40
 
 1. **Start with Phase 1 in Order**: LIR-1 through LIR-8 establish the foundation. Complete LIR-1 first, then LIR-2 can begin immediately.
 
-2. **Parallel Tracks After Foundation**: Once Phase 1 is complete, Phases 2-4 can progress in parallel on separate branches.
+2. **Parallel Tracks After Foundation**: Once Phase 1 is complete, Phases 2 and 3 can progress in parallel on separate branches.
 
-3. **Integration Points**: LIR-13 (Game Engine) and LIR-20 (Simulation Controller) are critical integration points—allocate extra review time.
+3. **Phase 3.5 is Blocking**: Complete the Multi-Player Foundation (LIR-42, LIR-43) before starting Phase 4. This ensures table/multi-player abstractions are in place before simulation infrastructure is built.
 
-4. **Testing Cadence**: Run the full test suite after completing each phase before merging to main.
+4. **Integration Points**: LIR-13 (Game Engine), LIR-42 (Table), and LIR-20 (Simulation Controller) are critical integration points—allocate extra review time.
 
-5. **Performance Gates**: Run benchmarks after Phase 4 completion to identify optimization needs early.
+5. **Testing Cadence**: Run the full test suite after completing each phase before merging to main.
+
+6. **Performance Gates**: Run benchmarks after Phase 4 completion to identify optimization needs early.
+
+7. **Backwards Compatibility**: LIR-41, LIR-42, and LIR-43 must maintain backwards compatibility. Single-player simulations with dealer discard disabled should produce identical results to current implementation.
 
 ---
 
@@ -1344,15 +1576,22 @@ All ─► LIR-40
 | Phase | Items | Focus | Est. Total Lines |
 |-------|-------|-------|------------------|
 | 1 | LIR-1, LIR-2, LIR-4 through LIR-8 | Foundation (Note: LIR-3 cancelled) | ~1,650 |
-| 2 | LIR-9 through LIR-14 | Game Logic | ~1,500 |
+| 2 | LIR-9 through LIR-14, LIR-41 | Game Logic + Dealer Discard | ~1,600 |
 | 3 | LIR-15 through LIR-19 | Bankroll/Session | ~950 |
+| 3.5 | LIR-42, LIR-43 | Multi-Player Foundation (BLOCKING) | ~550 |
 | 4 | LIR-20 through LIR-24 | Simulation | ~1,050 |
-| 5 | LIR-25 through LIR-30 | Analytics | ~1,050 |
+| 5 | LIR-25 through LIR-30, LIR-44 | Analytics + Chair Position | ~1,200 |
 | 6 | LIR-31 through LIR-35 | CLI/Integration | ~1,150 |
 | 7 | LIR-37 through LIR-40 | Advanced (Note: LIR-36 cancelled) | ~1,200 |
-| **Total** | **38** | | **~8,550** |
+| **Total** | **42** | | **~9,350** |
 
-This plan provides 38 well-scoped issues that Claude Code can execute against, with clear acceptance criteria and dependency tracking for efficient parallel development.
+This plan provides 42 well-scoped issues that Claude Code can execute against, with clear acceptance criteria and dependency tracking for efficient parallel development.
+
+**New Items (POC Findings):**
+- LIR-41 (Dealer Discard Mechanics) - Phase 2, ~100 lines
+- LIR-42 (Table Abstraction) - Phase 3.5, ~300 lines
+- LIR-43 (Multi-Player Session Management) - Phase 3.5, ~250 lines
+- LIR-44 (Chair Position Analytics) - Phase 5, ~150 lines
 
 **Cancelled Items:**
 - LIR-3 (Multi-Deck Shoe Implementation) - Not needed; each hand uses freshly shuffled single deck
