@@ -11,7 +11,9 @@ from let_it_ride.core.three_card_evaluator import ThreeCardHandRank
 from let_it_ride.simulation.results import (
     HandRecord,
     count_hand_distribution,
+    count_hand_distribution_from_game_results,
     count_hand_distribution_from_ranks,
+    count_hand_distribution_from_records,
     get_decision_from_string,
 )
 from let_it_ride.strategy.base import Decision
@@ -267,6 +269,27 @@ class TestHandRecordFromDict:
         with pytest.raises(ValueError):
             HandRecord.from_dict(data)
 
+    def test_from_dict_dict_value_raises_type_error(self) -> None:
+        """Verify from_dict raises TypeError for dict values that can't convert."""
+        data = create_sample_hand_record().to_dict()
+        data["hand_id"] = {"nested": "dict"}
+        with pytest.raises(TypeError):
+            HandRecord.from_dict(data)
+
+    def test_from_dict_accepts_arbitrary_card_strings(self) -> None:
+        """Verify from_dict accepts any string for card fields without validation.
+
+        This documents that from_dict performs type coercion but not semantic
+        validation of card strings. Callers needing validation should implement
+        it separately.
+        """
+        data = create_sample_hand_record().to_dict()
+        data["cards_player"] = "invalid card string"
+        data["cards_community"] = "also invalid"
+        record = HandRecord.from_dict(data)
+        assert record.cards_player == "invalid card string"
+        assert record.cards_community == "also invalid"
+
 
 # --- HandRecord.from_game_result Tests ---
 
@@ -497,6 +520,64 @@ class TestCountHandDistribution:
         record = create_sample_hand_record(final_hand_rank="invalid_rank")
         result = count_hand_distribution([record])
         assert result == {"invalid_rank": 1}
+
+
+class TestCountHandDistributionFromRecords:
+    """Tests for count_hand_distribution_from_records helper function."""
+
+    def test_empty_input(self) -> None:
+        """Verify empty input returns empty distribution."""
+        result = count_hand_distribution_from_records([])
+        assert result == {}
+
+    def test_single_record(self) -> None:
+        """Verify single HandRecord is counted correctly."""
+        record = create_sample_hand_record(final_hand_rank="flush")
+        result = count_hand_distribution_from_records([record])
+        assert result == {"flush": 1}
+
+    def test_multiple_records(self) -> None:
+        """Verify multiple HandRecords are counted correctly."""
+        records = [
+            create_sample_hand_record(hand_id=0, final_hand_rank="high_card"),
+            create_sample_hand_record(hand_id=1, final_hand_rank="flush"),
+            create_sample_hand_record(hand_id=2, final_hand_rank="high_card"),
+        ]
+        result = count_hand_distribution_from_records(records)
+        assert result == {"high_card": 2, "flush": 1}
+
+
+class TestCountHandDistributionFromGameResults:
+    """Tests for count_hand_distribution_from_game_results helper function."""
+
+    def test_empty_input(self) -> None:
+        """Verify empty input returns empty distribution."""
+        result = count_hand_distribution_from_game_results([])
+        assert result == {}
+
+    def test_single_game_result(self) -> None:
+        """Verify single GameHandResult is counted correctly."""
+        game_result = create_sample_game_hand_result(
+            final_hand_rank=FiveCardHandRank.FLUSH
+        )
+        result = count_hand_distribution_from_game_results([game_result])
+        assert result == {"flush": 1}
+
+    def test_multiple_game_results(self) -> None:
+        """Verify multiple GameHandResults are counted correctly."""
+        results = [
+            create_sample_game_hand_result(
+                hand_id=0, final_hand_rank=FiveCardHandRank.HIGH_CARD
+            ),
+            create_sample_game_hand_result(
+                hand_id=1, final_hand_rank=FiveCardHandRank.FLUSH
+            ),
+            create_sample_game_hand_result(
+                hand_id=2, final_hand_rank=FiveCardHandRank.HIGH_CARD
+            ),
+        ]
+        result = count_hand_distribution_from_game_results(results)
+        assert result == {"high_card": 2, "flush": 1}
 
 
 class TestCountHandDistributionFromRanks:

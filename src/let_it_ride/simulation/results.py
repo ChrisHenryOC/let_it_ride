@@ -1,11 +1,16 @@
 """Session result data structures for Let It Ride.
 
 This module provides data structures for recording and serializing
-session results and individual hand records.
+session results and individual hand records, along with utility functions
+for aggregating hand statistics.
+
+The GameHandResult type is imported under TYPE_CHECKING to avoid circular
+imports while still providing type hints for IDE users.
 """
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -177,6 +182,42 @@ class HandRecord:
         )
 
 
+def count_hand_distribution_from_records(
+    records: Iterable[HandRecord],
+) -> dict[str, int]:
+    """Count the distribution of hand types from HandRecord objects.
+
+    Counts how many times each 5-card hand rank appears in the
+    given collection of hand records.
+
+    Args:
+        records: Iterable of HandRecord objects.
+
+    Returns:
+        Dictionary mapping hand rank names (lowercase) to counts.
+        Only includes ranks that appear at least once.
+    """
+    return dict(Counter(record.final_hand_rank for record in records))
+
+
+def count_hand_distribution_from_game_results(
+    results: Iterable[GameHandResult],
+) -> dict[str, int]:
+    """Count the distribution of hand types from GameHandResult objects.
+
+    Counts how many times each 5-card hand rank appears in the
+    given collection of game results.
+
+    Args:
+        results: Iterable of GameHandResult objects.
+
+    Returns:
+        Dictionary mapping hand rank names (lowercase) to counts.
+        Only includes ranks that appear at least once.
+    """
+    return dict(Counter(result.final_hand_rank.name.lower() for result in results))
+
+
 def count_hand_distribution(
     records: Iterable[HandRecord | GameHandResult],
 ) -> dict[str, int]:
@@ -185,6 +226,10 @@ def count_hand_distribution(
     Counts how many times each 5-card hand rank appears in the
     given collection of hand records or game results.
 
+    For better performance with homogeneous collections, prefer using
+    the type-specific functions count_hand_distribution_from_records()
+    or count_hand_distribution_from_game_results() instead.
+
     Args:
         records: Iterable of HandRecord or GameHandResult objects.
 
@@ -192,7 +237,7 @@ def count_hand_distribution(
         Dictionary mapping hand rank names (lowercase) to counts.
         Only includes ranks that appear at least once.
     """
-    distribution: dict[str, int] = {}
+    distribution: Counter[str] = Counter()
 
     for record in records:
         if isinstance(record, HandRecord):
@@ -201,9 +246,9 @@ def count_hand_distribution(
             # GameHandResult
             rank_name = record.final_hand_rank.name.lower()
 
-        distribution[rank_name] = distribution.get(rank_name, 0) + 1
+        distribution[rank_name] += 1
 
-    return distribution
+    return dict(distribution)
 
 
 def count_hand_distribution_from_ranks(
@@ -219,13 +264,7 @@ def count_hand_distribution_from_ranks(
     Returns:
         Dictionary mapping hand rank names (lowercase) to counts.
     """
-    distribution: dict[str, int] = {}
-
-    for rank in ranks:
-        rank_name = rank.name.lower()
-        distribution[rank_name] = distribution.get(rank_name, 0) + 1
-
-    return distribution
+    return dict(Counter(rank.name.lower() for rank in ranks))
 
 
 def get_decision_from_string(decision_str: str) -> Decision:

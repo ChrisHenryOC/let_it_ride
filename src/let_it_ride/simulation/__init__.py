@@ -11,7 +11,9 @@ This module contains session and simulation management:
 from let_it_ride.simulation.results import (
     HandRecord,
     count_hand_distribution,
+    count_hand_distribution_from_game_results,
     count_hand_distribution_from_ranks,
+    count_hand_distribution_from_records,
     get_decision_from_string,
 )
 from let_it_ride.simulation.session import (
@@ -30,6 +32,8 @@ __all__ = [
     "SessionResult",
     "StopReason",
     "count_hand_distribution",
+    "count_hand_distribution_from_game_results",
     "count_hand_distribution_from_ranks",
+    "count_hand_distribution_from_records",
     "get_decision_from_string",
 ]
