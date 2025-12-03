@@ -24,14 +24,12 @@ class StopReason(Enum):
     LOSS_LIMIT: Session loss reached or exceeded loss limit.
     MAX_HANDS: Maximum number of hands reached.
     INSUFFICIENT_FUNDS: Bankroll too low to place minimum bet.
-    COMPLETED: No stop condition configured; should not normally occur.
     """
 
     WIN_LIMIT = "win_limit"
     LOSS_LIMIT = "loss_limit"
     MAX_HANDS = "max_hands"
     INSUFFICIENT_FUNDS = "insufficient_funds"
-    COMPLETED = "completed"
 
 
 class SessionOutcome(Enum):
@@ -85,6 +83,27 @@ class SessionConfig:
             raise ValueError("max_hands must be positive if set")
         if self.bonus_bet < 0:
             raise ValueError("bonus_bet cannot be negative")
+
+        # Validate at least one stop condition is configured
+        has_stop_condition = (
+            self.win_limit is not None
+            or self.loss_limit is not None
+            or self.max_hands is not None
+            or self.stop_on_insufficient_funds
+        )
+        if not has_stop_condition:
+            raise ValueError(
+                "At least one stop condition must be configured: "
+                "win_limit, loss_limit, max_hands, or stop_on_insufficient_funds"
+            )
+
+        # Validate starting bankroll covers minimum bet
+        min_bet_required = (self.base_bet * 3) + self.bonus_bet
+        if self.starting_bankroll < min_bet_required:
+            raise ValueError(
+                f"starting_bankroll ({self.starting_bankroll}) must be at least "
+                f"base_bet * 3 + bonus_bet ({min_bet_required})"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -337,10 +356,12 @@ class Session:
         else:
             outcome = SessionOutcome.PUSH
 
-        # Build result
+        # Build result - _stop_reason is guaranteed to be set since at least
+        # one stop condition is required by SessionConfig validation
+        assert self._stop_reason is not None
         return SessionResult(
             outcome=outcome,
-            stop_reason=self._stop_reason or StopReason.COMPLETED,
+            stop_reason=self._stop_reason,
             hands_played=self._hands_played,
             starting_bankroll=self._config.starting_bankroll,
             final_bankroll=self._bankroll.balance,

@@ -198,6 +198,96 @@ class TestSessionConfigValidation:
             SessionConfig(starting_bankroll=1000.0, base_bet=25.0, bonus_bet=-5.0)
         assert "bonus_bet cannot be negative" in str(exc_info.value)
 
+    def test_no_stop_conditions_raises(self) -> None:
+        """Verify config with no stop conditions raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            SessionConfig(
+                starting_bankroll=1000.0,
+                base_bet=25.0,
+                win_limit=None,
+                loss_limit=None,
+                max_hands=None,
+                stop_on_insufficient_funds=False,
+            )
+        assert "At least one stop condition must be configured" in str(exc_info.value)
+
+    def test_stop_condition_win_limit_only_valid(self) -> None:
+        """Verify config with only win_limit stop condition is valid."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=500.0,
+            stop_on_insufficient_funds=False,
+        )
+        assert config.win_limit == 500.0
+
+    def test_stop_condition_loss_limit_only_valid(self) -> None:
+        """Verify config with only loss_limit stop condition is valid."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            loss_limit=250.0,
+            stop_on_insufficient_funds=False,
+        )
+        assert config.loss_limit == 250.0
+
+    def test_stop_condition_max_hands_only_valid(self) -> None:
+        """Verify config with only max_hands stop condition is valid."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            max_hands=100,
+            stop_on_insufficient_funds=False,
+        )
+        assert config.max_hands == 100
+
+    def test_stop_condition_insufficient_funds_only_valid(self) -> None:
+        """Verify config with only stop_on_insufficient_funds is valid."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            stop_on_insufficient_funds=True,
+        )
+        assert config.stop_on_insufficient_funds is True
+
+    def test_starting_bankroll_insufficient_for_min_bet_raises(self) -> None:
+        """Verify config with bankroll less than minimum bet raises."""
+        with pytest.raises(ValueError) as exc_info:
+            SessionConfig(
+                starting_bankroll=50.0,
+                base_bet=25.0,  # min bet = 75
+            )
+        assert "starting_bankroll" in str(exc_info.value)
+        assert "75" in str(exc_info.value)
+
+    def test_starting_bankroll_exactly_min_bet_valid(self) -> None:
+        """Verify config with bankroll equal to minimum bet is valid."""
+        config = SessionConfig(
+            starting_bankroll=75.0,
+            base_bet=25.0,  # min bet = 75
+        )
+        assert config.starting_bankroll == 75.0
+
+    def test_starting_bankroll_with_bonus_bet_insufficient_raises(self) -> None:
+        """Verify config with bankroll less than min bet including bonus raises."""
+        with pytest.raises(ValueError) as exc_info:
+            SessionConfig(
+                starting_bankroll=80.0,
+                base_bet=25.0,
+                bonus_bet=10.0,  # min bet = 75 + 10 = 85
+            )
+        assert "starting_bankroll" in str(exc_info.value)
+        assert "85" in str(exc_info.value)
+
+    def test_starting_bankroll_with_bonus_bet_exactly_valid(self) -> None:
+        """Verify config with bankroll equal to min bet including bonus is valid."""
+        config = SessionConfig(
+            starting_bankroll=85.0,
+            base_bet=25.0,
+            bonus_bet=10.0,  # min bet = 75 + 10 = 85
+        )
+        assert config.starting_bankroll == 85.0
+
 
 # --- StopReason Tests ---
 
@@ -211,11 +301,10 @@ class TestStopReason:
         assert StopReason.LOSS_LIMIT.value == "loss_limit"
         assert StopReason.MAX_HANDS.value == "max_hands"
         assert StopReason.INSUFFICIENT_FUNDS.value == "insufficient_funds"
-        assert StopReason.COMPLETED.value == "completed"
 
     def test_stop_reason_count(self) -> None:
         """Verify number of StopReason variants."""
-        assert len(StopReason) == 5
+        assert len(StopReason) == 4
 
 
 # --- SessionOutcome Tests ---
