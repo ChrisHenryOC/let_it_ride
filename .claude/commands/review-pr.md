@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(mkdir:*),Bash(gh api:*)
+allowed-tools: Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(mkdir:*),Bash(gh api:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*)
 description: Review a pull request
 ---
 
@@ -50,6 +50,40 @@ Before posting comments:
 - High: Performance bottlenecks >10%, missing critical tests
 - Medium: Code quality issues affecting maintainability
 - Low: Minor suggestions (usually skip posting)
+
+## Step 5: Commit review files to PR
+
+After completing the review, commit the detailed review files to the PR branch:
+
+```bash
+# Get the PR branch name and check it out
+PR_BRANCH=$(gh pr view $ARGUMENTS --json headRefName -q '.headRefName')
+git fetch origin $PR_BRANCH
+git checkout $PR_BRANCH
+
+# Add and commit the review files
+git add code_reviews/PR$ARGUMENTS-*/
+git commit -m "docs: Add code review findings for PR #$ARGUMENTS
+
+Review conducted by automated agents:
+- code-quality-reviewer
+- performance-reviewer
+- test-coverage-reviewer
+- documentation-accuracy-reviewer
+- security-code-reviewer
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+
+# Push to the PR branch
+git push origin $PR_BRANCH
+```
+
+This ensures review findings are:
+- Preserved with the PR for future reference
+- Available for `/fix-review` command to process
+- Part of the project's review history
 
 ---
 
