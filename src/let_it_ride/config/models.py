@@ -74,6 +74,24 @@ class DeckConfig(BaseModel):
     shuffle_algorithm: Literal["fisher_yates", "cryptographic"] = "fisher_yates"
 
 
+class DealerConfig(BaseModel):
+    """Configuration for dealer card handling.
+
+    In some casino variations, the dealer takes cards and discards before
+    dealing to players. This affects the composition of cards available
+    for player hands.
+
+    Attributes:
+        discard_enabled: Enable dealer discard before player deal.
+        discard_cards: Number of cards dealer takes (top card discarded).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    discard_enabled: bool = False
+    discard_cards: Annotated[int, Field(ge=1, le=10)] = 3
+
+
 class StopConditionsConfig(BaseModel):
     """Configuration for session stop conditions.
 
@@ -1089,6 +1107,7 @@ class FullConfig(BaseModel):
         metadata: Optional metadata about the configuration.
         simulation: Simulation run parameters.
         deck: Deck handling configuration.
+        dealer: Dealer card handling configuration.
         bankroll: Bankroll management configuration.
         strategy: Main game strategy configuration.
         bonus_strategy: Bonus betting strategy configuration.
@@ -1101,6 +1120,7 @@ class FullConfig(BaseModel):
     metadata: MetadataConfig = Field(default_factory=MetadataConfig)
     simulation: SimulationConfig = Field(default_factory=SimulationConfig)
     deck: DeckConfig = Field(default_factory=DeckConfig)
+    dealer: DealerConfig = Field(default_factory=DealerConfig)
     bankroll: BankrollConfig = Field(default_factory=BankrollConfig)
     strategy: StrategyConfig = Field(default_factory=StrategyConfig)
     bonus_strategy: BonusStrategyConfig = Field(default_factory=BonusStrategyConfig)

@@ -7,6 +7,7 @@ strategy decisions, and payout calculation for a single hand.
 import random
 from dataclasses import dataclass
 
+from let_it_ride.config.models import DealerConfig
 from let_it_ride.config.paytables import BonusPaytable, MainGamePaytable
 from let_it_ride.core.card import Card
 from let_it_ride.core.deck import Deck
@@ -68,6 +69,7 @@ class GameEngine:
         main_paytable: MainGamePaytable,
         bonus_paytable: BonusPaytable | None,
         rng: random.Random,
+        dealer_config: DealerConfig | None = None,
     ) -> None:
         """Initialize the game engine.
 
@@ -77,12 +79,15 @@ class GameEngine:
             main_paytable: Paytable for main game payouts.
             bonus_paytable: Paytable for bonus bet payouts (None if no bonus).
             rng: Random number generator for shuffling.
+            dealer_config: Optional dealer configuration for discard mechanics.
         """
         self._deck = deck
         self._strategy = strategy
         self._main_paytable = main_paytable
         self._bonus_paytable = bonus_paytable
         self._rng = rng
+        self._dealer_config = dealer_config or DealerConfig()
+        self._last_discarded_cards: list[Card] = []
 
     def play_hand(
         self,
@@ -127,7 +132,14 @@ class GameEngine:
         self._deck.reset()
         self._deck.shuffle(self._rng)
 
-        # Step 2: Deal 3 cards to player, 2 community cards
+        # Step 2: Dealer discard (if enabled)
+        self._last_discarded_cards = []
+        if self._dealer_config.discard_enabled:
+            self._last_discarded_cards = self._deck.deal(
+                self._dealer_config.discard_cards
+            )
+
+        # Step 3: Deal 3 cards to player, 2 community cards
         player_cards = self._deck.deal(3)
         community_cards = self._deck.deal(2)
 
@@ -195,3 +207,15 @@ class GameEngine:
             bonus_payout=bonus_payout,
             net_result=net_result,
         )
+
+    def last_discarded_cards(self) -> list[Card]:
+        """Return the cards discarded by the dealer in the last hand.
+
+        This method provides access to discarded cards for statistical
+        validation purposes.
+
+        Returns:
+            Copy of the list of discarded cards from the last hand.
+            Empty list if dealer discard is disabled or no hands played.
+        """
+        return self._last_discarded_cards.copy()
