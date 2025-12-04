@@ -646,8 +646,8 @@ class TestMartingaleBettingProgression:
         betting.record_result(40.0)
         assert betting.get_bet(context) == 10.0
 
-    def test_reset_on_push(self) -> None:
-        """Verify progression resets on push (result = 0)."""
+    def test_no_change_on_push(self) -> None:
+        """Verify progression stays the same on push (result = 0)."""
         betting = MartingaleBetting(base_bet=10.0)
         context = BettingContext(
             bankroll=1000.0,
@@ -661,9 +661,9 @@ class TestMartingaleBettingProgression:
         betting.record_result(-10.0)
         assert betting.get_bet(context) == 20.0
 
-        # Push
+        # Push - no change
         betting.record_result(0.0)
-        assert betting.get_bet(context) == 10.0
+        assert betting.get_bet(context) == 20.0  # Unchanged
 
     def test_max_progressions_limit(self) -> None:
         """Verify progression is capped at max_progressions."""
@@ -917,8 +917,8 @@ class TestReverseMartingaleBettingProgression:
         betting.record_result(-40.0)  # Loss
         assert betting.get_bet(context) == 10.0
 
-    def test_reset_on_push(self) -> None:
-        """Verify progression resets on push."""
+    def test_no_change_on_push(self) -> None:
+        """Verify progression stays the same on push."""
         betting = ReverseMartingaleBetting(base_bet=10.0)
         context = BettingContext(
             bankroll=1000.0,
@@ -932,8 +932,8 @@ class TestReverseMartingaleBettingProgression:
         betting.record_result(10.0)
         assert betting.get_bet(context) == 20.0
 
-        betting.record_result(0.0)  # Push
-        assert betting.get_bet(context) == 10.0
+        betting.record_result(0.0)  # Push - no change
+        assert betting.get_bet(context) == 20.0  # Unchanged
 
     def test_reset_after_profit_target(self) -> None:
         """Verify reset after reaching profit target streak."""
@@ -970,6 +970,36 @@ class TestReverseMartingaleBettingProgression:
 
         betting.record_result(100.0)  # 200
         assert betting.get_bet(context) == 150.0  # Capped
+
+
+class TestReverseMartingaleBettingBankrollLimits:
+    """Tests for ReverseMartingaleBetting bankroll handling."""
+
+    def test_zero_bankroll_returns_zero(self) -> None:
+        """Verify zero bet with zero bankroll."""
+        betting = ReverseMartingaleBetting(base_bet=10.0)
+        context = BettingContext(
+            bankroll=0.0,
+            starting_bankroll=1000.0,
+            session_profit=-1000.0,
+            last_result=-10.0,
+            streak=-10,
+            hands_played=10,
+        )
+        assert betting.get_bet(context) == 0.0
+
+    def test_negative_bankroll_returns_zero(self) -> None:
+        """Verify zero bet with negative bankroll."""
+        betting = ReverseMartingaleBetting(base_bet=10.0)
+        context = BettingContext(
+            bankroll=-50.0,
+            starting_bankroll=1000.0,
+            session_profit=-1050.0,
+            last_result=-10.0,
+            streak=-5,
+            hands_played=5,
+        )
+        assert betting.get_bet(context) == 0.0
 
 
 class TestReverseMartingaleBettingReset:
@@ -1134,6 +1164,24 @@ class TestParoliBettingProgression:
         betting.record_result(-40.0)
         assert betting.get_bet(context) == 10.0
 
+    def test_no_change_on_push(self) -> None:
+        """Verify progression stays the same on push."""
+        betting = ParoliBetting(base_bet=10.0)
+        context = BettingContext(
+            bankroll=1000.0,
+            starting_bankroll=1000.0,
+            session_profit=0.0,
+            last_result=None,
+            streak=0,
+            hands_played=0,
+        )
+
+        betting.record_result(10.0)
+        assert betting.get_bet(context) == 20.0
+
+        betting.record_result(0.0)  # Push - no change
+        assert betting.get_bet(context) == 20.0  # Unchanged
+
     def test_reset_after_wins_before_reset(self) -> None:
         """Verify reset after reaching wins_before_reset."""
         betting = ParoliBetting(base_bet=10.0, wins_before_reset=3)
@@ -1169,6 +1217,36 @@ class TestParoliBettingProgression:
 
         betting.record_result(100.0)
         assert betting.get_bet(context) == 150.0  # Capped
+
+
+class TestParoliBettingBankrollLimits:
+    """Tests for ParoliBetting bankroll handling."""
+
+    def test_zero_bankroll_returns_zero(self) -> None:
+        """Verify zero bet with zero bankroll."""
+        betting = ParoliBetting(base_bet=10.0)
+        context = BettingContext(
+            bankroll=0.0,
+            starting_bankroll=1000.0,
+            session_profit=-1000.0,
+            last_result=-10.0,
+            streak=-10,
+            hands_played=10,
+        )
+        assert betting.get_bet(context) == 0.0
+
+    def test_negative_bankroll_returns_zero(self) -> None:
+        """Verify zero bet with negative bankroll."""
+        betting = ParoliBetting(base_bet=10.0)
+        context = BettingContext(
+            bankroll=-50.0,
+            starting_bankroll=1000.0,
+            session_profit=-1050.0,
+            last_result=-10.0,
+            streak=-5,
+            hands_played=5,
+        )
+        assert betting.get_bet(context) == 0.0
 
 
 class TestParoliBettingReset:
@@ -1286,6 +1364,18 @@ class TestDAlembertBettingInitialization:
         with pytest.raises(ValueError) as exc_info:
             DAlembertBetting(base_bet=25.0, min_bet=100.0, max_bet=50.0)
         assert "Min bet cannot exceed max bet" in str(exc_info.value)
+
+    def test_initialization_base_bet_less_than_min_raises(self) -> None:
+        """Verify base_bet < min_bet raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            DAlembertBetting(base_bet=5.0, min_bet=10.0, max_bet=500.0)
+        assert "Base bet cannot be less than min bet" in str(exc_info.value)
+
+    def test_initialization_base_bet_greater_than_max_raises(self) -> None:
+        """Verify base_bet > max_bet raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            DAlembertBetting(base_bet=100.0, min_bet=5.0, max_bet=50.0)
+        assert "Base bet cannot exceed max bet" in str(exc_info.value)
 
 
 class TestDAlembertBettingProgression:
@@ -1427,6 +1517,32 @@ class TestDAlembertBettingBankrollLimits:
         # Would be 35, but bankroll is only 30
         assert betting.get_bet(context) == 30.0
 
+    def test_zero_bankroll_returns_zero(self) -> None:
+        """Verify zero bet with zero bankroll."""
+        betting = DAlembertBetting(base_bet=25.0)
+        context = BettingContext(
+            bankroll=0.0,
+            starting_bankroll=1000.0,
+            session_profit=-1000.0,
+            last_result=-25.0,
+            streak=-10,
+            hands_played=10,
+        )
+        assert betting.get_bet(context) == 0.0
+
+    def test_negative_bankroll_returns_zero(self) -> None:
+        """Verify zero bet with negative bankroll."""
+        betting = DAlembertBetting(base_bet=25.0)
+        context = BettingContext(
+            bankroll=-50.0,
+            starting_bankroll=1000.0,
+            session_profit=-1050.0,
+            last_result=-25.0,
+            streak=-5,
+            hands_played=5,
+        )
+        assert betting.get_bet(context) == 0.0
+
 
 class TestDAlembertBettingReset:
     """Tests for DAlembertBetting.reset() method."""
@@ -1537,6 +1653,13 @@ class TestFibonacciBettingInitialization:
         with pytest.raises(ValueError) as exc_info:
             FibonacciBetting(max_position=0)
         assert "Max position must be at least 1" in str(exc_info.value)
+
+    def test_initialization_max_position_clamped_to_sequence_length(self) -> None:
+        """Verify max_position is clamped to available Fibonacci sequence length."""
+        # Request max_position=100, but Fibonacci sequence only has 20 elements
+        betting = FibonacciBetting(max_position=100)
+        # Should be clamped to len(_FIBONACCI) - 1 = 19
+        assert betting.max_position == 19
 
 
 class TestFibonacciBettingProgression:
@@ -1703,6 +1826,32 @@ class TestFibonacciBettingBankrollLimits:
         )
         # Position 4: Fib[4]=5, bet=25, but bankroll=20
         assert betting.get_bet(context) == 20.0
+
+    def test_zero_bankroll_returns_zero(self) -> None:
+        """Verify zero bet with zero bankroll."""
+        betting = FibonacciBetting(base_unit=5.0)
+        context = BettingContext(
+            bankroll=0.0,
+            starting_bankroll=1000.0,
+            session_profit=-1000.0,
+            last_result=-5.0,
+            streak=-10,
+            hands_played=10,
+        )
+        assert betting.get_bet(context) == 0.0
+
+    def test_negative_bankroll_returns_zero(self) -> None:
+        """Verify zero bet with negative bankroll."""
+        betting = FibonacciBetting(base_unit=5.0)
+        context = BettingContext(
+            bankroll=-50.0,
+            starting_bankroll=1000.0,
+            session_profit=-1050.0,
+            last_result=-5.0,
+            streak=-5,
+            hands_played=5,
+        )
+        assert betting.get_bet(context) == 0.0
 
 
 class TestFibonacciBettingReset:

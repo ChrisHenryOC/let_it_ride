@@ -142,7 +142,9 @@ class MartingaleBetting:
     """Martingale betting system.
 
     Doubles the bet after each loss until a win or limits are reached.
-    Resets to base bet after a win.
+    Resets to base bet after a win. A push (result=0) has no effect.
+
+    Implements the BettingSystem protocol.
     """
 
     __slots__ = ("_base_bet", "_loss_multiplier", "_max_bet", "_max_progressions", "_current_progression")
@@ -232,19 +234,22 @@ class MartingaleBetting:
 
         Win: Reset to base bet (progression 0).
         Loss: Increase progression (up to max_progressions).
+        Push: No change to progression.
 
         Args:
-            result: The hand result. Positive for wins, negative for losses.
+            result: The hand result. Positive for wins, negative for losses,
+                zero for push.
         """
-        if result >= 0:
-            # Win or push - reset progression
+        if result > 0:
+            # Win - reset progression
             self._current_progression = 0
-        else:
+        elif result < 0:
             # Loss - increase progression (capped)
             self._current_progression = min(
                 self._current_progression + 1,
                 self._max_progressions - 1
             )
+        # Push (result == 0) - no change
 
     def reset(self) -> None:
         """Reset the progression to zero for a new session."""
@@ -263,8 +268,14 @@ class MartingaleBetting:
 class ReverseMartingaleBetting:
     """Reverse Martingale (Anti-Martingale/Parlay) betting system.
 
-    Increases bet after wins, resets to base bet after losses.
+    Increases bet after wins using a multiplier, resets to base bet after losses.
     Optionally resets after reaching a profit target streak.
+    A push (result=0) has no effect on the win streak.
+
+    Similar to ParoliBetting but uses different terminology from gambling literature.
+    Both systems increase bets after wins and reset after a target streak.
+
+    Implements the BettingSystem protocol.
     """
 
     __slots__ = ("_base_bet", "_win_multiplier", "_profit_target_streak", "_max_bet", "_win_streak")
@@ -354,9 +365,11 @@ class ReverseMartingaleBetting:
 
         Win: Increase streak (reset if target reached).
         Loss: Reset streak to zero.
+        Push: No change to streak.
 
         Args:
-            result: The hand result. Positive for wins, negative for losses.
+            result: The hand result. Positive for wins, negative for losses,
+                zero for push.
         """
         if result > 0:
             # Win - increase streak
@@ -364,9 +377,10 @@ class ReverseMartingaleBetting:
             # Reset if profit target reached
             if self._win_streak >= self._profit_target_streak:
                 self._win_streak = 0
-        else:
-            # Loss or push - reset streak
+        elif result < 0:
+            # Loss - reset streak
             self._win_streak = 0
+        # Push (result == 0) - no change
 
     def reset(self) -> None:
         """Reset the win streak to zero for a new session."""
@@ -387,6 +401,13 @@ class ParoliBetting:
 
     Increases bet after wins by a multiplier, resets to base bet after
     a specified number of consecutive wins or any loss.
+    A push (result=0) has no effect on the win count.
+
+    Functionally similar to ReverseMartingaleBetting - both are positive
+    progression systems that increase bets after wins. The Paroli system
+    is a specific variant with origins in 16th century Italian card games.
+
+    Implements the BettingSystem protocol.
     """
 
     __slots__ = ("_base_bet", "_win_multiplier", "_wins_before_reset", "_max_bet", "_consecutive_wins")
@@ -476,9 +497,11 @@ class ParoliBetting:
 
         Win: Increase count (reset if limit reached).
         Loss: Reset count to zero.
+        Push: No change to count.
 
         Args:
-            result: The hand result. Positive for wins, negative for losses.
+            result: The hand result. Positive for wins, negative for losses,
+                zero for push.
         """
         if result > 0:
             # Win - increase count
@@ -486,9 +509,10 @@ class ParoliBetting:
             # Reset if wins before reset reached
             if self._consecutive_wins >= self._wins_before_reset:
                 self._consecutive_wins = 0
-        else:
-            # Loss or push - reset count
+        elif result < 0:
+            # Loss - reset count
             self._consecutive_wins = 0
+        # Push (result == 0) - no change
 
     def reset(self) -> None:
         """Reset the consecutive win count to zero for a new session."""
@@ -509,6 +533,9 @@ class DAlembertBetting:
 
     Increases bet by one unit after a loss, decreases by one unit after a win.
     The bet is clamped between min_bet and max_bet.
+    A push (result=0) has no effect on the bet amount.
+
+    Implements the BettingSystem protocol.
     """
 
     __slots__ = ("_base_bet", "_unit", "_min_bet", "_max_bet", "_current_bet")
@@ -531,7 +558,7 @@ class DAlembertBetting:
         Raises:
             ValueError: If base_bet is not positive, unit is not positive,
                 min_bet is not positive, max_bet is not positive,
-                or min_bet > max_bet.
+                min_bet > max_bet, or base_bet is outside [min_bet, max_bet].
         """
         if base_bet <= 0:
             raise ValueError("Base bet must be positive")
@@ -543,6 +570,10 @@ class DAlembertBetting:
             raise ValueError("Max bet must be positive")
         if min_bet > max_bet:
             raise ValueError("Min bet cannot exceed max bet")
+        if base_bet < min_bet:
+            raise ValueError("Base bet cannot be less than min bet")
+        if base_bet > max_bet:
+            raise ValueError("Base bet cannot exceed max bet")
 
         self._base_bet = base_bet
         self._unit = unit
@@ -623,8 +654,12 @@ class DAlembertBetting:
 class FibonacciBetting:
     """Fibonacci betting system.
 
-    Follows the Fibonacci sequence on losses, regresses on wins.
+    Follows the Fibonacci sequence (1, 1, 2, 3, 5, 8, 13, 21...) on losses,
+    regresses by win_regression positions on wins.
     Bet = base_unit * fibonacci[position].
+    A push (result=0) has no effect on the position.
+
+    Implements the BettingSystem protocol.
     """
 
     __slots__ = ("_base_unit", "_win_regression", "_max_bet", "_max_position", "_position")
