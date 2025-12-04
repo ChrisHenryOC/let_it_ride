@@ -25,9 +25,18 @@ from let_it_ride.strategy import (
 def make_card(notation: str) -> Card:
     """Create a Card from notation like 'Ah' (Ace of Hearts)."""
     rank_map = {
-        "2": Rank.TWO, "3": Rank.THREE, "4": Rank.FOUR, "5": Rank.FIVE,
-        "6": Rank.SIX, "7": Rank.SEVEN, "8": Rank.EIGHT, "9": Rank.NINE,
-        "T": Rank.TEN, "J": Rank.JACK, "Q": Rank.QUEEN, "K": Rank.KING,
+        "2": Rank.TWO,
+        "3": Rank.THREE,
+        "4": Rank.FOUR,
+        "5": Rank.FIVE,
+        "6": Rank.SIX,
+        "7": Rank.SEVEN,
+        "8": Rank.EIGHT,
+        "9": Rank.NINE,
+        "T": Rank.TEN,
+        "J": Rank.JACK,
+        "Q": Rank.QUEEN,
+        "K": Rank.KING,
         "A": Rank.ACE,
     }
     suit_map = {"c": Suit.CLUBS, "d": Suit.DIAMONDS, "h": Suit.HEARTS, "s": Suit.SPADES}

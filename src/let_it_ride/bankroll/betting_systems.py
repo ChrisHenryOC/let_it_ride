@@ -147,7 +147,13 @@ class MartingaleBetting:
     Implements the BettingSystem protocol.
     """
 
-    __slots__ = ("_base_bet", "_loss_multiplier", "_max_bet", "_max_progressions", "_current_progression")
+    __slots__ = (
+        "_base_bet",
+        "_loss_multiplier",
+        "_max_bet",
+        "_max_progressions",
+        "_current_progression",
+    )
 
     def __init__(
         self,
@@ -221,7 +227,7 @@ class MartingaleBetting:
             return 0.0
 
         # Calculate bet based on progression level
-        bet = self._base_bet * (self._loss_multiplier ** self._current_progression)
+        bet = self._base_bet * (self._loss_multiplier**self._current_progression)
 
         # Apply caps
         bet = min(bet, self._max_bet)
@@ -246,8 +252,7 @@ class MartingaleBetting:
         elif result < 0:
             # Loss - increase progression (capped)
             self._current_progression = min(
-                self._current_progression + 1,
-                self._max_progressions - 1
+                self._current_progression + 1, self._max_progressions - 1
             )
         # Push (result == 0) - no change
 
@@ -278,7 +283,13 @@ class ReverseMartingaleBetting:
     Implements the BettingSystem protocol.
     """
 
-    __slots__ = ("_base_bet", "_win_multiplier", "_profit_target_streak", "_max_bet", "_win_streak")
+    __slots__ = (
+        "_base_bet",
+        "_win_multiplier",
+        "_profit_target_streak",
+        "_max_bet",
+        "_win_streak",
+    )
 
     def __init__(
         self,
@@ -352,7 +363,7 @@ class ReverseMartingaleBetting:
             return 0.0
 
         # Calculate bet based on win streak
-        bet = self._base_bet * (self._win_multiplier ** self._win_streak)
+        bet = self._base_bet * (self._win_multiplier**self._win_streak)
 
         # Apply caps
         bet = min(bet, self._max_bet)
@@ -410,7 +421,13 @@ class ParoliBetting:
     Implements the BettingSystem protocol.
     """
 
-    __slots__ = ("_base_bet", "_win_multiplier", "_wins_before_reset", "_max_bet", "_consecutive_wins")
+    __slots__ = (
+        "_base_bet",
+        "_win_multiplier",
+        "_wins_before_reset",
+        "_max_bet",
+        "_consecutive_wins",
+    )
 
     def __init__(
         self,
@@ -484,7 +501,7 @@ class ParoliBetting:
             return 0.0
 
         # Calculate bet based on consecutive wins
-        bet = self._base_bet * (self._win_multiplier ** self._consecutive_wins)
+        bet = self._base_bet * (self._win_multiplier**self._consecutive_wins)
 
         # Apply caps
         bet = min(bet, self._max_bet)
@@ -662,10 +679,37 @@ class FibonacciBetting:
     Implements the BettingSystem protocol.
     """
 
-    __slots__ = ("_base_unit", "_win_regression", "_max_bet", "_max_position", "_position")
+    __slots__ = (
+        "_base_unit",
+        "_win_regression",
+        "_max_bet",
+        "_max_position",
+        "_position",
+    )
 
     # Pre-computed Fibonacci sequence (first 20 numbers should cover most needs)
-    _FIBONACCI: tuple[int, ...] = (1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181, 6765)
+    _FIBONACCI: tuple[int, ...] = (
+        1,
+        1,
+        2,
+        3,
+        5,
+        8,
+        13,
+        21,
+        34,
+        55,
+        89,
+        144,
+        233,
+        377,
+        610,
+        987,
+        1597,
+        2584,
+        4181,
+        6765,
+    )
 
     def __init__(
         self,

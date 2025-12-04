@@ -29,9 +29,18 @@ from let_it_ride.strategy import (
 def make_card(notation: str) -> Card:
     """Create a Card from notation like 'Ah' (Ace of Hearts)."""
     rank_map = {
-        "2": Rank.TWO, "3": Rank.THREE, "4": Rank.FOUR, "5": Rank.FIVE,
-        "6": Rank.SIX, "7": Rank.SEVEN, "8": Rank.EIGHT, "9": Rank.NINE,
-        "T": Rank.TEN, "J": Rank.JACK, "Q": Rank.QUEEN, "K": Rank.KING,
+        "2": Rank.TWO,
+        "3": Rank.THREE,
+        "4": Rank.FOUR,
+        "5": Rank.FIVE,
+        "6": Rank.SIX,
+        "7": Rank.SEVEN,
+        "8": Rank.EIGHT,
+        "9": Rank.NINE,
+        "T": Rank.TEN,
+        "J": Rank.JACK,
+        "Q": Rank.QUEEN,
+        "K": Rank.KING,
         "A": Rank.ACE,
     }
     suit_map = {"c": Suit.CLUBS, "d": Suit.DIAMONDS, "h": Suit.HEARTS, "s": Suit.SPADES}
@@ -135,14 +144,18 @@ class TestStrategyRule:
     def test_unrecognized_syntax_raises_error(self) -> None:
         """Test that unrecognized syntax like && raises ConditionParseError."""
         with pytest.raises(ConditionParseError) as exc_info:
-            StrategyRule(condition="has_paying_hand && is_flush_draw", action=Decision.RIDE)
+            StrategyRule(
+                condition="has_paying_hand && is_flush_draw", action=Decision.RIDE
+            )
         assert "&&" in str(exc_info.value)
         assert "and" in str(exc_info.value).lower()
 
     def test_unrecognized_pipe_operator_raises_error(self) -> None:
         """Test that || operator raises ConditionParseError with helpful message."""
         with pytest.raises(ConditionParseError) as exc_info:
-            StrategyRule(condition="has_paying_hand || is_flush_draw", action=Decision.RIDE)
+            StrategyRule(
+                condition="has_paying_hand || is_flush_draw", action=Decision.RIDE
+            )
         assert "||" in str(exc_info.value)
         assert "or" in str(exc_info.value).lower()
 
@@ -150,7 +163,9 @@ class TestStrategyRule:
 class TestConditionEvaluation:
     """Tests for condition evaluation logic."""
 
-    def test_evaluate_boolean_field_true(self, default_context: StrategyContext) -> None:
+    def test_evaluate_boolean_field_true(
+        self, default_context: StrategyContext
+    ) -> None:
         """Test evaluating a boolean field that is True."""
         strategy = CustomStrategy(
             bet1_rules=[
@@ -164,7 +179,9 @@ class TestConditionEvaluation:
         analysis = analyze_three_cards(cards)
         assert strategy.decide_bet1(analysis, default_context) == Decision.RIDE
 
-    def test_evaluate_boolean_field_false(self, default_context: StrategyContext) -> None:
+    def test_evaluate_boolean_field_false(
+        self, default_context: StrategyContext
+    ) -> None:
         """Test evaluating a boolean field that is False."""
         strategy = CustomStrategy(
             bet1_rules=[
@@ -584,9 +601,7 @@ class TestAllValidFields:
             "straight_flush_spread",
         ],
     )
-    def test_numeric_fields(
-        self, field: str, default_context: StrategyContext
-    ) -> None:
+    def test_numeric_fields(self, field: str, default_context: StrategyContext) -> None:
         """Test that all numeric fields can be used in conditions."""
         strategy = CustomStrategy(
             bet1_rules=[
@@ -617,9 +632,7 @@ class TestAllValidFields:
             "is_excluded_sf_consecutive",
         ],
     )
-    def test_boolean_fields(
-        self, field: str, default_context: StrategyContext
-    ) -> None:
+    def test_boolean_fields(self, field: str, default_context: StrategyContext) -> None:
         """Test that all boolean fields can be used in conditions."""
         strategy = CustomStrategy(
             bet1_rules=[
