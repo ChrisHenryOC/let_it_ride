@@ -11,6 +11,15 @@ This module contains strategy implementations for pull/ride decisions:
 from let_it_ride.strategy.base import Decision, Strategy, StrategyContext
 from let_it_ride.strategy.baseline import AlwaysPullStrategy, AlwaysRideStrategy
 from let_it_ride.strategy.basic import BasicStrategy
+from let_it_ride.strategy.bonus import (
+    AlwaysBonusStrategy,
+    BankrollConditionalBonusStrategy,
+    BonusContext,
+    BonusStrategy,
+    NeverBonusStrategy,
+    StaticBonusStrategy,
+    create_bonus_strategy,
+)
 from let_it_ride.strategy.custom import (
     ConditionParseError,
     CustomStrategy,
@@ -20,16 +29,23 @@ from let_it_ride.strategy.custom import (
 from let_it_ride.strategy.presets import aggressive_strategy, conservative_strategy
 
 __all__ = [
+    "AlwaysBonusStrategy",
     "AlwaysPullStrategy",
     "AlwaysRideStrategy",
+    "BankrollConditionalBonusStrategy",
     "BasicStrategy",
+    "BonusContext",
+    "BonusStrategy",
     "ConditionParseError",
     "CustomStrategy",
     "Decision",
     "InvalidFieldError",
+    "NeverBonusStrategy",
+    "StaticBonusStrategy",
     "Strategy",
     "StrategyContext",
     "StrategyRule",
     "aggressive_strategy",
     "conservative_strategy",
+    "create_bonus_strategy",
 ]
