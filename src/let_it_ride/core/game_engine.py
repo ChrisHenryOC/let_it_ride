@@ -122,9 +122,7 @@ class GameEngine:
         if bonus_bet < 0:
             raise ValueError(f"bonus_bet cannot be negative, got {bonus_bet}")
         if bonus_bet > 0 and self._bonus_paytable is None:
-            raise ValueError(
-                "bonus_bet > 0 requires a bonus_paytable to be configured"
-            )
+            raise ValueError("bonus_bet > 0 requires a bonus_paytable to be configured")
 
         if context is None:
             context = StrategyContext(
@@ -138,15 +136,19 @@ class GameEngine:
         self._deck.reset()
         self._deck.shuffle(self._rng)
 
-        # Step 2: Dealer discard (if enabled)
+        # Step 2: Deal 3 cards to player (player receives cards first)
+        player_cards = self._deck.deal(3)
+
+        # Step 3: Dealer discard (if enabled)
+        # In casino play, the shuffling machine dispenses 3 cards at a time.
+        # When dealing the 2 community cards, the dealer receives 3 but discards 1.
         self._last_discarded_cards = []
         if self._dealer_config.discard_enabled:
             self._last_discarded_cards = self._deck.deal(
                 self._dealer_config.discard_cards
             )
 
-        # Step 3: Deal 3 cards to player, 2 community cards
-        player_cards = self._deck.deal(3)
+        # Step 4: Deal 2 community cards
         community_cards = self._deck.deal(2)
 
         player_tuple: tuple[Card, Card, Card] = (
@@ -179,7 +181,9 @@ class GameEngine:
         active_bets = (1 if bet1_active else 0) + (1 if bet2_active else 0) + 1
         bets_at_risk = base_bet * active_bets
 
-        main_payout = self._main_paytable.calculate_payout(final_hand_rank, bets_at_risk)
+        main_payout = self._main_paytable.calculate_payout(
+            final_hand_rank, bets_at_risk
+        )
 
         # Step 9: Evaluate bonus if applicable
         bonus_hand_rank: ThreeCardHandRank | None = None

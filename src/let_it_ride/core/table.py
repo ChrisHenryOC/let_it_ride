@@ -158,18 +158,20 @@ class Table:
         self._deck.reset()
         self._deck.shuffle(self._rng)
 
-        # Step 2: Dealer discard (if enabled)
+        # Step 2: Deal 3 cards to each seat (players receive cards first)
+        seat_cards: list[tuple[Card, Card, Card]] = []
+        for _ in range(num_seats):
+            cards = self._deck.deal(3)
+            seat_cards.append((cards[0], cards[1], cards[2]))
+
+        # Step 3: Dealer discard (if enabled)
+        # In casino play, the shuffling machine dispenses 3 cards at a time.
+        # When dealing the 2 community cards, the dealer receives 3 but discards 1.
         self._last_discarded_cards = []
         if self._dealer_config.discard_enabled:
             self._last_discarded_cards = self._deck.deal(
                 self._dealer_config.discard_cards
             )
-
-        # Step 3: Deal 3 cards to each seat
-        seat_cards: list[tuple[Card, Card, Card]] = []
-        for _ in range(num_seats):
-            cards = self._deck.deal(3)
-            seat_cards.append((cards[0], cards[1], cards[2]))
 
         # Step 4: Deal 2 community cards
         community = self._deck.deal(2)
