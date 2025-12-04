@@ -630,6 +630,9 @@ class TestFullConfig:
         assert config.metadata is not None
         assert config.simulation is not None
         assert config.deck is not None
+        assert config.dealer is not None
+        assert config.dealer.discard_enabled is False
+        assert config.dealer.discard_cards == 3
         assert config.bankroll is not None
         assert config.strategy is not None
         assert config.bonus_strategy is not None

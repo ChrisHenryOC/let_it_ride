@@ -19,6 +19,10 @@ from let_it_ride.core.three_card_evaluator import (
 )
 from let_it_ride.strategy.base import Decision, Strategy, StrategyContext
 
+# Module-level singleton for default dealer config to avoid Pydantic validation
+# overhead on each GameEngine instantiation when dealer_config is not provided.
+_DEFAULT_DEALER_CONFIG = DealerConfig()
+
 
 @dataclass(frozen=True)
 class GameHandResult:
@@ -86,7 +90,9 @@ class GameEngine:
         self._main_paytable = main_paytable
         self._bonus_paytable = bonus_paytable
         self._rng = rng
-        self._dealer_config = dealer_config or DealerConfig()
+        self._dealer_config = (
+            dealer_config if dealer_config is not None else _DEFAULT_DEALER_CONFIG
+        )
         self._last_discarded_cards: list[Card] = []
 
     def play_hand(
@@ -208,14 +214,14 @@ class GameEngine:
             net_result=net_result,
         )
 
-    def last_discarded_cards(self) -> list[Card]:
+    def last_discarded_cards(self) -> tuple[Card, ...]:
         """Return the cards discarded by the dealer in the last hand.
 
         This method provides access to discarded cards for statistical
         validation purposes.
 
         Returns:
-            Copy of the list of discarded cards from the last hand.
-            Empty list if dealer discard is disabled or no hands played.
+            Tuple of discarded cards from the last hand.
+            Empty tuple if dealer discard is disabled or no hands played.
         """
-        return self._last_discarded_cards.copy()
+        return tuple(self._last_discarded_cards)

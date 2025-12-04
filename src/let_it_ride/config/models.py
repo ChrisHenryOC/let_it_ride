@@ -83,7 +83,7 @@ class DealerConfig(BaseModel):
 
     Attributes:
         discard_enabled: Enable dealer discard before player deal.
-        discard_cards: Number of cards dealer takes (top card discarded).
+        discard_cards: Number of cards dealer discards before player deal.
     """
 
     model_config = ConfigDict(extra="forbid")

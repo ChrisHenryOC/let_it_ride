@@ -53,6 +53,14 @@ class TestDealerConfigModel:
         config_max = DealerConfig(discard_cards=10)
         assert config_max.discard_cards == 10
 
+    def test_discard_cards_invalid_types(self) -> None:
+        """Verify discard_cards rejects invalid types."""
+        with pytest.raises(ValueError):
+            DealerConfig(discard_cards=3.5)  # type: ignore[arg-type]
+
+        with pytest.raises(ValueError):
+            DealerConfig(discard_cards="three")  # type: ignore[arg-type]
+
 
 class TestDealerDiscardDisabled:
     """Tests for GameEngine with dealer discard disabled (backwards compatibility)."""
@@ -68,7 +76,7 @@ class TestDealerDiscardDisabled:
 
         engine.play_hand(hand_id=1, base_bet=5.0)
 
-        assert engine.last_discarded_cards() == []
+        assert engine.last_discarded_cards() == ()
 
     def test_no_discard_when_disabled(
         self,
@@ -82,7 +90,7 @@ class TestDealerDiscardDisabled:
 
         engine.play_hand(hand_id=1, base_bet=5.0)
 
-        assert engine.last_discarded_cards() == []
+        assert engine.last_discarded_cards() == ()
 
     def test_deck_has_expected_remaining_cards_without_discard(
         self,
@@ -171,22 +179,25 @@ class TestDealerDiscardEnabled:
         assert len(discarded) == 3
         assert all(hasattr(card, "rank") and hasattr(card, "suit") for card in discarded)
 
-    def test_discarded_cards_returns_copy(
+    def test_discarded_cards_returns_immutable_tuple(
         self,
         basic_setup: tuple[Deck, BasicStrategy, MainGamePaytable],
         rng: random.Random,
     ) -> None:
-        """Verify last_discarded_cards returns a copy, not the internal list."""
+        """Verify last_discarded_cards returns an immutable tuple."""
         deck, strategy, paytable = basic_setup
         config = DealerConfig(discard_enabled=True, discard_cards=3)
         engine = GameEngine(deck, strategy, paytable, None, rng, config)
 
         engine.play_hand(hand_id=1, base_bet=5.0)
         discarded = engine.last_discarded_cards()
-        discarded.clear()
 
-        # Internal list should not be affected
-        assert len(engine.last_discarded_cards()) == 3
+        # Should return a tuple (immutable)
+        assert isinstance(discarded, tuple)
+        assert len(discarded) == 3
+
+        # Multiple calls should return equal tuples
+        assert engine.last_discarded_cards() == discarded
 
 
 class TestDealerDiscardIntegration:
@@ -226,7 +237,7 @@ class TestDealerDiscardIntegration:
         discarded = engine.last_discarded_cards()
 
         # Combine all cards dealt
-        all_cards = discarded + list(result.player_cards) + list(result.community_cards)
+        all_cards = list(discarded) + list(result.player_cards) + list(result.community_cards)
 
         # All cards should be unique
         assert len(all_cards) == len(set(all_cards))
