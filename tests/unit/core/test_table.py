@@ -44,13 +44,11 @@ class TestTableConfigModel:
         """Verify TableConfig has correct defaults."""
         config = TableConfig()
         assert config.num_seats == 1
-        assert config.track_seat_positions is True
 
     def test_custom_values(self) -> None:
         """Verify TableConfig accepts custom values."""
-        config = TableConfig(num_seats=6, track_seat_positions=False)
+        config = TableConfig(num_seats=6)
         assert config.num_seats == 6
-        assert config.track_seat_positions is False
 
     def test_num_seats_minimum(self) -> None:
         """Verify num_seats must be at least 1."""
@@ -539,3 +537,92 @@ class TestTableStrategyContext:
         # Should not raise - context should be accepted
         result = table.play_round(round_id=1, base_bet=5.0, context=context)
         assert result is not None
+
+
+class TestTableEdgeCases:
+    """Tests for Table boundary conditions and edge cases."""
+
+    def test_max_discard_with_max_seats(
+        self,
+        rng: random.Random,
+    ) -> None:
+        """Verify table handles max discard (10) with max seats (6).
+
+        Uses 18 player + 10 discard + 2 community = 30 cards.
+        Single deck (52 cards) should handle this.
+        """
+        deck = Deck()
+        strategy = BasicStrategy()
+        paytable = standard_main_paytable()
+        table_config = TableConfig(num_seats=6)
+        dealer_config = DealerConfig(discard_enabled=True, discard_cards=10)
+        table = Table(
+            deck,
+            strategy,
+            paytable,
+            None,
+            rng,
+            table_config=table_config,
+            dealer_config=dealer_config,
+        )
+
+        result = table.play_round(round_id=1, base_bet=5.0)
+
+        # Verify all expected cards were dealt
+        assert result.dealer_discards is not None
+        assert len(result.dealer_discards) == 10
+        assert len(result.seat_results) == 6
+
+        # Collect all cards
+        all_cards = []
+        all_cards.extend(result.dealer_discards)
+        all_cards.extend(result.community_cards)
+        for seat in result.seat_results:
+            all_cards.extend(seat.player_cards)
+
+        # 10 discard + 2 community + 18 player = 30 cards
+        assert len(all_cards) == 30
+        assert len(set(all_cards)) == 30  # All unique
+
+        # 52 - 30 = 22 remaining
+        assert deck.cards_remaining() == 22
+
+
+class TestTableBonusMultiSeat:
+    """Tests for multi-seat bonus bet handling."""
+
+    def test_multi_seat_bonus_bet(
+        self,
+        setup_with_bonus: tuple[Deck, BasicStrategy, MainGamePaytable, BonusPaytable],
+        rng: random.Random,
+    ) -> None:
+        """Verify bonus bets are evaluated independently per seat."""
+        deck, strategy, main_paytable, bonus_paytable = setup_with_bonus
+        table_config = TableConfig(num_seats=6)
+        table = Table(
+            deck,
+            strategy,
+            main_paytable,
+            bonus_paytable,
+            rng,
+            table_config=table_config,
+        )
+
+        result = table.play_round(round_id=1, base_bet=5.0, bonus_bet=1.0)
+
+        # Verify all seats have bonus results
+        for seat in result.seat_results:
+            assert seat.bonus_bet == 1.0
+            # Each seat should have a bonus hand rank evaluated from its 3 cards
+            assert seat.bonus_hand_rank is not None
+            # Bonus payout depends on hand - could be 0 or positive
+            assert seat.bonus_payout >= 0
+
+        # Verify each seat has unique 3-card hand for bonus evaluation
+        bonus_hands = [seat.player_cards for seat in result.seat_results]
+        assert len(bonus_hands) == 6
+        # Cards should be unique across seats (in single deck)
+        all_bonus_cards = []
+        for hand in bonus_hands:
+            all_bonus_cards.extend(hand)
+        assert len(set(all_bonus_cards)) == 18  # 6 seats * 3 unique cards

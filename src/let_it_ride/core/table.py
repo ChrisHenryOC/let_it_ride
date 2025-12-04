@@ -24,7 +24,7 @@ _DEFAULT_DEALER_CONFIG = DealerConfig()
 _DEFAULT_TABLE_CONFIG = TableConfig()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PlayerSeat:
     """Result data for a single player seat in a round.
 
@@ -57,21 +57,22 @@ class PlayerSeat:
     net_result: float
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TableRoundResult:
     """Complete result of a single round at the table.
 
     Attributes:
         round_id: Unique identifier for this round.
         community_cards: The 2 shared community cards.
-        dealer_discards: Cards discarded by dealer before dealing (None if disabled).
+        dealer_discards: Cards discarded by dealer when dealing community cards
+            (None if disabled).
         seat_results: Results for each player seat.
     """
 
     round_id: int
     community_cards: tuple[Card, Card]
     dealer_discards: tuple[Card, ...] | None
-    seat_results: list[PlayerSeat]
+    seat_results: tuple[PlayerSeat, ...]
 
 
 class Table:
@@ -200,7 +201,7 @@ class Table:
             round_id=round_id,
             community_cards=community_tuple,
             dealer_discards=dealer_discards,
-            seat_results=seat_results,
+            seat_results=tuple(seat_results),
         )
 
     def _process_seat(
@@ -230,12 +231,13 @@ class Table:
         decision_bet1 = self._strategy.decide_bet1(analysis_3, context)
 
         # Analyze 4-card hand (3 player + 1 community), invoke strategy for bet 2
-        four_cards = [*player_cards, community_cards[0]]
+        # Use tuple unpacking to avoid list allocations (functions accept Sequence[Card])
+        four_cards = (*player_cards, community_cards[0])
         analysis_4 = analyze_four_cards(four_cards)
         decision_bet2 = self._strategy.decide_bet2(analysis_4, context)
 
         # Evaluate final 5-card hand
-        final_cards = list(player_cards) + list(community_cards)
+        final_cards = (*player_cards, *community_cards)
         hand_result = evaluate_five_card_hand(final_cards)
         final_hand_rank = hand_result.rank
 

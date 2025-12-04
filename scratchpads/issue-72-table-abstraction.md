@@ -20,7 +20,6 @@ Implement the `Table` class that orchestrates multiple player positions at a sin
 class TableConfig(BaseModel):
     """Configuration for table settings."""
     num_seats: Annotated[int, Field(ge=1, le=6)] = 1
-    track_seat_positions: bool = True
 ```
 
 ### 2. Create core/table.py with:
