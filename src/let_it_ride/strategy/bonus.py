@@ -62,7 +62,7 @@ class BonusStrategy(Protocol):
 
         Returns:
             The bonus bet amount (0 means no bonus bet).
-            Must be within [0, context.max_bonus_bet].
+            Returns 0 if below min_bonus_bet, otherwise clamped to max_bonus_bet.
         """
         ...
 
@@ -122,7 +122,12 @@ class AlwaysBonusStrategy:
 
         Args:
             amount: The fixed bonus bet amount to place.
+
+        Raises:
+            ValueError: If amount is negative.
         """
+        if amount < 0:
+            raise ValueError("amount must be non-negative")
         self._amount = amount
 
     def get_bonus_bet(self, context: BonusContext) -> float:
@@ -162,12 +167,17 @@ class StaticBonusStrategy:
                 Mutually exclusive with amount.
 
         Raises:
-            ValueError: If neither or both amount and ratio are specified.
+            ValueError: If neither or both amount and ratio are specified,
+                or if values are negative.
         """
         if amount is not None and ratio is not None:
             raise ValueError("Specify either amount or ratio, not both")
         if amount is None and ratio is None:
             raise ValueError("Must specify either amount or ratio")
+        if amount is not None and amount < 0:
+            raise ValueError("amount must be non-negative")
+        if ratio is not None and ratio < 0:
+            raise ValueError("ratio must be non-negative")
 
         self._amount = amount
         self._ratio = ratio
@@ -185,7 +195,8 @@ class StaticBonusStrategy:
             bet = self._amount
         else:
             # ratio is guaranteed to be set due to __init__ validation
-            bet = context.base_bet * self._ratio  # type: ignore[operator]
+            assert self._ratio is not None
+            bet = context.base_bet * self._ratio
         return _clamp_bonus_bet(bet, context)
 
 
@@ -226,14 +237,23 @@ class BankrollConditionalBonusStrategy:
                 None means no minimum.
             min_bankroll_ratio: Minimum bankroll/starting_bankroll ratio
                 required to bet. None means no minimum.
-            profit_percentage: If set, bet this fraction of session profit
-                instead of base_amount. None uses base_amount.
+            profit_percentage: If set and session is profitable, bet this
+                fraction of session profit. Overrides both base_amount and
+                scaling_tiers. None uses base_amount or scaling tiers.
             max_drawdown: Maximum drawdown from starting bankroll as fraction
                 (0-1). If exceeded, no bonus bets. None means no limit.
             scaling_tiers: List of (min_profit, max_profit, bet_amount) tuples.
                 When profit is in range [min, max), use that bet_amount.
+                Tiers are matched in order; provide in ascending min_profit order.
                 If None, uses base_amount.
+
+        Raises:
+            ValueError: If base_amount or profit_percentage is negative.
         """
+        if base_amount < 0:
+            raise ValueError("base_amount must be non-negative")
+        if profit_percentage is not None and profit_percentage < 0:
+            raise ValueError("profit_percentage must be non-negative")
         self._base_amount = base_amount
         self._min_session_profit = min_session_profit
         self._min_bankroll_ratio = min_bankroll_ratio

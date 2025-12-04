@@ -776,3 +776,249 @@ class TestEdgeCases:
         result = strategy.get_bonus_bet(context)
         # No tier matches negative profit, so uses base_amount
         assert result == 5.0
+
+
+class TestReviewFindings:
+    """Tests addressing code review findings."""
+
+    # Critical: Missing test for unknown strategy type
+    def test_unknown_strategy_type_raises(self) -> None:
+        """Test that unknown strategy type raises ValueError."""
+        config = BonusStrategyConfig(type="never")
+        object.__setattr__(config, "type", "unknown_strategy")
+        with pytest.raises(ValueError, match="Unknown bonus strategy type"):
+            create_bonus_strategy(config)
+
+    # High: Boundary condition at exact min_session_profit threshold
+    def test_bets_when_exactly_at_min_session_profit(self) -> None:
+        """Test that bet is placed when session profit equals minimum exactly."""
+        strategy = BankrollConditionalBonusStrategy(
+            base_amount=5.0,
+            min_session_profit=100.0,
+        )
+        context = BonusContext(
+            bankroll=1100.0,
+            starting_bankroll=1000.0,
+            session_profit=100.0,  # Exactly at threshold
+            hands_played=25,
+            main_streak=2,
+            bonus_streak=1,
+            base_bet=10.0,
+            min_bonus_bet=1.0,
+            max_bonus_bet=25.0,
+        )
+        result = strategy.get_bonus_bet(context)
+        assert result == 5.0  # Should bet at exact threshold (uses <, not <=)
+
+    # High: Boundary condition at exact max_drawdown threshold
+    def test_bets_when_exactly_at_max_drawdown(self) -> None:
+        """Test that bet is placed when drawdown equals max exactly."""
+        strategy = BankrollConditionalBonusStrategy(
+            base_amount=5.0,
+            max_drawdown=0.20,
+        )
+        context = BonusContext(
+            bankroll=800.0,  # Exactly 20% drawdown
+            starting_bankroll=1000.0,
+            session_profit=-200.0,
+            hands_played=50,
+            main_streak=-3,
+            bonus_streak=-1,
+            base_bet=10.0,
+            min_bonus_bet=1.0,
+            max_bonus_bet=25.0,
+        )
+        result = strategy.get_bonus_bet(context)
+        assert result == 5.0  # Should bet at exact threshold (uses >, not >=)
+
+    # High: Boundary condition at exact min_bankroll_ratio threshold
+    def test_bets_when_exactly_at_min_bankroll_ratio(self) -> None:
+        """Test that bet is placed when bankroll ratio equals minimum exactly."""
+        strategy = BankrollConditionalBonusStrategy(
+            base_amount=5.0,
+            min_bankroll_ratio=1.0,
+        )
+        context = BonusContext(
+            bankroll=1000.0,  # Exactly 100% of starting (ratio = 1.0)
+            starting_bankroll=1000.0,
+            session_profit=0.0,
+            hands_played=20,
+            main_streak=0,
+            bonus_streak=0,
+            base_bet=10.0,
+            min_bonus_bet=1.0,
+            max_bonus_bet=25.0,
+        )
+        result = strategy.get_bonus_bet(context)
+        assert result == 5.0  # Should bet at exact threshold (uses <, not <=)
+
+    # High: Negative amount validation
+    def test_always_strategy_negative_amount_raises(self) -> None:
+        """Test that negative amount raises ValueError."""
+        with pytest.raises(ValueError, match="amount must be non-negative"):
+            AlwaysBonusStrategy(amount=-5.0)
+
+    # High: Zero amount returns 0
+    def test_always_strategy_zero_amount_returns_zero(
+        self,
+        default_context: BonusContext,
+    ) -> None:
+        """Test that zero amount returns 0."""
+        strategy = AlwaysBonusStrategy(amount=0.0)
+        result = strategy.get_bonus_bet(default_context)
+        assert result == 0.0
+
+    # Medium: Static strategy negative amount/ratio validation
+    def test_static_strategy_negative_amount_raises(self) -> None:
+        """Test that negative amount raises ValueError."""
+        with pytest.raises(ValueError, match="amount must be non-negative"):
+            StaticBonusStrategy(amount=-5.0)
+
+    def test_static_strategy_negative_ratio_raises(self) -> None:
+        """Test that negative ratio raises ValueError."""
+        with pytest.raises(ValueError, match="ratio must be non-negative"):
+            StaticBonusStrategy(ratio=-0.5)
+
+    # Medium: BankrollConditional negative validation
+    def test_bankroll_conditional_negative_base_amount_raises(self) -> None:
+        """Test that negative base_amount raises ValueError."""
+        with pytest.raises(ValueError, match="base_amount must be non-negative"):
+            BankrollConditionalBonusStrategy(base_amount=-5.0)
+
+    def test_bankroll_conditional_negative_profit_percentage_raises(self) -> None:
+        """Test that negative profit_percentage raises ValueError."""
+        with pytest.raises(ValueError, match="profit_percentage must be non-negative"):
+            BankrollConditionalBonusStrategy(
+                base_amount=5.0,
+                profit_percentage=-0.10,
+            )
+
+    # Medium: Zero base_bet with ratio mode
+    def test_static_ratio_with_zero_base_bet(self) -> None:
+        """Test ratio mode with zero base_bet returns 0."""
+        strategy = StaticBonusStrategy(ratio=0.5)
+        context = BonusContext(
+            bankroll=1000.0,
+            starting_bankroll=1000.0,
+            session_profit=0.0,
+            hands_played=0,
+            main_streak=0,
+            bonus_streak=0,
+            base_bet=0.0,  # Zero base bet
+            min_bonus_bet=1.0,
+            max_bonus_bet=25.0,
+        )
+        result = strategy.get_bonus_bet(context)
+        assert result == 0.0  # 0 * 0.5 = 0, below min_bonus_bet
+
+    # Medium: profit_percentage overrides scaling_tiers
+    def test_profit_percentage_overrides_scaling_tiers(self) -> None:
+        """Test that profit_percentage takes precedence over scaling tiers."""
+        strategy = BankrollConditionalBonusStrategy(
+            base_amount=1.0,
+            profit_percentage=0.05,  # 5% of profit
+            scaling_tiers=[
+                (0.0, 100.0, 10.0),  # Would select 10.0 for profit 50
+            ],
+        )
+        context = BonusContext(
+            bankroll=1050.0,
+            starting_bankroll=1000.0,
+            session_profit=50.0,  # 5% = 2.5, tier would give 10.0
+            hands_played=15,
+            main_streak=2,
+            bonus_streak=1,
+            base_bet=10.0,
+            min_bonus_bet=1.0,
+            max_bonus_bet=25.0,
+        )
+        result = strategy.get_bonus_bet(context)
+        assert result == 2.5  # profit_percentage wins over tier
+
+    # Medium: Scaling tier boundary values
+    def test_scaling_tier_at_min_boundary(self) -> None:
+        """Test that profit exactly at tier min_profit uses that tier."""
+        strategy = BankrollConditionalBonusStrategy(
+            base_amount=1.0,
+            scaling_tiers=[
+                (50.0, 100.0, 5.0),  # Uses >= for min
+            ],
+        )
+        context = BonusContext(
+            bankroll=1050.0,
+            starting_bankroll=1000.0,
+            session_profit=50.0,  # Exactly at min_profit boundary
+            hands_played=15,
+            main_streak=2,
+            bonus_streak=1,
+            base_bet=10.0,
+            min_bonus_bet=1.0,
+            max_bonus_bet=25.0,
+        )
+        result = strategy.get_bonus_bet(context)
+        assert result == 5.0  # Should match tier (>= 50)
+
+    def test_scaling_tier_at_max_boundary(self) -> None:
+        """Test that profit exactly at tier max_profit falls to next tier."""
+        strategy = BankrollConditionalBonusStrategy(
+            base_amount=1.0,
+            scaling_tiers=[
+                (0.0, 50.0, 2.0),  # Uses < for max
+                (50.0, 100.0, 5.0),
+            ],
+        )
+        context = BonusContext(
+            bankroll=1050.0,
+            starting_bankroll=1000.0,
+            session_profit=50.0,  # Exactly at max_profit of first tier
+            hands_played=15,
+            main_streak=2,
+            bonus_streak=1,
+            base_bet=10.0,
+            min_bonus_bet=1.0,
+            max_bonus_bet=25.0,
+        )
+        result = strategy.get_bonus_bet(context)
+        assert result == 5.0  # Should match second tier (50 is NOT < 50)
+
+    # Medium: Empty scaling tiers list
+    def test_empty_scaling_tiers_uses_base_amount(self) -> None:
+        """Test that empty scaling tiers list uses base_amount."""
+        strategy = BankrollConditionalBonusStrategy(
+            base_amount=5.0,
+            scaling_tiers=[],  # Empty list
+        )
+        context = BonusContext(
+            bankroll=1100.0,
+            starting_bankroll=1000.0,
+            session_profit=100.0,
+            hands_played=25,
+            main_streak=3,
+            bonus_streak=1,
+            base_bet=10.0,
+            min_bonus_bet=1.0,
+            max_bonus_bet=25.0,
+        )
+        result = strategy.get_bonus_bet(context)
+        assert result == 5.0  # Uses base_amount since no tiers match
+
+    # Medium: Factory creates functional strategy
+    def test_factory_creates_functional_always_strategy(self) -> None:
+        """Test that factory-created AlwaysBonusStrategy works correctly."""
+        config = BonusStrategyConfig(
+            type="always",
+            always=AlwaysBonusConfig(amount=7.0),
+        )
+        strategy = create_bonus_strategy(config)
+        context = BonusContext(
+            bankroll=1000.0,
+            starting_bankroll=1000.0,
+            session_profit=0.0,
+            hands_played=0,
+            main_streak=0,
+            bonus_streak=0,
+            base_bet=10.0,
+            min_bonus_bet=1.0,
+            max_bonus_bet=25.0,
+        )
+        assert strategy.get_bonus_bet(context) == 7.0
