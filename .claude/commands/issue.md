@@ -39,7 +39,10 @@ Please analyze and fix the GitHub issue: $ARGUMENTS.
    - Positive tests (verify correct behavior)
    - Negative tests (verify error handling)
 3. Run the full test suite: `poetry run pytest`
-4. Ensure linting passes: `poetry run ruff check src/ tests/`
+4. Format and lint code:
+   - Run `poetry run ruff format src/ tests/` to auto-format
+   - Run `poetry run ruff check src/ tests/ --fix` to auto-fix lint issues
+   - If any files were modified, stage and amend the previous commit
 5. Ensure type checking passes: `poetry run mypy src/`
 6. All functions must have type annotations for parameters and return values
 7. Launch **test-coverage-reviewer agent** for coverage verification
