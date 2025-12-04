@@ -386,9 +386,7 @@ class _ExpressionParser:
         # If no comparison, treat as boolean
         return bool(left)
 
-    def _apply_comparison(
-        self, left: Any, op: str | None, right: Any
-    ) -> bool:
+    def _apply_comparison(self, left: Any, op: str | None, right: Any) -> bool:
         """Apply a comparison operator to two values."""
         if op == ">=":
             return bool(left >= right)

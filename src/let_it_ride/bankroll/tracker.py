@@ -19,9 +19,7 @@ class BankrollTracker:
         ~80MB. Enable only when visualization features (LIR-30) are needed.
     """
 
-    def __init__(
-        self, starting_amount: float, *, track_history: bool = False
-    ) -> None:
+    def __init__(self, starting_amount: float, *, track_history: bool = False) -> None:
         """Initialize the bankroll tracker.
 
         Args:

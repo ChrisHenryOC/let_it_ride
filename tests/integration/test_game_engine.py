@@ -336,9 +336,7 @@ class TestBetsAtRisk:
 class TestMainGamePayout:
     """Test main game payout calculation."""
 
-    def test_losing_hand_zero_payout(
-        self, main_paytable: MainGamePaytable
-    ) -> None:
+    def test_losing_hand_zero_payout(self, main_paytable: MainGamePaytable) -> None:
         """Losing hands (high card, low pair) have zero payout."""
         # Play many hands to find a losing one
         for seed in range(100):
@@ -362,9 +360,7 @@ class TestMainGamePayout:
         # If no losing hand found in 100 tries, that's statistically unlikely but ok
         pytest.skip("Could not find a losing hand in test runs")
 
-    def test_paying_hand_positive_payout(
-        self, main_paytable: MainGamePaytable
-    ) -> None:
+    def test_paying_hand_positive_payout(self, main_paytable: MainGamePaytable) -> None:
         """Paying hands have positive payout."""
         # Play many hands to find a paying one
         for seed in range(200):
@@ -377,7 +373,10 @@ class TestMainGamePayout:
             )
             result = engine.play_hand(hand_id=1, base_bet=5.0)
 
-            if result.final_hand_rank.value >= FiveCardHandRank.PAIR_TENS_OR_BETTER.value:
+            if (
+                result.final_hand_rank.value
+                >= FiveCardHandRank.PAIR_TENS_OR_BETTER.value
+            ):
                 assert result.main_payout > 0
                 return
 
@@ -387,9 +386,7 @@ class TestMainGamePayout:
 class TestNetResult:
     """Test net result calculation."""
 
-    def test_losing_hand_negative_net(
-        self, main_paytable: MainGamePaytable
-    ) -> None:
+    def test_losing_hand_negative_net(self, main_paytable: MainGamePaytable) -> None:
         """Losing hand has negative net result equal to bets at risk."""
         for seed in range(100):
             engine = GameEngine(
@@ -407,9 +404,7 @@ class TestNetResult:
 
         pytest.skip("Could not find a losing hand in test runs")
 
-    def test_winning_hand_positive_net(
-        self, main_paytable: MainGamePaytable
-    ) -> None:
+    def test_winning_hand_positive_net(self, main_paytable: MainGamePaytable) -> None:
         """Winning hand has positive net result equal to payout."""
         for seed in range(200):
             engine = GameEngine(
@@ -545,9 +540,7 @@ class TestDeckManagement:
             all_cards = list(result.player_cards) + list(result.community_cards)
             assert len(set(all_cards)) == 5
 
-    def test_same_seed_same_hand(
-        self, main_paytable: MainGamePaytable
-    ) -> None:
+    def test_same_seed_same_hand(self, main_paytable: MainGamePaytable) -> None:
         """Same RNG seed produces identical hands."""
         engine1 = GameEngine(
             deck=Deck(),
@@ -679,9 +672,7 @@ class TestBasicStrategyIntegration:
 
             # Net result should be calculated correctly
             main_net = (
-                result.main_payout
-                if result.main_payout > 0
-                else -result.bets_at_risk
+                result.main_payout if result.main_payout > 0 else -result.bets_at_risk
             )
             bonus_net = (
                 result.bonus_payout if result.bonus_payout > 0 else -result.bonus_bet

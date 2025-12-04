@@ -46,9 +46,7 @@ def create_mock_engine(results: list[float]) -> Mock:
     return mock
 
 
-def create_mock_engine_with_custom_bets(
-    results: list[tuple[float, float]]
-) -> Mock:
+def create_mock_engine_with_custom_bets(results: list[tuple[float, float]]) -> Mock:
     """Create a mock GameEngine with custom bets_at_risk.
 
     Args:
@@ -736,8 +734,14 @@ class TestPlayHand:
         # Check the engine was called correctly
         call_args = engine.play_hand.call_args
         assert call_args.kwargs.get("hand_id") == 0 or call_args[1].get("hand_id") == 0
-        assert call_args.kwargs.get("base_bet") == 25.0 or call_args[1].get("base_bet") == 25.0
-        assert call_args.kwargs.get("bonus_bet") == 5.0 or call_args[1].get("bonus_bet") == 5.0
+        assert (
+            call_args.kwargs.get("base_bet") == 25.0
+            or call_args[1].get("base_bet") == 25.0
+        )
+        assert (
+            call_args.kwargs.get("bonus_bet") == 5.0
+            or call_args[1].get("bonus_bet") == 5.0
+        )
 
 
 class TestRunToCompletion:
@@ -929,11 +933,13 @@ class TestStatisticsAccuracy:
             max_hands=3,
         )
         # Each hand has bets_at_risk of 75 (3 * 25)
-        engine = create_mock_engine_with_custom_bets([
-            (50.0, 75.0),
-            (-25.0, 75.0),
-            (100.0, 75.0),
-        ])
+        engine = create_mock_engine_with_custom_bets(
+            [
+                (50.0, 75.0),
+                (-25.0, 75.0),
+                (100.0, 75.0),
+            ]
+        )
         betting = FlatBetting(25.0)
 
         session = Session(config, engine, betting)
@@ -1097,9 +1103,21 @@ class TestSessionIntegration:
 
         # Simulate a mix of wins and losses
         results = [
-            25.0, -30.0, 15.0, -30.0, 50.0,  # +30
-            -30.0, -30.0, 100.0, -30.0, 25.0,  # +35 = +65
-            15.0, 25.0, -30.0, 15.0, 10.0,    # +35 = +100 (hit win limit)
+            25.0,
+            -30.0,
+            15.0,
+            -30.0,
+            50.0,  # +30
+            -30.0,
+            -30.0,
+            100.0,
+            -30.0,
+            25.0,  # +35 = +65
+            15.0,
+            25.0,
+            -30.0,
+            15.0,
+            10.0,  # +35 = +100 (hit win limit)
         ]
         engine = create_mock_engine(results)
         betting = FlatBetting(10.0)

@@ -773,7 +773,9 @@ class TestMartingaleBettingRepr:
 
     def test_repr(self) -> None:
         """Verify repr of MartingaleBetting."""
-        betting = MartingaleBetting(base_bet=10.0, loss_multiplier=2.0, max_bet=500.0, max_progressions=6)
+        betting = MartingaleBetting(
+            base_bet=10.0, loss_multiplier=2.0, max_bet=500.0, max_progressions=6
+        )
         expected = "MartingaleBetting(base_bet=10.0, loss_multiplier=2.0, max_bet=500.0, max_progressions=6)"
         assert repr(betting) == expected
 
@@ -958,7 +960,9 @@ class TestReverseMartingaleBettingProgression:
 
     def test_max_bet_limit(self) -> None:
         """Verify bet is capped at max_bet."""
-        betting = ReverseMartingaleBetting(base_bet=100.0, max_bet=150.0, profit_target_streak=10)
+        betting = ReverseMartingaleBetting(
+            base_bet=100.0, max_bet=150.0, profit_target_streak=10
+        )
         context = BettingContext(
             bankroll=10000.0,
             starting_bankroll=10000.0,
@@ -1278,7 +1282,9 @@ class TestParoliBettingRepr:
 
     def test_repr(self) -> None:
         """Verify repr of ParoliBetting."""
-        betting = ParoliBetting(base_bet=10.0, win_multiplier=2.0, wins_before_reset=3, max_bet=500.0)
+        betting = ParoliBetting(
+            base_bet=10.0, win_multiplier=2.0, wins_before_reset=3, max_bet=500.0
+        )
         expected = "ParoliBetting(base_bet=10.0, win_multiplier=2.0, wins_before_reset=3, max_bet=500.0)"
         assert repr(betting) == expected
 
@@ -1574,7 +1580,9 @@ class TestDAlembertBettingRepr:
     def test_repr(self) -> None:
         """Verify repr of DAlembertBetting."""
         betting = DAlembertBetting(base_bet=25.0, unit=5.0, min_bet=5.0, max_bet=500.0)
-        expected = "DAlembertBetting(base_bet=25.0, unit=5.0, min_bet=5.0, max_bet=500.0)"
+        expected = (
+            "DAlembertBetting(base_bet=25.0, unit=5.0, min_bet=5.0, max_bet=500.0)"
+        )
         assert repr(betting) == expected
 
 
@@ -1883,7 +1891,9 @@ class TestFibonacciBettingRepr:
 
     def test_repr(self) -> None:
         """Verify repr of FibonacciBetting."""
-        betting = FibonacciBetting(base_unit=5.0, win_regression=2, max_bet=500.0, max_position=10)
+        betting = FibonacciBetting(
+            base_unit=5.0, win_regression=2, max_bet=500.0, max_position=10
+        )
         expected = "FibonacciBetting(base_unit=5.0, win_regression=2, max_bet=500.0, max_position=10)"
         assert repr(betting) == expected
 
