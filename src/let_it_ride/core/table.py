@@ -11,12 +11,9 @@ from let_it_ride.config.models import DealerConfig, TableConfig
 from let_it_ride.config.paytables import BonusPaytable, MainGamePaytable
 from let_it_ride.core.card import Card
 from let_it_ride.core.deck import Deck
-from let_it_ride.core.hand_analysis import analyze_four_cards, analyze_three_cards
-from let_it_ride.core.hand_evaluator import FiveCardHandRank, evaluate_five_card_hand
-from let_it_ride.core.three_card_evaluator import (
-    ThreeCardHandRank,
-    evaluate_three_card_hand,
-)
+from let_it_ride.core.hand_evaluator import FiveCardHandRank
+from let_it_ride.core.hand_processing import process_hand_decisions_and_payouts
+from let_it_ride.core.three_card_evaluator import ThreeCardHandRank
 from let_it_ride.strategy.base import Decision, Strategy, StrategyContext
 
 # Module-level singleton for default configs to avoid repeated validation overhead
@@ -226,60 +223,31 @@ class Table:
         Returns:
             PlayerSeat with complete seat results.
         """
-        # Analyze 3-card hand, invoke strategy for bet 1
-        analysis_3 = analyze_three_cards(player_cards)
-        decision_bet1 = self._strategy.decide_bet1(analysis_3, context)
-
-        # Analyze 4-card hand (3 player + 1 community), invoke strategy for bet 2
-        # Use tuple unpacking to avoid list allocations (functions accept Sequence[Card])
-        four_cards = (*player_cards, community_cards[0])
-        analysis_4 = analyze_four_cards(four_cards)
-        decision_bet2 = self._strategy.decide_bet2(analysis_4, context)
-
-        # Evaluate final 5-card hand
-        final_cards = (*player_cards, *community_cards)
-        hand_result = evaluate_five_card_hand(final_cards)
-        final_hand_rank = hand_result.rank
-
-        # Calculate bets at risk and main game payout
-        bet1_active = decision_bet1 == Decision.RIDE
-        bet2_active = decision_bet2 == Decision.RIDE
-        # Bet 3 is always active
-        active_bets = (1 if bet1_active else 0) + (1 if bet2_active else 0) + 1
-        bets_at_risk = base_bet * active_bets
-
-        main_payout = self._main_paytable.calculate_payout(
-            final_hand_rank, bets_at_risk
+        # Process hand decisions and calculate payouts using shared logic
+        result = process_hand_decisions_and_payouts(
+            player_cards=player_cards,
+            community_cards=community_cards,
+            strategy=self._strategy,
+            main_paytable=self._main_paytable,
+            bonus_paytable=self._bonus_paytable,
+            base_bet=base_bet,
+            bonus_bet=bonus_bet,
+            context=context,
         )
-
-        # Evaluate bonus if applicable
-        bonus_hand_rank: ThreeCardHandRank | None = None
-        bonus_payout = 0.0
-
-        if bonus_bet > 0 and self._bonus_paytable is not None:
-            bonus_hand_rank = evaluate_three_card_hand(player_cards)
-            bonus_payout = self._bonus_paytable.calculate_payout(
-                bonus_hand_rank, bonus_bet
-            )
-
-        # Calculate net result
-        main_net = main_payout if main_payout > 0 else -bets_at_risk
-        bonus_net = bonus_payout if bonus_payout > 0 else -bonus_bet
-        net_result = main_net + bonus_net
 
         return PlayerSeat(
             seat_number=seat_number,
             player_cards=player_cards,
-            decision_bet1=decision_bet1,
-            decision_bet2=decision_bet2,
-            final_hand_rank=final_hand_rank,
+            decision_bet1=result.decision_bet1,
+            decision_bet2=result.decision_bet2,
+            final_hand_rank=result.final_hand_rank,
             base_bet=base_bet,
-            bets_at_risk=bets_at_risk,
-            main_payout=main_payout,
+            bets_at_risk=result.bets_at_risk,
+            main_payout=result.main_payout,
             bonus_bet=bonus_bet,
-            bonus_hand_rank=bonus_hand_rank,
-            bonus_payout=bonus_payout,
-            net_result=net_result,
+            bonus_hand_rank=result.bonus_hand_rank,
+            bonus_payout=result.bonus_payout,
+            net_result=result.net_result,
         )
 
     def last_discarded_cards(self) -> tuple[Card, ...]:

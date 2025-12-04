@@ -5,13 +5,13 @@ This module contains the fundamental game mechanics including:
 - Multi-deck Shoe implementation
 - Hand evaluation (5-card and 3-card)
 - Hand analysis for strategy decisions
+- Hand processing (shared decision and payout logic)
 - Game state management
 - Game engine orchestration
 
-Note: GameEngine and GameHandResult are not exported here because
-game_engine.py imports from config.paytables, which in turn imports from
-core.hand_evaluator. Exporting GameEngine here would create a circular
-import: core/__init__ -> game_engine -> config.paytables -> core.hand_evaluator.
+Note: GameEngine, GameHandResult, Table, and related classes are not exported
+here because they import from config.paytables, which in turn imports from
+core.hand_evaluator. Exporting them here would create a circular import.
 Import them directly: from let_it_ride.core.game_engine import GameEngine
 """
 

@@ -330,7 +330,9 @@ class TestDealingSequence:
         )
 
         result_with_discard = engine_with_discard.play_hand(hand_id=1, base_bet=5.0)
-        result_without_discard = engine_without_discard.play_hand(hand_id=1, base_bet=5.0)
+        result_without_discard = engine_without_discard.play_hand(
+            hand_id=1, base_bet=5.0
+        )
 
         # Key assertion: Player cards should be IDENTICAL whether or not
         # discard is enabled, because player cards are dealt FIRST
@@ -338,7 +340,10 @@ class TestDealingSequence:
 
         # Community cards will differ because with discard enabled,
         # positions 3-5 go to discard and community comes from positions 6-7
-        assert result_with_discard.community_cards != result_without_discard.community_cards
+        assert (
+            result_with_discard.community_cards
+            != result_without_discard.community_cards
+        )
 
         # Verify the discarded cards exist and are different from player cards
         discarded = engine_with_discard.last_discarded_cards()

@@ -1,0 +1,131 @@
+"""Shared hand processing logic for Let It Ride.
+
+This module contains the common logic for processing a single hand through
+strategy decisions, hand evaluation, and payout calculation. It is used by
+both GameEngine (single-player) and Table (multi-player) to avoid code
+duplication.
+"""
+
+from dataclasses import dataclass
+
+from let_it_ride.config.paytables import BonusPaytable, MainGamePaytable
+from let_it_ride.core.card import Card
+from let_it_ride.core.hand_analysis import analyze_four_cards, analyze_three_cards
+from let_it_ride.core.hand_evaluator import FiveCardHandRank, evaluate_five_card_hand
+from let_it_ride.core.three_card_evaluator import (
+    ThreeCardHandRank,
+    evaluate_three_card_hand,
+)
+from let_it_ride.strategy.base import Decision, Strategy, StrategyContext
+
+
+@dataclass(frozen=True, slots=True)
+class HandProcessingResult:
+    """Result of processing a single hand through decisions and payouts.
+
+    This dataclass contains all calculated values from processing a hand,
+    to be used by higher-level result types like GameHandResult and PlayerSeat.
+
+    Attributes:
+        decision_bet1: Player's decision on bet 1 (PULL or RIDE).
+        decision_bet2: Player's decision on bet 2 (PULL or RIDE).
+        final_hand_rank: The evaluated 5-card hand rank.
+        bets_at_risk: Total amount wagered after pull/ride decisions.
+        main_payout: Profit from the main game (0 for losing hands).
+        bonus_hand_rank: The 3-card bonus hand rank (None if no bonus bet).
+        bonus_payout: Profit from the bonus bet (0 for losing or no bet).
+        net_result: Total profit/loss for the hand.
+    """
+
+    decision_bet1: Decision
+    decision_bet2: Decision
+    final_hand_rank: FiveCardHandRank
+    bets_at_risk: float
+    main_payout: float
+    bonus_hand_rank: ThreeCardHandRank | None
+    bonus_payout: float
+    net_result: float
+
+
+def process_hand_decisions_and_payouts(
+    player_cards: tuple[Card, Card, Card],
+    community_cards: tuple[Card, Card],
+    strategy: Strategy,
+    main_paytable: MainGamePaytable,
+    bonus_paytable: BonusPaytable | None,
+    base_bet: float,
+    bonus_bet: float,
+    context: StrategyContext,
+) -> HandProcessingResult:
+    """Process a single hand through all strategy decisions and payouts.
+
+    This function encapsulates the common logic shared between GameEngine
+    and Table for evaluating a single hand. It performs:
+    - 3-card hand analysis and Bet 1 decision
+    - 4-card hand analysis and Bet 2 decision
+    - 5-card hand evaluation
+    - Bets-at-risk calculation
+    - Payout calculation (main game and bonus)
+    - Net result calculation
+
+    Args:
+        player_cards: Player's 3 dealt cards.
+        community_cards: The 2 community cards.
+        strategy: Strategy for making pull/ride decisions.
+        main_paytable: Paytable for main game payouts.
+        bonus_paytable: Paytable for bonus bet payouts (None if no bonus).
+        base_bet: The bet amount per circle.
+        bonus_bet: The bonus bet amount (0 if no bonus).
+        context: Strategy context for decision making.
+
+    Returns:
+        HandProcessingResult with all calculated values.
+    """
+    # Step 1: Analyze 3-card hand, invoke strategy for bet 1
+    analysis_3 = analyze_three_cards(player_cards)
+    decision_bet1 = strategy.decide_bet1(analysis_3, context)
+
+    # Step 2: Analyze 4-card hand (3 player + 1 community), invoke strategy for bet 2
+    four_cards = (*player_cards, community_cards[0])
+    analysis_4 = analyze_four_cards(four_cards)
+    decision_bet2 = strategy.decide_bet2(analysis_4, context)
+
+    # Step 3: Evaluate final 5-card hand
+    final_cards = (*player_cards, *community_cards)
+    hand_result = evaluate_five_card_hand(final_cards)
+    final_hand_rank = hand_result.rank
+
+    # Step 4: Calculate bets at risk and main game payout
+    bet1_active = decision_bet1 == Decision.RIDE
+    bet2_active = decision_bet2 == Decision.RIDE
+    # Bet 3 is always active
+    active_bets = (1 if bet1_active else 0) + (1 if bet2_active else 0) + 1
+    bets_at_risk = base_bet * active_bets
+
+    main_payout = main_paytable.calculate_payout(final_hand_rank, bets_at_risk)
+
+    # Step 5: Evaluate bonus if applicable
+    bonus_hand_rank: ThreeCardHandRank | None = None
+    bonus_payout = 0.0
+
+    if bonus_bet > 0 and bonus_paytable is not None:
+        bonus_hand_rank = evaluate_three_card_hand(player_cards)
+        bonus_payout = bonus_paytable.calculate_payout(bonus_hand_rank, bonus_bet)
+
+    # Step 6: Calculate net result
+    # main_payout is pure profit (0 for losing hands)
+    # If payout > 0, player wins; if 0, player loses their stake
+    main_net = main_payout if main_payout > 0 else -bets_at_risk
+    bonus_net = bonus_payout if bonus_payout > 0 else -bonus_bet
+    net_result = main_net + bonus_net
+
+    return HandProcessingResult(
+        decision_bet1=decision_bet1,
+        decision_bet2=decision_bet2,
+        final_hand_rank=final_hand_rank,
+        bets_at_risk=bets_at_risk,
+        main_payout=main_payout,
+        bonus_hand_rank=bonus_hand_rank,
+        bonus_payout=bonus_payout,
+        net_result=net_result,
+    )
