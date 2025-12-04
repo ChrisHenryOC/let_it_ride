@@ -9,7 +9,12 @@ This module contains bankroll tracking and betting systems:
 from let_it_ride.bankroll.betting_systems import (
     BettingContext,
     BettingSystem,
+    DAlembertBetting,
+    FibonacciBetting,
     FlatBetting,
+    MartingaleBetting,
+    ParoliBetting,
+    ReverseMartingaleBetting,
 )
 from let_it_ride.bankroll.tracker import BankrollTracker
 
@@ -17,5 +22,10 @@ __all__ = [
     "BankrollTracker",
     "BettingContext",
     "BettingSystem",
+    "DAlembertBetting",
+    "FibonacciBetting",
     "FlatBetting",
+    "MartingaleBetting",
+    "ParoliBetting",
+    "ReverseMartingaleBetting",
 ]
