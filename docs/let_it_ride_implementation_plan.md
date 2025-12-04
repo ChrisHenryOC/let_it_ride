@@ -550,11 +550,16 @@ class BonusContext:
 **Labels:** `game-logic`, `priority-medium`
 
 **Description:**
-Implement dealer card discard before dealing to players. The dealer takes 3 cards from the deck and discards the top card (all 3 are removed from play).
+Implement dealer card discard as part of dealing community cards. Casino shuffling machines dispense cards in groups of 3, so when dealing the 2 community cards, the dealer receives 3 but discards 1. The discard happens **after** player cards are dealt.
+
+**Dealing Sequence (when discard enabled):**
+1. Deal 3 cards to each player seat
+2. Dealer discard (configurable, default 3 cards)
+3. Deal 2 community cards
 
 **Acceptance Criteria:**
 - [ ] Add `DealerConfig` with `discard_enabled: bool` (default False)
-- [ ] GameEngine deals 3 to dealer position, discards before player deal
+- [ ] GameEngine deals to players first, then performs dealer discard before community cards
 - [ ] Discarded cards tracked for statistical validation
 - [ ] Backwards compatible: default behavior unchanged
 - [ ] Unit tests for dealer discard scenarios

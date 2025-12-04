@@ -177,7 +177,9 @@ class TestDealerDiscardEnabled:
 
         # All discarded cards should be valid Card objects
         assert len(discarded) == 3
-        assert all(hasattr(card, "rank") and hasattr(card, "suit") for card in discarded)
+        assert all(
+            hasattr(card, "rank") and hasattr(card, "suit") for card in discarded
+        )
 
     def test_discarded_cards_returns_immutable_tuple(
         self,
@@ -237,7 +239,9 @@ class TestDealerDiscardIntegration:
         discarded = engine.last_discarded_cards()
 
         # Combine all cards dealt
-        all_cards = list(discarded) + list(result.player_cards) + list(result.community_cards)
+        all_cards = (
+            list(discarded) + list(result.player_cards) + list(result.community_cards)
+        )
 
         # All cards should be unique
         assert len(all_cards) == len(set(all_cards))
@@ -290,3 +294,54 @@ class TestDealerDiscardIntegration:
         assert engine1.last_discarded_cards() == engine2.last_discarded_cards()
         # Player cards should also be identical
         assert result1.player_cards == result2.player_cards
+
+
+class TestDealingSequence:
+    """Tests for the dealing sequence order."""
+
+    def test_dealing_sequence_player_before_discard(
+        self,
+        basic_setup: tuple[Deck, BasicStrategy, MainGamePaytable],
+    ) -> None:
+        """Verify player cards are dealt before dealer discard.
+
+        The corrected dealing sequence is:
+        1. Deal 3 cards to player
+        2. Dealer discard (if enabled)
+        3. Deal 2 community cards
+
+        This test verifies that player cards come from positions 0-2 in the
+        shuffled deck, and discarded cards come from positions 3+ when
+        discard is enabled.
+        """
+        deck1, strategy, paytable = basic_setup
+        deck2 = Deck()
+        seed = 99999
+
+        # Engine with discard enabled
+        config_with_discard = DealerConfig(discard_enabled=True, discard_cards=3)
+        engine_with_discard = GameEngine(
+            deck1, strategy, paytable, None, random.Random(seed), config_with_discard
+        )
+
+        # Engine without discard (to see what cards would be at positions 0-2)
+        engine_without_discard = GameEngine(
+            deck2, strategy, paytable, None, random.Random(seed)
+        )
+
+        result_with_discard = engine_with_discard.play_hand(hand_id=1, base_bet=5.0)
+        result_without_discard = engine_without_discard.play_hand(hand_id=1, base_bet=5.0)
+
+        # Key assertion: Player cards should be IDENTICAL whether or not
+        # discard is enabled, because player cards are dealt FIRST
+        assert result_with_discard.player_cards == result_without_discard.player_cards
+
+        # Community cards will differ because with discard enabled,
+        # positions 3-5 go to discard and community comes from positions 6-7
+        assert result_with_discard.community_cards != result_without_discard.community_cards
+
+        # Verify the discarded cards exist and are different from player cards
+        discarded = engine_with_discard.last_discarded_cards()
+        assert len(discarded) == 3
+        for card in discarded:
+            assert card not in result_with_discard.player_cards

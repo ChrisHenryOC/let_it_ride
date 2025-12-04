@@ -92,6 +92,21 @@ class DealerConfig(BaseModel):
     discard_cards: Annotated[int, Field(ge=1, le=10)] = 3
 
 
+class TableConfig(BaseModel):
+    """Configuration for table settings.
+
+    Controls the number of player seats at the table.
+    A standard Let It Ride table can accommodate 1-6 players.
+
+    Attributes:
+        num_seats: Number of player positions at the table (1-6).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    num_seats: Annotated[int, Field(ge=1, le=6)] = 1
+
+
 class StopConditionsConfig(BaseModel):
     """Configuration for session stop conditions.
 

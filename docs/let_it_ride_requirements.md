@@ -129,21 +129,23 @@ The Three Card Bonus is an optional side bet placed before cards are dealt:
 
 ### 2.5 Dealer Card Handling
 
-Before dealing to players, the dealer performs the following:
+Casino shuffling machines dispense cards in groups of 3. When dealing the 2 community cards, the dealer receives 3 cards but discards 1. This means the dealer discard happens **after** player cards are dealt, as part of dealing the community cards.
 
-1. Dealer takes 3 cards from the top of the deck
-2. Dealer discards the top card (1 card removed from play, face down)
-3. The remaining 2 dealer cards are also discarded (not used in gameplay)
-4. **Net effect**: 3 cards are removed from the deck per round
+**Dealing Sequence:**
+1. Each player receives 3 cards (dealt first)
+2. Dealer receives 3 cards from shuffling machine (for community cards)
+3. Dealer discards 1 card face down (removed from play)
+4. Remaining 2 cards become the community cards (shared by all players)
+5. **Net effect**: 1 card is removed from the deck per round when discard is enabled
 
 **Multi-Player Considerations:**
 - At a full table (6 players), the dealing order is:
-  1. Dealer discards 3 cards
-  2. Each player receives 3 cards (18 cards total for 6 players)
+  1. Each player receives 3 cards (18 cards total for 6 players)
+  2. Dealer discard (1-3 cards, configurable, default 3)
   3. 2 community cards are dealt (shared by all players)
-  4. Total cards used per round: 3 + 18 + 2 = **23 cards**
+  4. Total cards used per round (with 3-card discard): 18 + 3 + 2 = **23 cards**
 
-**Note**: Dealer discard is configurable in simulations. When disabled (default for backwards compatibility), dealing proceeds directly to player cards.
+**Note**: Dealer discard is configurable in simulations. When disabled (default for backwards compatibility), community cards are dealt directly without any discard.
 
 ### 2.6 Table Configuration
 
@@ -255,7 +257,7 @@ Let It Ride tables typically seat 1-6 players:
 | FR-803 | Community cards shared by all players at table | Must |
 | FR-804 | All players use same strategy (per simulation run) | Must |
 | FR-805 | Track results by seat position for analysis | Must |
-| FR-806 | Dealer discards 3 cards (top card method) before player deal | Should |
+| FR-806 | Dealer discards cards when dealing community cards (after player deal) | Should |
 | FR-807 | Default to single player for backwards compatibility | Must |
 | FR-808 | Support dealer discard enable/disable via configuration | Should |
 
@@ -398,19 +400,19 @@ table:
 
 ```yaml
 dealer:
-  # Enable dealer card discard before player deal
+  # Enable dealer card discard when dealing community cards
   # Type: boolean, Required: no
   # Default: false (backwards compatible)
   discard_enabled: false
 
   # Number of cards dealer discards (when enabled)
   # Type: integer, Required: no
-  # Range: 1-3
-  # Default: 3 (dealer takes 3, discards top card, rest also discarded)
+  # Range: 1-10
+  # Default: 3 (shuffling machine dispenses 3 cards, 1 discarded for 2 community cards)
   discard_cards: 3
 ```
 
-Note: When dealer discard is enabled, the dealer removes 3 cards from the deck before dealing to players. This more accurately simulates real casino gameplay.
+Note: When dealer discard is enabled, the dealer discards cards as part of dealing the community cards (after player cards are dealt). This simulates casino shuffling machines that dispense cards in groups of 3.
 
 ### 5.4 Bankroll Configuration
 
