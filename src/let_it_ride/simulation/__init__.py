@@ -23,6 +23,7 @@ from let_it_ride.simulation.session import (
     SessionOutcome,
     SessionResult,
     StopReason,
+    calculate_new_streak,
 )
 from let_it_ride.simulation.table_session import (
     SeatSessionResult,
@@ -42,6 +43,7 @@ __all__ = [
     "TableSession",
     "TableSessionConfig",
     "TableSessionResult",
+    "calculate_new_streak",
     "count_hand_distribution",
     "count_hand_distribution_from_game_results",
     "count_hand_distribution_from_ranks",

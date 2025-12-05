@@ -16,7 +16,12 @@ from let_it_ride.bankroll.betting_systems import BettingContext, BettingSystem
 from let_it_ride.bankroll.tracker import BankrollTracker
 from let_it_ride.config.models import TableConfig
 from let_it_ride.core.table import Table, TableRoundResult
-from let_it_ride.simulation.session import SessionOutcome, SessionResult, StopReason
+from let_it_ride.simulation.session import (
+    SessionOutcome,
+    SessionResult,
+    StopReason,
+    calculate_new_streak,
+)
 from let_it_ride.strategy.base import StrategyContext
 
 
@@ -150,19 +155,7 @@ class _SeatState:
         Args:
             result: The net result of the hand.
         """
-        if result > 0:
-            # Win
-            if self.streak > 0:
-                self.streak += 1
-            else:
-                self.streak = 1
-        elif result < 0:
-            # Loss
-            if self.streak < 0:
-                self.streak -= 1
-            else:
-                self.streak = -1
-        # Push (result == 0) doesn't change streak
+        self.streak = calculate_new_streak(self.streak, result)
 
     @property
     def is_stopped(self) -> bool:
