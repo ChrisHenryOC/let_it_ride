@@ -1,7 +1,7 @@
 # LIR-45: Table Integration Tests
 
 **GitHub Issue**: #81
-**Status**: In Progress
+**Status**: Complete
 
 ## Summary
 

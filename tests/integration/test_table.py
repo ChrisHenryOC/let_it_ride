@@ -63,35 +63,29 @@ class TestTableSessionLifecycle:
         main_paytable: MainGamePaytable,
     ) -> None:
         """Verify single-seat session runs until win limit is reached."""
-        # Use a specific seed that produces early wins
-        # Seed 999 tested to produce wins that hit the limit
-        for seed in range(1000, 1100):
-            config = TableSessionConfig(
-                table_config=TableConfig(num_seats=1),
-                starting_bankroll=500.0,
-                base_bet=5.0,
-                win_limit=100.0,
-            )
-            deck = Deck()
-            rng = random.Random(seed)
-            strategy = AlwaysRideStrategy()
-            table = Table(deck, strategy, main_paytable, None, rng)
-            betting_system = FlatBetting(5.0)
+        # Seed 7 verified to produce win limit with AlwaysRideStrategy
+        # (produces winning hands that hit 100.0 profit within ~3 rounds)
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=1),
+            starting_bankroll=500.0,
+            base_bet=5.0,
+            win_limit=100.0,
+        )
+        deck = Deck()
+        rng = random.Random(7)
+        strategy = AlwaysRideStrategy()
+        table = Table(deck, strategy, main_paytable, None, rng)
+        betting_system = FlatBetting(5.0)
 
-            session = TableSession(config, table, betting_system)
-            result = session.run_to_completion()
+        session = TableSession(config, table, betting_system)
+        result = session.run_to_completion()
 
-            if result.stop_reason == StopReason.WIN_LIMIT:
-                # Session should complete with win limit
-                assert result.total_rounds >= 1
-                assert len(result.seat_results) == 1
-                assert result.seat_results[0].session_result.session_profit >= 100.0
-                assert (
-                    result.seat_results[0].session_result.outcome == SessionOutcome.WIN
-                )
-                return
-
-        pytest.skip("Could not find seed that produces win limit condition")
+        # Session should complete with win limit
+        assert result.stop_reason == StopReason.WIN_LIMIT
+        assert result.total_rounds >= 1
+        assert len(result.seat_results) == 1
+        assert result.seat_results[0].session_result.session_profit >= 100.0
+        assert result.seat_results[0].session_result.outcome == SessionOutcome.WIN
 
     def test_single_seat_session_to_loss_limit(
         self,
@@ -130,8 +124,9 @@ class TestTableSessionLifecycle:
         rng: random.Random,
     ) -> None:
         """Verify multi-seat session runs for specified number of hands."""
+        table_config = TableConfig(num_seats=3)
         config = TableSessionConfig(
-            table_config=TableConfig(num_seats=3),
+            table_config=table_config,
             starting_bankroll=1000.0,
             base_bet=5.0,
             max_hands=20,
@@ -144,7 +139,7 @@ class TestTableSessionLifecycle:
             main_paytable,
             None,
             rng,
-            table_config=TableConfig(num_seats=3),
+            table_config=table_config,
         )
         betting_system = FlatBetting(5.0)
 
@@ -165,8 +160,9 @@ class TestTableSessionLifecycle:
         rng: random.Random,
     ) -> None:
         """Verify multi-seat session tracks independent seat outcomes."""
+        table_config = TableConfig(num_seats=4)
         config = TableSessionConfig(
-            table_config=TableConfig(num_seats=4),
+            table_config=table_config,
             starting_bankroll=500.0,
             base_bet=5.0,
             max_hands=50,
@@ -179,7 +175,7 @@ class TestTableSessionLifecycle:
             main_paytable,
             None,
             rng,
-            table_config=TableConfig(num_seats=4),
+            table_config=table_config,
         )
         betting_system = FlatBetting(5.0)
 
@@ -439,11 +435,9 @@ class TestMultiRoundBankrollTracking:
         assert sr.hands_played == 30
         assert sr.total_wagered > 0
 
-        # Peak should be at least starting (if never went above) or higher
-        assert (
-            sr.peak_bankroll >= sr.starting_bankroll
-            or sr.peak_bankroll >= sr.final_bankroll
-        )
+        # Peak must be at least starting bankroll and at least final bankroll
+        assert sr.peak_bankroll >= sr.starting_bankroll
+        assert sr.peak_bankroll >= sr.final_bankroll
 
     def test_peak_bankroll_and_drawdown_tracking(
         self,
@@ -512,8 +506,9 @@ class TestMultiRoundBankrollTracking:
         rng: random.Random,
     ) -> None:
         """Verify each seat tracks its own bankroll independently."""
+        table_config = TableConfig(num_seats=3)
         config = TableSessionConfig(
-            table_config=TableConfig(num_seats=3),
+            table_config=table_config,
             starting_bankroll=500.0,
             base_bet=5.0,
             max_hands=25,
@@ -526,7 +521,7 @@ class TestMultiRoundBankrollTracking:
             main_paytable,
             None,
             rng,
-            table_config=TableConfig(num_seats=3),
+            table_config=table_config,
         )
         betting_system = FlatBetting(5.0)
 
@@ -615,7 +610,7 @@ class TestTableWithBonusBets:
 
 
 class TestTableWithDealerDiscard:
-    """Integration tests for Table with dealer discard mechanics."""
+    """Integration tests for Table with configurable dealer discard mechanics."""
 
     def test_discard_cards_excluded_from_hands(
         self,
@@ -657,8 +652,9 @@ class TestTableWithDealerDiscard:
         rng: random.Random,
     ) -> None:
         """Verify discard mechanics work across session rounds."""
+        table_config = TableConfig(num_seats=2)
         config = TableSessionConfig(
-            table_config=TableConfig(num_seats=2),
+            table_config=table_config,
             starting_bankroll=500.0,
             base_bet=5.0,
             max_hands=10,
@@ -672,7 +668,7 @@ class TestTableWithDealerDiscard:
             main_paytable,
             None,
             rng,
-            table_config=TableConfig(num_seats=2),
+            table_config=table_config,
             dealer_config=dealer_config,
         )
         betting_system = FlatBetting(5.0)
@@ -766,8 +762,9 @@ class TestTableReproducibility:
         main_paytable: MainGamePaytable,
     ) -> None:
         """Verify same RNG seed produces identical session results."""
+        table_config = TableConfig(num_seats=2)
         config = TableSessionConfig(
-            table_config=TableConfig(num_seats=2),
+            table_config=table_config,
             starting_bankroll=500.0,
             base_bet=5.0,
             max_hands=15,
@@ -783,7 +780,7 @@ class TestTableReproducibility:
             main_paytable,
             None,
             rng1,
-            table_config=TableConfig(num_seats=2),
+            table_config=table_config,
         )
         betting_system1 = FlatBetting(5.0)
         session1 = TableSession(config, table1, betting_system1)
@@ -799,7 +796,7 @@ class TestTableReproducibility:
             main_paytable,
             None,
             rng2,
-            table_config=TableConfig(num_seats=2),
+            table_config=table_config,
         )
         betting_system2 = FlatBetting(5.0)
         session2 = TableSession(config, table2, betting_system2)
