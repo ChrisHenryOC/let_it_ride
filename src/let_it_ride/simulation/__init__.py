@@ -2,6 +2,7 @@
 
 This module contains session and simulation management:
 - Session state management with stop conditions
+- Table session for multi-player management
 - Simulation controller for running multiple sessions
 - Parallel execution support
 - Results aggregation
@@ -22,15 +23,27 @@ from let_it_ride.simulation.session import (
     SessionOutcome,
     SessionResult,
     StopReason,
+    calculate_new_streak,
+)
+from let_it_ride.simulation.table_session import (
+    SeatSessionResult,
+    TableSession,
+    TableSessionConfig,
+    TableSessionResult,
 )
 
 __all__ = [
     "HandRecord",
+    "SeatSessionResult",
     "Session",
     "SessionConfig",
     "SessionOutcome",
     "SessionResult",
     "StopReason",
+    "TableSession",
+    "TableSessionConfig",
+    "TableSessionResult",
+    "calculate_new_streak",
     "count_hand_distribution",
     "count_hand_distribution_from_game_results",
     "count_hand_distribution_from_ranks",

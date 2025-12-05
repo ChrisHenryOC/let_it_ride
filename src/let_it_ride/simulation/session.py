@@ -17,6 +17,26 @@ from let_it_ride.core.game_engine import GameEngine, GameHandResult
 from let_it_ride.strategy.base import StrategyContext
 
 
+def calculate_new_streak(current_streak: int, result: float) -> int:
+    """Calculate updated win/loss streak based on hand result.
+
+    Args:
+        current_streak: Current streak value (positive for wins, negative for losses).
+        result: The net result of the hand.
+
+    Returns:
+        New streak value after applying the result.
+    """
+    if result > 0:
+        # Win: increment if winning streak, else start new winning streak
+        return current_streak + 1 if current_streak > 0 else 1
+    elif result < 0:
+        # Loss: decrement if losing streak, else start new losing streak
+        return current_streak - 1 if current_streak < 0 else -1
+    # Push (result == 0) doesn't change streak
+    return current_streak
+
+
 class StopReason(Enum):
     """Reason why a session stopped.
 
@@ -216,19 +236,7 @@ class Session:
         Args:
             result: The net result of the hand.
         """
-        if result > 0:
-            # Win
-            if self._streak > 0:
-                self._streak += 1
-            else:
-                self._streak = 1
-        elif result < 0:
-            # Loss
-            if self._streak < 0:
-                self._streak -= 1
-            else:
-                self._streak = -1
-        # Push (result == 0) doesn't change streak
+        self._streak = calculate_new_streak(self._streak, result)
 
     def _minimum_bet_required(self) -> float:
         """Return the minimum amount needed to play a hand.
