@@ -2,6 +2,10 @@
 
 A Python application to simulate the casino card game "Let It Ride" and analyze various play and betting strategies to identify approaches that maximize the probability of profitable sessions.
 
+## Rules
+Rules documentation in /docs/BGC_let_it_ride.pdf.  (ignore commit message referring to British Gaming Commission, Claude made that up)
+Source: https://oag.ca.gov/sites/all/files/agweb/pdfs/gambling/BGC_let_it_ride.pdf
+
 ## Features
 
 - **Accurate Game Simulation**: Full implementation of Let It Ride rules with configurable paytables
@@ -114,7 +118,7 @@ make typecheck
 ```
 let_it_ride/
 ├── src/let_it_ride/
-│   ├── core/           # Game engine: Card, Deck, Shoe, hand evaluators
+│   ├── core/           # Game engine: Card, Deck, hand evaluators, hand processing
 │   ├── strategy/       # Strategy implementations
 │   ├── bankroll/       # Bankroll tracking and betting systems
 │   ├── simulation/     # Session management, parallel execution
