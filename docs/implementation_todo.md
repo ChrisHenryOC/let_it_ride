@@ -2,7 +2,7 @@
 
 This document provides an ordered list of remaining issues to complete, sequenced according to their dependencies.
 
-**Last Updated:** 2025-12-05
+**Last Updated:** 2025-12-06
 
 ## Completed Issues
 
@@ -85,6 +85,7 @@ This document provides an ordered list of remaining issues to complete, sequence
 | 22 | LIR-40 | Documentation and User Guide | All previous | Medium |
 | 23 | LIR-47 | Session API Consistency and DRY Refactoring | None | Low |
 | 24 | LIR-48 | TableSession Performance Optimization | LIR-35 | Low |
+| 25 | LIR-49 | Table Integration Test Coverage Improvements | LIR-45 | Low |
 
 ---
 
@@ -120,7 +121,8 @@ The following sequence respects dependencies and prioritizes critical path items
 21. LIR-39  HTML Report Generation
 22. LIR-47  Session API Consistency and DRY Refactoring (anytime)
 23. LIR-48  TableSession Performance Optimization (after LIR-35 profiling)
-24. LIR-40  Documentation and User Guide
+24. LIR-49  Table Integration Test Coverage Improvements (after LIR-45)
+25. LIR-40  Documentation and User Guide
     ─────── Phase 7 Complete (Advanced Features) ───────
 ```
 
@@ -130,20 +132,21 @@ The following sequence respects dependencies and prioritizes critical path items
 
 | Category | Count |
 |----------|-------|
-| Completed | 24 |
+| Completed | 22 |
 | Cancelled | 2 |
-| Remaining | 24 |
-| **Total** | **50** |
+| Remaining | 25 |
+| **Total** | **49** |
 
 **Recently Completed:**
 - LIR-42: Table Abstraction ✅
 - LIR-43: Multi-Player Session Management ✅ (PR #88)
 - LIR-46: Extract Shared Hand Processing Logic ✅ (PR #85)
 
-**New Issues (from PR #88 review):**
-- LIR-47: Session API Consistency and DRY Refactoring (GitHub #89)
+**New Issues (from PR reviews):**
+- LIR-47: Session API Consistency and DRY Refactoring (GitHub #89) - updated with test helper method from PR #92
 - LIR-48: TableSession Performance Optimization (GitHub #90)
+- LIR-49: Table Integration Test Coverage Improvements (GitHub #93) - from PR #92 review
 
 **Critical Path:** LIR-20 → LIR-22 → LIR-25 → LIR-31 → LIR-34
 
-**Next Up:** LIR-45 (Table Integration Tests) - all dependencies complete
+**Next Up:** LIR-45 (Table Integration Tests) - all dependencies complete, PR #92 in review

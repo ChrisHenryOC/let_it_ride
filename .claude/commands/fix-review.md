@@ -109,6 +109,24 @@ Push all commits to the PR branch:
 git push
 ```
 
+# HANDLE DEFERRED ITEMS
+
+If there are any deferred items, use AskUserQuestion to ask:
+
+"Which deferred items should be scheduled for future work?"
+
+Present options:
+- Each deferred item as a selectable option (multiSelect: true)
+- User selects which items should be tracked for future implementation
+
+For items the user selects:
+1. Determine if it fits an existing issue (search for related LIR issues)
+2. If yes: Use `gh issue edit` to append the task to that issue's body
+3. If no: Use `gh issue create` to create a new LIR-numbered issue
+4. Update `docs/implementation_todo.md` to reflect any changes
+
+Items not selected are documented as "Skipped" in the final summary.
+
 # FINAL SUMMARY
 
 Provide a complete summary with:
@@ -120,10 +138,11 @@ Provide a complete summary with:
 | 2 | Medium | ... | code-quality, performance |
 
 ## Issues Deferred
-| # | Severity | Issue | Reason |
-|---|----------|-------|--------|
-| 1 | Medium | Add hypothesis tests | Requires new dependency |
-| 2 | Medium | GameHandResult slots | File not in PR scope |
+| # | Severity | Issue | Disposition |
+|---|----------|-------|-------------|
+| 1 | Medium | Add hypothesis tests | Added to LIR-XX (GitHub #YY) |
+| 2 | Medium | GameHandResult slots | New issue LIR-XX created (GitHub #YY) |
+| 3 | Low | Minor style suggestion | Skipped |
 
 ## Validation
 - Tests: X passed
@@ -138,3 +157,4 @@ Provide a complete summary with:
 - Mark each todo complete IMMEDIATELY after fixing
 - Document ALL deferred issues with clear reasons
 - Don't silently skip issues - either fix them or document why they're deferred
+- Always ask user about deferred items before finalizing
