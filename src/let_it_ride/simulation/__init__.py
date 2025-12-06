@@ -9,6 +9,13 @@ This module contains session and simulation management:
 - Hand records and result data structures
 """
 
+from let_it_ride.simulation.controller import (
+    ProgressCallback,
+    SimulationController,
+    SimulationResults,
+    create_betting_system,
+    create_strategy,
+)
 from let_it_ride.simulation.results import (
     HandRecord,
     count_hand_distribution,
@@ -34,11 +41,14 @@ from let_it_ride.simulation.table_session import (
 
 __all__ = [
     "HandRecord",
+    "ProgressCallback",
     "SeatSessionResult",
     "Session",
     "SessionConfig",
     "SessionOutcome",
     "SessionResult",
+    "SimulationController",
+    "SimulationResults",
     "StopReason",
     "TableSession",
     "TableSessionConfig",
@@ -48,5 +58,7 @@ __all__ = [
     "count_hand_distribution_from_game_results",
     "count_hand_distribution_from_ranks",
     "count_hand_distribution_from_records",
+    "create_betting_system",
+    "create_strategy",
     "get_decision_from_string",
 ]
