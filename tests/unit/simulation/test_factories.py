@@ -36,6 +36,7 @@ from let_it_ride.config.models import (
 from let_it_ride.simulation.controller import (
     _BETTING_SYSTEM_FACTORIES,
     _STRATEGY_FACTORIES,
+    _action_to_decision,
     create_betting_system,
     create_strategy,
 )
@@ -45,6 +46,40 @@ from let_it_ride.strategy import (
     BasicStrategy,
     CustomStrategy,
 )
+from let_it_ride.strategy.base import Decision
+
+
+class TestActionToDecision:
+    """Tests for _action_to_decision helper function."""
+
+    def test_ride_action_returns_ride_decision(self) -> None:
+        """Test that 'ride' returns Decision.RIDE."""
+        assert _action_to_decision("ride") == Decision.RIDE
+
+    def test_pull_action_returns_pull_decision(self) -> None:
+        """Test that 'pull' returns Decision.PULL."""
+        assert _action_to_decision("pull") == Decision.PULL
+
+    def test_unknown_action_returns_pull_decision(self) -> None:
+        """Test that unknown actions default to Decision.PULL.
+
+        This documents the implicit behavior that any non-"ride" string
+        defaults to PULL. This is intentional - the config validation
+        layer (Pydantic) ensures only valid values reach this function.
+        """
+        assert _action_to_decision("invalid") == Decision.PULL
+        assert _action_to_decision("") == Decision.PULL
+
+    def test_action_is_case_sensitive(self) -> None:
+        """Test that action matching is case-sensitive.
+
+        Only lowercase 'ride' returns Decision.RIDE. Pydantic validation
+        ensures case-correct values, so this documents the raw behavior.
+        """
+        assert _action_to_decision("Ride") == Decision.PULL
+        assert _action_to_decision("RIDE") == Decision.PULL
+        assert _action_to_decision("Pull") == Decision.PULL
+        assert _action_to_decision("PULL") == Decision.PULL
 
 
 class TestStrategyRegistry:
@@ -126,6 +161,36 @@ class TestCreateStrategy:
         )
         strategy = create_strategy(config)
         assert isinstance(strategy, CustomStrategy)
+
+    def test_create_custom_strategy_verifies_rule_conversion(self) -> None:
+        """Test that custom strategy rules are correctly converted.
+
+        Verifies that string actions ("ride"/"pull") are converted to
+        Decision enum values in the resulting strategy.
+        """
+        config = StrategyConfig(
+            type="custom",
+            custom=CustomStrategyConfig(
+                bet1_rules=[
+                    StrategyRule(condition="has_high_pair", action="ride"),
+                ],
+                bet2_rules=[
+                    StrategyRule(condition="has_pair", action="pull"),
+                ],
+            ),
+        )
+        strategy = create_strategy(config)
+        assert isinstance(strategy, CustomStrategy)
+
+        # Verify bet1 rules were converted correctly
+        assert len(strategy.bet1_rules) == 1
+        assert strategy.bet1_rules[0].condition == "has_high_pair"
+        assert strategy.bet1_rules[0].action == Decision.RIDE
+
+        # Verify bet2 rules were converted correctly
+        assert len(strategy.bet2_rules) == 1
+        assert strategy.bet2_rules[0].condition == "has_pair"
+        assert strategy.bet2_rules[0].action == Decision.PULL
 
     def test_create_custom_strategy_without_config_raises(self) -> None:
         """Test that custom strategy without config raises ValueError.
@@ -300,6 +365,28 @@ class TestCreateBettingSystem:
         )
         system = create_betting_system(config)
         assert isinstance(system, MartingaleBetting)
+
+    def test_create_martingale_betting_verifies_parameter_passthrough(self) -> None:
+        """Test that martingale parameters are correctly passed through.
+
+        Verifies that config parameters are applied to the created instance.
+        Uses non-default values to ensure parameters are actually used.
+        """
+        config = _create_bankroll_config(
+            "martingale",
+            martingale=MartingaleBettingConfig(
+                loss_multiplier=2.5,  # Non-default value
+                max_bet=150.0,
+                max_progressions=7,
+            ),
+        )
+        system = create_betting_system(config)
+        assert isinstance(system, MartingaleBetting)
+        # Verify parameters were correctly applied
+        assert system._base_bet == 5.0  # From base_bet in _create_bankroll_config
+        assert system._loss_multiplier == 2.5
+        assert system._max_bet == 150.0
+        assert system._max_progressions == 7
 
     def test_create_reverse_martingale_betting(self) -> None:
         """Test creating reverse martingale betting system."""
