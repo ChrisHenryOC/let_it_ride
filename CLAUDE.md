@@ -8,11 +8,9 @@ Let It Ride Strategy Simulator - a Python application to simulate the casino car
 
 ## Development Status
 
-This is a greenfield project. See `docs/let_it_ride_implementation_plan.md` for the 40-issue phased implementation plan and `docs/let_it_ride_requirements.md` for complete requirements.
+This project is approximately 45% complete. Core game engine, strategies, betting systems, and session management are implemented. CLI execution, parallel simulation, and analytics/export features are in progress. See `docs/let_it_ride_implementation_plan.md` for the phased implementation plan and `docs/let_it_ride_requirements.md` for complete requirements.
 
 ## Commands
-
-Once the project is scaffolded (Issue #1), these commands will be available:
 
 ```bash
 # Install dependencies
@@ -30,19 +28,20 @@ poetry run mypy src/
 poetry run ruff check src/ tests/
 poetry run ruff format src/ tests/
 
-# Run simulation (once CLI exists)
-poetry run let-it-ride run configs/basic_strategy.yaml
-poetry run let-it-ride validate configs/sample_config.yaml
+# CLI (run/validate commands not yet implemented)
+poetry run let-it-ride --version
+# poetry run let-it-ride run configs/basic_strategy.yaml  # TODO: LIR-35
+# poetry run let-it-ride validate configs/sample_config.yaml  # TODO: LIR-35
 ```
 
 ## Architecture
 
 ```
 src/let_it_ride/
-├── core/           # Game engine: Card, Deck, Shoe, hand evaluators, game state
+├── core/           # Game engine: Card, Deck, Table, hand evaluators, hand processing
 ├── strategy/       # Strategy implementations: basic, baseline, custom, bonus
 ├── bankroll/       # Bankroll tracking and betting systems
-├── simulation/     # Session management, parallel execution, RNG
+├── simulation/     # Session and TableSession management, parallel execution, RNG
 ├── analytics/      # Statistics, validation, export (CSV/JSON/HTML), visualizations
 ├── config/         # YAML configuration loading with Pydantic models
 └── cli.py          # Command-line interface
@@ -51,10 +50,12 @@ src/let_it_ride/
 Key abstractions:
 - `Strategy` protocol: `decide_bet1()` and `decide_bet2()` methods for pull/ride decisions
 - `BonusStrategy` protocol: `get_bonus_bet()` for three-card bonus betting
-- `BettingSystem` protocol: betting progression systems (flat, Martingale, etc.)
-- `GameEngine`: orchestrates deck, strategy, paytables for single hands
+- `BettingSystem` protocol: betting progression systems (Flat, Martingale, Paroli, D'Alembert, Fibonacci, Reverse Martingale)
+- `GameEngine`: orchestrates deck, strategy, paytables for single-player hands
+- `Table`: multi-player table (1-6 seats) sharing community cards
 - `Session`: manages bankroll, stop conditions, runs hands to completion
-- `SimulationController`: runs multiple sessions with optional parallelization
+- `TableSession`: manages multi-seat table sessions with per-seat tracking
+- `DealerConfig`: optional dealer discard (burn cards) before community cards
 
 ## Game Rules Summary
 
@@ -69,10 +70,12 @@ Key abstractions:
 
 Simulations are configured via YAML files. Key sections:
 - `simulation`: num_sessions, hands_per_session, random_seed, workers
-- `deck`: num_decks (1/2/4/6/8), penetration
+- `table`: num_seats (1-6 for multi-player simulation)
+- `dealer`: discard_enabled, discard_cards (burn cards before community)
+- `deck`: shuffle_algorithm (fisher_yates/cryptographic)
 - `bankroll`: starting_amount, base_bet, stop_conditions, betting_system
 - `strategy`: type (basic/always_ride/always_pull/conservative/aggressive/custom)
-- `bonus_strategy`: type (never/always/static/bankroll_conditional/streak_based)
+- `bonus_strategy`: type (never/always/static/bankroll_conditional)
 - `paytables`: main_game and bonus payout tables
 - `output`: directory, formats (csv/json/html), visualizations
 
