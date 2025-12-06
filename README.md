@@ -11,12 +11,13 @@ Source: https://oag.ca.gov/sites/all/files/agweb/pdfs/gambling/BGC_let_it_ride.p
 - **Accurate Game Simulation**: Full implementation of Let It Ride rules with configurable paytables
 - **Multiple Strategies**: Basic (optimal), conservative, aggressive, and custom strategies
 - **Bonus Betting**: Three Card Bonus side bet with multiple betting strategies
-- **Bankroll Management**: Various betting progression systems (flat, Martingale, Paroli, etc.)
-- **Statistical Analysis**: Session win rates, expected value, variance, and confidence intervals
-- **Multi-deck Support**: Single deck or shoe (2, 4, 6, 8 decks) with penetration settings
-- **Parallel Execution**: Scale simulations across multiple CPU cores
-- **Export Options**: CSV, JSON, and HTML report generation
-- **Visualizations**: Session outcome histograms and bankroll trajectories
+- **Bankroll Management**: Six betting progression systems (Flat, Martingale, Reverse Martingale, Paroli, D'Alembert, Fibonacci)
+- **Multi-Player Tables**: Simulate 1-6 players sharing community cards with per-seat tracking
+- **Dealer Configuration**: Optional dealer discard (burn cards) before community cards
+- **Statistical Analysis**: Session win rates, drawdown tracking, and bankroll trajectories
+- **Parallel Execution**: Scale simulations across multiple CPU cores (in progress)
+- **Export Options**: CSV, JSON, and HTML report generation (in progress)
+- **Visualizations**: Session outcome histograms and bankroll trajectories (in progress)
 
 ## Installation
 
@@ -44,15 +45,17 @@ poetry install --with viz
 ### Command Line Interface
 
 ```bash
-# Run a simulation
-poetry run let-it-ride run configs/basic_strategy.yaml
-
-# Validate a configuration file
-poetry run let-it-ride validate configs/sample_config.yaml
-
 # Show version
 poetry run let-it-ride --version
+
+# Run a simulation (not yet implemented)
+# poetry run let-it-ride run configs/basic_strategy.yaml
+
+# Validate a configuration file (not yet implemented)
+# poetry run let-it-ride validate configs/sample_config.yaml
 ```
+
+> **Note**: The `run` and `validate` CLI commands are planned but not yet implemented. Use the Python API directly for simulations - see `scratchpads/poc_simulation.py` for examples.
 
 ### Using Make Commands
 
@@ -118,12 +121,12 @@ make typecheck
 ```
 let_it_ride/
 ├── src/let_it_ride/
-│   ├── core/           # Game engine: Card, Deck, hand evaluators, hand processing
-│   ├── strategy/       # Strategy implementations
+│   ├── core/           # Game engine: Card, Deck, Table, hand evaluators
+│   ├── strategy/       # Strategy implementations (basic, bonus, custom)
 │   ├── bankroll/       # Bankroll tracking and betting systems
-│   ├── simulation/     # Session management, parallel execution
+│   ├── simulation/     # Session and TableSession management
 │   ├── analytics/      # Statistics, export, visualizations
-│   ├── config/         # YAML configuration loading
+│   ├── config/         # YAML configuration with Pydantic models
 │   └── cli.py          # Command-line interface
 ├── tests/
 │   ├── unit/           # Unit tests
@@ -131,6 +134,7 @@ let_it_ride/
 │   └── fixtures/       # Test data and fixtures
 ├── configs/            # Sample YAML configurations
 ├── docs/               # Documentation
+├── scratchpads/        # POC scripts and experiments
 └── pyproject.toml      # Project configuration
 ```
 
@@ -139,11 +143,13 @@ let_it_ride/
 Simulations are configured via YAML files. See `configs/sample_config.yaml` for a complete example.
 
 Key configuration sections:
-- `simulation`: Number of sessions, hands per session, random seed
-- `deck`: Number of decks, penetration
+- `simulation`: Number of sessions, hands per session, random seed, workers
+- `table`: Number of seats (1-6) for multi-player simulation
+- `dealer`: Discard settings (burn cards before community cards)
+- `deck`: Shuffle algorithm (fisher_yates or cryptographic)
 - `bankroll`: Starting amount, base bet, stop conditions, betting system
-- `strategy`: Pull/ride decision strategy
-- `bonus_strategy`: Three Card Bonus betting strategy
+- `strategy`: Pull/ride decision strategy (basic, conservative, aggressive, custom)
+- `bonus_strategy`: Three Card Bonus betting (never, always, static, bankroll_conditional)
 - `paytables`: Main game and bonus payout tables
 - `output`: Export formats and visualization options
 
