@@ -42,6 +42,7 @@ from let_it_ride.strategy import (
     aggressive_strategy,
     conservative_strategy,
 )
+from let_it_ride.strategy.base import Decision
 
 if TYPE_CHECKING:
     from let_it_ride.config.models import (
@@ -54,7 +55,19 @@ if TYPE_CHECKING:
 ProgressCallback = Callable[[int, int], None]
 
 
-@dataclass(frozen=True)
+def _action_to_decision(action: str) -> Decision:
+    """Convert action string to Decision enum.
+
+    Args:
+        action: Action string ("ride" or "pull").
+
+    Returns:
+        Decision.RIDE or Decision.PULL.
+    """
+    return Decision.RIDE if action == "ride" else Decision.PULL
+
+
+@dataclass(frozen=True, slots=True)
 class SimulationResults:
     """Complete results from a simulation run.
 
@@ -83,8 +96,8 @@ def create_strategy(config: StrategyConfig) -> Strategy:
         An instance of the appropriate Strategy implementation.
 
     Raises:
-        ValueError: If the strategy type is unknown.
-        NotImplementedError: If the strategy type is not yet implemented.
+        ValueError: If the strategy type is unknown or if custom strategy
+            is requested without the required configuration section.
     """
     strategy_type = config.type
 
@@ -108,11 +121,6 @@ def create_strategy(config: StrategyConfig) -> Strategy:
             raise ValueError("'custom' strategy requires 'custom' config section")
         # Convert config rules to StrategyRule instances
         # Config uses "ride"/"pull" strings, StrategyRule needs Decision enum
-        from let_it_ride.strategy.base import Decision
-
-        def _action_to_decision(action: str) -> Decision:
-            return Decision.RIDE if action == "ride" else Decision.PULL
-
         bet1_rules = [
             StrategyRule(
                 condition=rule.condition, action=_action_to_decision(rule.action)
@@ -224,12 +232,18 @@ def _get_main_paytable(config: FullConfig) -> MainGamePaytable:
 
     Returns:
         The appropriate MainGamePaytable instance.
+
+    Raises:
+        NotImplementedError: If the paytable type is not yet supported.
     """
     paytable_type = config.paytables.main_game.type
     if paytable_type == "standard":
         return standard_main_paytable()
-    # TODO: Add support for liberal, tight, and custom paytables
-    return standard_main_paytable()
+    # liberal, tight, and custom paytables not yet implemented
+    raise NotImplementedError(
+        f"Main paytable type '{paytable_type}' is not yet implemented. "
+        "Only 'standard' is currently supported."
+    )
 
 
 def _get_bonus_paytable(config: FullConfig) -> BonusPaytable | None:
@@ -240,6 +254,9 @@ def _get_bonus_paytable(config: FullConfig) -> BonusPaytable | None:
 
     Returns:
         The appropriate BonusPaytable instance, or None if bonus is disabled.
+
+    Raises:
+        ValueError: If the bonus paytable type is unknown.
     """
     if not config.bonus_strategy.enabled:
         return None
@@ -251,8 +268,10 @@ def _get_bonus_paytable(config: FullConfig) -> BonusPaytable | None:
         return bonus_paytable_b()
     if paytable_type == "paytable_c":
         return bonus_paytable_c()
-    # Default to paytable_b
-    return bonus_paytable_b()
+    raise ValueError(
+        f"Unknown bonus paytable type: '{paytable_type}'. "
+        "Supported types: 'paytable_a', 'paytable_b', 'paytable_c'."
+    )
 
 
 class SimulationController:
@@ -294,6 +313,15 @@ class SimulationController:
         num_sessions = self._config.simulation.num_sessions
         session_results: list[SessionResult] = []
 
+        # Create immutable components once and reuse across sessions
+        # (Strategy, paytables, and betting system configs are identical per-session)
+        strategy = create_strategy(self._config.strategy)
+        main_paytable = _get_main_paytable(self._config)
+        bonus_paytable = _get_bonus_paytable(self._config)
+
+        def betting_system_factory() -> BettingSystem:
+            return create_betting_system(self._config.bankroll)
+
         # Create master RNG for deriving session seeds
         if self._base_seed is not None:
             master_rng = random.Random(self._base_seed)
@@ -305,7 +333,9 @@ class SimulationController:
             session_seed = master_rng.randint(0, 2**31 - 1)
             session_rng = random.Random(session_seed)
 
-            session = self._create_session(session_id, session_rng)
+            session = self._create_session(
+                session_rng, strategy, main_paytable, bonus_paytable, betting_system_factory
+            )
             result = self._run_session(session)
             session_results.append(result)
 
@@ -324,12 +354,22 @@ class SimulationController:
             total_hands=total_hands,
         )
 
-    def _create_session(self, _session_id: int, rng: random.Random) -> Session:
+    def _create_session(
+        self,
+        rng: random.Random,
+        strategy: Strategy,
+        main_paytable: MainGamePaytable,
+        bonus_paytable: BonusPaytable | None,
+        betting_system_factory: Callable[[], BettingSystem],
+    ) -> Session:
         """Create a new session with fresh state.
 
         Args:
-            _session_id: Unique identifier for this session (reserved for future use).
             rng: Random number generator for this session.
+            strategy: Strategy instance (reused across sessions).
+            main_paytable: Main game paytable (reused across sessions).
+            bonus_paytable: Bonus paytable or None (reused across sessions).
+            betting_system_factory: Factory to create fresh betting system per session.
 
         Returns:
             A new Session instance ready to run.
@@ -364,11 +404,8 @@ class SimulationController:
             bonus_bet=bonus_bet,
         )
 
-        # Create game components
+        # Create game components - Deck must be fresh per session
         deck = Deck()
-        strategy = create_strategy(self._config.strategy)
-        main_paytable = _get_main_paytable(self._config)
-        bonus_paytable = _get_bonus_paytable(self._config)
 
         engine = GameEngine(
             deck=deck,
@@ -379,7 +416,8 @@ class SimulationController:
             dealer_config=self._config.dealer,
         )
 
-        betting_system = create_betting_system(self._config.bankroll)
+        # Betting system needs fresh state per session
+        betting_system = betting_system_factory()
 
         return Session(session_config, engine, betting_system)
 
