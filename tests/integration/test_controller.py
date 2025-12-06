@@ -209,7 +209,9 @@ class TestReproducibility:
         assert len(results1.session_results) == len(results2.session_results)
 
         # Each session should have identical results
-        for r1, r2 in zip(results1.session_results, results2.session_results, strict=True):
+        for r1, r2 in zip(
+            results1.session_results, results2.session_results, strict=True
+        ):
             assert r1.hands_played == r2.hands_played
             assert r1.session_profit == r2.session_profit
             assert r1.final_bankroll == r2.final_bankroll

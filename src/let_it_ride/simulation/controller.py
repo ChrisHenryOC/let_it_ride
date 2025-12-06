@@ -1,7 +1,11 @@
 """Simulation controller for running multiple sessions.
 
-This module provides the main simulation controller for orchestrating
-the execution of multiple Let It Ride sessions sequentially.
+This module provides:
+- SimulationController: Orchestrates execution of multiple Let It Ride sessions
+- create_strategy: Factory function for creating strategy instances from config
+- create_betting_system: Factory function for creating betting system instances
+
+Internal registries map strategy/betting system type names to factory functions.
 """
 
 from __future__ import annotations
@@ -67,6 +71,45 @@ def _action_to_decision(action: str) -> Decision:
     return Decision.RIDE if action == "ride" else Decision.PULL
 
 
+def _create_custom_strategy(config: StrategyConfig) -> Strategy:
+    """Create a custom strategy from configuration.
+
+    Args:
+        config: The strategy configuration with custom rules.
+
+    Returns:
+        A CustomStrategy instance configured with the provided rules.
+
+    Raises:
+        ValueError: If custom config section is missing.
+    """
+    if config.custom is None:
+        raise ValueError("'custom' strategy requires 'custom' config section")
+    # Convert config rules to StrategyRule instances
+    # Config uses "ride"/"pull" strings, StrategyRule needs Decision enum
+    bet1_rules = [
+        StrategyRule(condition=rule.condition, action=_action_to_decision(rule.action))
+        for rule in config.custom.bet1_rules
+    ]
+    bet2_rules = [
+        StrategyRule(condition=rule.condition, action=_action_to_decision(rule.action))
+        for rule in config.custom.bet2_rules
+    ]
+    return CustomStrategy(bet1_rules=bet1_rules, bet2_rules=bet2_rules)
+
+
+# Strategy factory registry mapping type names to factory functions.
+# Each factory takes a StrategyConfig and returns a Strategy instance.
+_STRATEGY_FACTORIES: dict[str, Callable[[StrategyConfig], Strategy]] = {
+    "basic": lambda _: BasicStrategy(),
+    "always_ride": lambda _: AlwaysRideStrategy(),
+    "always_pull": lambda _: AlwaysPullStrategy(),
+    "conservative": lambda _: conservative_strategy(),
+    "aggressive": lambda _: aggressive_strategy(),
+    "custom": _create_custom_strategy,
+}
+
+
 @dataclass(frozen=True, slots=True)
 class SimulationResults:
     """Complete results from a simulation run.
@@ -99,43 +142,99 @@ def create_strategy(config: StrategyConfig) -> Strategy:
         ValueError: If the strategy type is unknown or if custom strategy
             is requested without the required configuration section.
     """
-    strategy_type = config.type
+    factory = _STRATEGY_FACTORIES.get(config.type)
+    if factory is None:
+        raise ValueError(f"Unknown strategy type: {config.type}")
+    return factory(config)
 
-    if strategy_type == "basic":
-        return BasicStrategy()
 
-    if strategy_type == "always_ride":
-        return AlwaysRideStrategy()
+def _create_flat_betting(config: BankrollConfig) -> BettingSystem:
+    """Create flat betting system."""
+    return FlatBetting(base_bet=config.base_bet)
 
-    if strategy_type == "always_pull":
-        return AlwaysPullStrategy()
 
-    if strategy_type == "conservative":
-        return conservative_strategy()
+def _create_martingale_betting(config: BankrollConfig) -> BettingSystem:
+    """Create martingale betting system."""
+    if config.betting_system.martingale is None:
+        raise ValueError("'martingale' betting requires 'martingale' config")
+    mc = config.betting_system.martingale
+    return MartingaleBetting(
+        base_bet=config.base_bet,
+        loss_multiplier=mc.loss_multiplier,
+        max_bet=mc.max_bet,
+        max_progressions=mc.max_progressions,
+    )
 
-    if strategy_type == "aggressive":
-        return aggressive_strategy()
 
-    if strategy_type == "custom":
-        if config.custom is None:
-            raise ValueError("'custom' strategy requires 'custom' config section")
-        # Convert config rules to StrategyRule instances
-        # Config uses "ride"/"pull" strings, StrategyRule needs Decision enum
-        bet1_rules = [
-            StrategyRule(
-                condition=rule.condition, action=_action_to_decision(rule.action)
-            )
-            for rule in config.custom.bet1_rules
-        ]
-        bet2_rules = [
-            StrategyRule(
-                condition=rule.condition, action=_action_to_decision(rule.action)
-            )
-            for rule in config.custom.bet2_rules
-        ]
-        return CustomStrategy(bet1_rules=bet1_rules, bet2_rules=bet2_rules)
+def _create_reverse_martingale_betting(config: BankrollConfig) -> BettingSystem:
+    """Create reverse martingale betting system."""
+    if config.betting_system.reverse_martingale is None:
+        raise ValueError(
+            "'reverse_martingale' betting requires 'reverse_martingale' config"
+        )
+    rmc = config.betting_system.reverse_martingale
+    return ReverseMartingaleBetting(
+        base_bet=config.base_bet,
+        win_multiplier=rmc.win_multiplier,
+        max_bet=rmc.max_bet,
+        profit_target_streak=rmc.profit_target_streak,
+    )
 
-    raise ValueError(f"Unknown strategy type: {strategy_type}")
+
+def _create_paroli_betting(config: BankrollConfig) -> BettingSystem:
+    """Create Paroli betting system."""
+    if config.betting_system.paroli is None:
+        raise ValueError("'paroli' betting requires 'paroli' config")
+    pc = config.betting_system.paroli
+    return ParoliBetting(
+        base_bet=config.base_bet,
+        win_multiplier=pc.win_multiplier,
+        max_bet=pc.max_bet,
+        wins_before_reset=pc.wins_before_reset,
+    )
+
+
+def _create_dalembert_betting(config: BankrollConfig) -> BettingSystem:
+    """Create D'Alembert betting system."""
+    if config.betting_system.dalembert is None:
+        raise ValueError("'dalembert' betting requires 'dalembert' config")
+    dc = config.betting_system.dalembert
+    return DAlembertBetting(
+        base_bet=config.base_bet,
+        unit=dc.unit,
+        min_bet=dc.min_bet,
+        max_bet=dc.max_bet,
+    )
+
+
+def _create_fibonacci_betting(config: BankrollConfig) -> BettingSystem:
+    """Create Fibonacci betting system."""
+    if config.betting_system.fibonacci is None:
+        raise ValueError("'fibonacci' betting requires 'fibonacci' config")
+    fc = config.betting_system.fibonacci
+    return FibonacciBetting(
+        base_unit=fc.unit,
+        max_bet=fc.max_bet,
+        max_position=fc.max_position,
+        win_regression=fc.win_regression,
+    )
+
+
+# Betting system factory registry mapping type names to factory functions.
+# Each factory takes a BankrollConfig and returns a BettingSystem instance.
+# None values indicate types that are not yet implemented.
+_BETTING_SYSTEM_FACTORIES: dict[
+    str, Callable[[BankrollConfig], BettingSystem] | None
+] = {
+    "flat": _create_flat_betting,
+    "martingale": _create_martingale_betting,
+    "reverse_martingale": _create_reverse_martingale_betting,
+    "paroli": _create_paroli_betting,
+    "dalembert": _create_dalembert_betting,
+    "fibonacci": _create_fibonacci_betting,
+    "proportional": None,  # Not yet implemented
+    "custom": None,  # Not yet implemented
+}
 
 
 def create_betting_system(config: BankrollConfig) -> BettingSystem:
@@ -151,77 +250,16 @@ def create_betting_system(config: BankrollConfig) -> BettingSystem:
         ValueError: If the betting system type is unknown.
         NotImplementedError: If the betting system type is not yet implemented.
     """
-    system_config = config.betting_system
-    system_type = system_config.type
-    base_bet = config.base_bet
+    system_type = config.betting_system.type
+    if system_type not in _BETTING_SYSTEM_FACTORIES:
+        raise ValueError(f"Unknown betting system type: {system_type}")
 
-    if system_type == "flat":
-        return FlatBetting(base_bet=base_bet)
-
-    if system_type == "martingale":
-        if system_config.martingale is None:
-            raise ValueError("'martingale' betting requires 'martingale' config")
-        mc = system_config.martingale
-        return MartingaleBetting(
-            base_bet=base_bet,
-            loss_multiplier=mc.loss_multiplier,
-            max_bet=mc.max_bet,
-            max_progressions=mc.max_progressions,
-        )
-
-    if system_type == "reverse_martingale":
-        if system_config.reverse_martingale is None:
-            raise ValueError(
-                "'reverse_martingale' betting requires 'reverse_martingale' config"
-            )
-        rmc = system_config.reverse_martingale
-        return ReverseMartingaleBetting(
-            base_bet=base_bet,
-            win_multiplier=rmc.win_multiplier,
-            max_bet=rmc.max_bet,
-            profit_target_streak=rmc.profit_target_streak,
-        )
-
-    if system_type == "paroli":
-        if system_config.paroli is None:
-            raise ValueError("'paroli' betting requires 'paroli' config")
-        pc = system_config.paroli
-        return ParoliBetting(
-            base_bet=base_bet,
-            win_multiplier=pc.win_multiplier,
-            max_bet=pc.max_bet,
-            wins_before_reset=pc.wins_before_reset,
-        )
-
-    if system_type == "dalembert":
-        if system_config.dalembert is None:
-            raise ValueError("'dalembert' betting requires 'dalembert' config")
-        dc = system_config.dalembert
-        # D'Alembert uses same unit for increase/decrease
-        return DAlembertBetting(
-            base_bet=base_bet,
-            unit=dc.unit,
-            min_bet=dc.min_bet,
-            max_bet=dc.max_bet,
-        )
-
-    if system_type == "fibonacci":
-        if system_config.fibonacci is None:
-            raise ValueError("'fibonacci' betting requires 'fibonacci' config")
-        fc = system_config.fibonacci
-        return FibonacciBetting(
-            base_unit=fc.unit,
-            max_bet=fc.max_bet,
-            max_position=fc.max_position,
-            win_regression=fc.win_regression,
-        )
-
-    if system_type in ("proportional", "custom"):
+    factory = _BETTING_SYSTEM_FACTORIES[system_type]
+    if factory is None:
         raise NotImplementedError(
             f"Betting system type '{system_type}' is not yet implemented"
         )
-
-    raise ValueError(f"Unknown betting system type: {system_type}")
+    return factory(config)
 
 
 def _get_main_paytable(config: FullConfig) -> MainGamePaytable:
@@ -334,7 +372,11 @@ class SimulationController:
             session_rng = random.Random(session_seed)
 
             session = self._create_session(
-                session_rng, strategy, main_paytable, bonus_paytable, betting_system_factory
+                session_rng,
+                strategy,
+                main_paytable,
+                bonus_paytable,
+                betting_system_factory,
             )
             result = self._run_session(session)
             session_results.append(result)
