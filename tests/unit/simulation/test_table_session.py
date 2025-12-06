@@ -1177,7 +1177,9 @@ class TestSimultaneousStop:
         result = session.run_to_completion()
 
         assert result.seat_results[0].session_result.stop_reason == StopReason.WIN_LIMIT
-        assert result.seat_results[1].session_result.stop_reason == StopReason.LOSS_LIMIT
+        assert (
+            result.seat_results[1].session_result.stop_reason == StopReason.LOSS_LIMIT
+        )
         # Session stop reason should be from last seat (reversed iteration)
         assert result.stop_reason == StopReason.LOSS_LIMIT
 
