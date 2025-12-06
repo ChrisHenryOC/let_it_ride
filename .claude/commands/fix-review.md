@@ -111,21 +111,68 @@ git push
 
 # HANDLE DEFERRED ITEMS
 
-If there are any deferred items, use AskUserQuestion to ask:
+For EACH deferred item, review it with the user individually using AskUserQuestion.
 
-"Which deferred items should be scheduled for future work?"
+## Review Process
 
-Present options:
-- Each deferred item as a selectable option (multiSelect: true)
-- User selects which items should be tracked for future implementation
+For each deferred item, present the following context and options:
 
-For items the user selects:
-1. Determine if it fits an existing issue (search for related LIR issues)
-2. If yes: Use `gh issue edit` to append the task to that issue's body
-3. If no: Use `gh issue create` to create a new LIR-numbered issue
-4. Update `docs/implementation_todo.md` to reflect any changes
+**Context to show:**
+- Issue summary and severity
+- Which reviewer(s) flagged it
+- Why it was marked as deferred (out of scope, needs new dependency, architectural change, etc.)
+- File/location affected
 
-Items not selected are documented as "Skipped" in the final summary.
+**Ask:** "How should we handle this deferred item: [Issue Summary]?"
+
+**Options:**
+- **A) Fix now**: Implement the fix in this PR (add to todo list and implement immediately)
+- **B) Create issue**: Create a new GitHub issue and sequence it into implementation_todo.md
+- **C) Skip**: Defer with no action (document as "Skipped" in final summary)
+
+## Processing Each Choice
+
+### If user selects A) Fix now:
+1. Add the item to the TodoWrite list
+2. Implement the fix following the same process as other issues
+3. Include in the commit with other fixes
+4. Move to next deferred item
+
+### If user selects B) Create issue:
+1. Search for related existing LIR issues:
+   ```bash
+   gh issue list --state open --search "[relevant keywords]"
+   ```
+2. Ask user: "Should this be added to an existing issue or create a new one?"
+   - If existing: Use `gh issue edit ISSUE_NUMBER --body "..."` to append
+   - If new: Determine next LIR number from `docs/implementation_todo.md`
+3. Create the issue if new:
+   ```bash
+   gh issue create --title "LIR-XX: [Title]" --body "[Description from review finding]"
+   ```
+4. Update `docs/implementation_todo.md`:
+   - Add the new LIR-XX entry to the appropriate phase
+   - Update the execution order if needed
+   - Update the Summary section counts
+5. Move to next deferred item
+
+### If user selects C) Skip:
+1. Document reason for skipping (optional: ask user for reason)
+2. Record as "Skipped" in final summary
+3. Move to next deferred item
+
+## After All Deferred Items Reviewed
+
+Commit any implementation_todo.md changes:
+```bash
+git add docs/implementation_todo.md
+git commit -m "docs: Update implementation todo with deferred items from PR $ARGUMENTS review
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+git push
+```
 
 # FINAL SUMMARY
 
@@ -137,12 +184,13 @@ Provide a complete summary with:
 | 1 | High | ... | test-coverage |
 | 2 | Medium | ... | code-quality, performance |
 
-## Issues Deferred
-| # | Severity | Issue | Disposition |
-|---|----------|-------|-------------|
-| 1 | Medium | Add hypothesis tests | Added to LIR-XX (GitHub #YY) |
-| 2 | Medium | GameHandResult slots | New issue LIR-XX created (GitHub #YY) |
-| 3 | Low | Minor style suggestion | Skipped |
+## Initially Deferred Items
+| # | Severity | Issue | Decision | Outcome |
+|---|----------|-------|----------|---------|
+| 1 | Medium | Add hypothesis tests | A) Fix now | Fixed in this PR |
+| 2 | Medium | GameHandResult slots | B) Create issue | New issue LIR-XX (GitHub #YY) |
+| 3 | Medium | Registry pattern refactor | B) Create issue | Added to LIR-XX (GitHub #YY) |
+| 4 | Low | Minor style suggestion | C) Skip | No action taken |
 
 ## Validation
 - Tests: X passed
@@ -157,4 +205,6 @@ Provide a complete summary with:
 - Mark each todo complete IMMEDIATELY after fixing
 - Document ALL deferred issues with clear reasons
 - Don't silently skip issues - either fix them or document why they're deferred
-- Always ask user about deferred items before finalizing
+- Review EACH deferred item individually with the user (A/B/C decision)
+- For "B) Create issue" items: always update implementation_todo.md with proper sequencing
+- For "A) Fix now" items: add back to todo list and implement before finalizing
