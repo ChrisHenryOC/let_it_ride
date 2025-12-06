@@ -1,7 +1,11 @@
 """Simulation controller for running multiple sessions.
 
-This module provides the main simulation controller for orchestrating
-the execution of multiple Let It Ride sessions sequentially.
+This module provides:
+- SimulationController: Orchestrates execution of multiple Let It Ride sessions
+- create_strategy: Factory function for creating strategy instances from config
+- create_betting_system: Factory function for creating betting system instances
+
+Internal registries map strategy/betting system type names to factory functions.
 """
 
 from __future__ import annotations
