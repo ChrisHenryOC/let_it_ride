@@ -7,7 +7,7 @@ This module provides parallel execution support using multiprocessing:
 Key design decisions:
 - Pre-generate ALL session seeds before parallel execution for determinism
 - Each worker creates fresh Strategy, Paytables, BettingSystem (not shared)
-- Progress aggregation via multiprocessing Queue
+- Progress reported at completion (per-session progress not available in parallel mode)
 """
 
 from __future__ import annotations
@@ -20,14 +20,7 @@ from math import ceil
 from multiprocessing import Pool
 from typing import TYPE_CHECKING, Literal
 
-from let_it_ride.config.paytables import (
-    BonusPaytable,
-    MainGamePaytable,
-    bonus_paytable_a,
-    bonus_paytable_b,
-    bonus_paytable_c,
-    standard_main_paytable,
-)
+from let_it_ride.config.paytables import BonusPaytable, MainGamePaytable
 from let_it_ride.core.deck import Deck
 from let_it_ride.core.game_engine import GameEngine
 from let_it_ride.simulation.controller import (
@@ -35,6 +28,12 @@ from let_it_ride.simulation.controller import (
     create_strategy,
 )
 from let_it_ride.simulation.session import Session, SessionConfig, SessionResult
+from let_it_ride.simulation.utils import (
+    calculate_bonus_bet,
+    create_session_config,
+    get_bonus_paytable,
+    get_main_paytable,
+)
 
 if TYPE_CHECKING:
     from let_it_ride.bankroll import BettingSystem
@@ -44,6 +43,9 @@ if TYPE_CHECKING:
 
 # Type alias for progress callback
 ProgressCallback = Callable[[int, int], None]
+
+# Maximum number of workers to prevent resource exhaustion
+MAX_WORKERS = 64
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,102 +78,6 @@ class WorkerResult:
     worker_id: int
     session_results: list[tuple[int, SessionResult]]
     error: str | None = None
-
-
-def _get_main_paytable(config: FullConfig) -> MainGamePaytable:
-    """Get the main game paytable from configuration.
-
-    Args:
-        config: The full simulation configuration.
-
-    Returns:
-        The appropriate MainGamePaytable instance.
-
-    Raises:
-        NotImplementedError: If the paytable type is not yet supported.
-    """
-    paytable_type = config.paytables.main_game.type
-    if paytable_type == "standard":
-        return standard_main_paytable()
-    raise NotImplementedError(
-        f"Main paytable type '{paytable_type}' is not yet implemented. "
-        "Only 'standard' is currently supported."
-    )
-
-
-def _get_bonus_paytable(config: FullConfig) -> BonusPaytable | None:
-    """Get the bonus paytable from configuration.
-
-    Args:
-        config: The full simulation configuration.
-
-    Returns:
-        The appropriate BonusPaytable instance, or None if bonus is disabled.
-
-    Raises:
-        ValueError: If the bonus paytable type is unknown.
-    """
-    if not config.bonus_strategy.enabled:
-        return None
-
-    paytable_type = config.paytables.bonus.type
-    if paytable_type == "paytable_a":
-        return bonus_paytable_a()
-    if paytable_type == "paytable_b":
-        return bonus_paytable_b()
-    if paytable_type == "paytable_c":
-        return bonus_paytable_c()
-    raise ValueError(
-        f"Unknown bonus paytable type: '{paytable_type}'. "
-        "Supported types: 'paytable_a', 'paytable_b', 'paytable_c'."
-    )
-
-
-def _calculate_bonus_bet(config: FullConfig) -> float:
-    """Calculate the bonus bet amount from configuration.
-
-    Args:
-        config: The full simulation configuration.
-
-    Returns:
-        The bonus bet amount (0.0 if disabled).
-    """
-    if not config.bonus_strategy.enabled:
-        return 0.0
-
-    if config.bonus_strategy.always is not None:
-        return config.bonus_strategy.always.amount
-    if config.bonus_strategy.static is not None:
-        if config.bonus_strategy.static.amount is not None:
-            return config.bonus_strategy.static.amount
-        if config.bonus_strategy.static.ratio is not None:
-            return config.bankroll.base_bet * config.bonus_strategy.static.ratio
-
-    return 0.0
-
-
-def _create_session_config(config: FullConfig, bonus_bet: float) -> SessionConfig:
-    """Create a SessionConfig from FullConfig.
-
-    Args:
-        config: The full simulation configuration.
-        bonus_bet: The bonus bet amount.
-
-    Returns:
-        A SessionConfig instance.
-    """
-    bankroll_config = config.bankroll
-    stop_conditions = bankroll_config.stop_conditions
-
-    return SessionConfig(
-        starting_bankroll=bankroll_config.starting_amount,
-        base_bet=bankroll_config.base_bet,
-        win_limit=stop_conditions.win_limit,
-        loss_limit=stop_conditions.loss_limit,
-        max_hands=config.simulation.hands_per_session,
-        stop_on_insufficient_funds=stop_conditions.stop_on_insufficient_funds,
-        bonus_bet=bonus_bet,
-    )
 
 
 def _run_single_session(
@@ -230,10 +136,10 @@ def run_worker_sessions(task: WorkerTask) -> WorkerResult:
     try:
         # Create components fresh in this worker (not shared across processes)
         strategy = create_strategy(task.config.strategy)
-        main_paytable = _get_main_paytable(task.config)
-        bonus_paytable = _get_bonus_paytable(task.config)
-        bonus_bet = _calculate_bonus_bet(task.config)
-        session_config = _create_session_config(task.config, bonus_bet)
+        main_paytable = get_main_paytable(task.config)
+        bonus_paytable = get_bonus_paytable(task.config)
+        bonus_bet = calculate_bonus_bet(task.config)
+        session_config = create_session_config(task.config, bonus_bet)
 
         def betting_system_factory() -> BettingSystem:
             return create_betting_system(task.config.bankroll)
@@ -263,7 +169,7 @@ def run_worker_sessions(task: WorkerTask) -> WorkerResult:
         return WorkerResult(
             worker_id=task.worker_id,
             session_results=[],
-            error=str(e),
+            error=f"{type(e).__name__}: {e}",
         )
 
 
@@ -281,11 +187,10 @@ class ParallelExecutor:
 
         Args:
             num_workers: Number of worker processes, or "auto" to use CPU count.
+                The value is bounded between 1 and MAX_WORKERS to prevent
+                resource exhaustion.
         """
-        if num_workers == "auto":
-            self._num_workers = os.cpu_count() or 1
-        else:
-            self._num_workers = max(1, num_workers)
+        self._num_workers = get_effective_worker_count(num_workers)
 
     @property
     def num_workers(self) -> int:
@@ -362,6 +267,9 @@ class ParallelExecutor:
     ) -> list[SessionResult]:
         """Merge and order results from all workers.
 
+        Uses a pre-allocated list for better memory efficiency than dict-based
+        collection, avoiding hash table overhead.
+
         Args:
             worker_results: Results from all workers.
             num_sessions: Expected number of sessions.
@@ -372,27 +280,27 @@ class ParallelExecutor:
         Raises:
             RuntimeError: If any worker failed or results are missing.
         """
-        # Check for worker failures
+        # Check for worker failures first
         failed_workers = [wr for wr in worker_results if wr.error is not None]
         if failed_workers:
             errors = [f"Worker {wr.worker_id}: {wr.error}" for wr in failed_workers]
             raise RuntimeError(f"Worker failures: {'; '.join(errors)}")
 
-        # Collect all results into a dictionary keyed by session_id
-        results_by_id: dict[int, SessionResult] = {}
+        # Pre-allocate result list for O(1) direct assignment
+        results: list[SessionResult | None] = [None] * num_sessions
         for worker_result in worker_results:
             for session_id, session_result in worker_result.session_results:
-                results_by_id[session_id] = session_result
+                results[session_id] = session_result
 
         # Verify we have all expected results
-        if len(results_by_id) != num_sessions:
-            missing = set(range(num_sessions)) - set(results_by_id.keys())
+        missing = [i for i, r in enumerate(results) if r is None]
+        if missing:
             raise RuntimeError(
-                f"Missing results for {len(missing)} sessions: {sorted(missing)[:10]}..."
+                f"Missing results for {len(missing)} sessions: {missing[:10]}..."
             )
 
-        # Return results ordered by session_id
-        return [results_by_id[i] for i in range(num_sessions)]
+        # Type is now list[SessionResult] since we verified no None values
+        return results  # type: ignore[return-value]
 
     def run_sessions(
         self,
@@ -435,12 +343,15 @@ class ParallelExecutor:
 def get_effective_worker_count(workers: int | Literal["auto"]) -> int:
     """Get the effective worker count from configuration.
 
+    The value is bounded between 1 and MAX_WORKERS to prevent resource
+    exhaustion from misconfiguration.
+
     Args:
         workers: Number of workers or "auto".
 
     Returns:
-        The actual number of workers to use.
+        The actual number of workers to use (1 <= result <= MAX_WORKERS).
     """
     if workers == "auto":
-        return os.cpu_count() or 1
-    return max(1, workers)
+        return min(os.cpu_count() or 1, MAX_WORKERS)
+    return min(max(1, workers), MAX_WORKERS)

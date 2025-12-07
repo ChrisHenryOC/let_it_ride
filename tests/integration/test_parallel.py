@@ -13,13 +13,16 @@ Tests verify:
 from __future__ import annotations
 
 import os
+from typing import Literal
 from unittest.mock import patch
 
 import pytest
 
 from let_it_ride.config.models import (
+    AlwaysBonusConfig,
     BankrollConfig,
     BettingSystemConfig,
+    BonusStrategyConfig,
     FullConfig,
     SimulationConfig,
     StopConditionsConfig,
@@ -44,7 +47,7 @@ def create_test_config(
     num_sessions: int = 20,
     hands_per_session: int = 50,
     random_seed: int | None = 42,
-    workers: int | str = 2,
+    workers: int | Literal["auto"] = 2,
 ) -> FullConfig:
     """Create a test configuration for parallel simulation.
 
@@ -551,3 +554,187 @@ class TestDeterministicSeeding:
 
         # Very unlikely to be identical without a fixed seed
         assert seeds1 != seeds2
+
+
+class TestBoundaryConditions:
+    """Tests for boundary conditions at the parallel/sequential threshold."""
+
+    def test_boundary_nine_sessions_uses_sequential(self) -> None:
+        """Test exactly 9 sessions falls back to sequential.
+
+        The boundary is _MIN_SESSIONS_FOR_PARALLEL = 10, so 9 sessions
+        should use sequential execution (progress callback per session).
+        """
+        config = create_test_config(num_sessions=9, workers=4)
+        callback_calls: list[tuple[int, int]] = []
+
+        def track(completed: int, total: int) -> None:
+            callback_calls.append((completed, total))
+
+        controller = SimulationController(config, progress_callback=track)
+        controller.run()
+
+        # Sequential: per-session callbacks = 9 calls
+        assert len(callback_calls) == 9
+
+    def test_boundary_ten_sessions_uses_parallel(self) -> None:
+        """Test exactly 10 sessions uses parallel execution.
+
+        The boundary is _MIN_SESSIONS_FOR_PARALLEL = 10, so 10 sessions
+        should use parallel execution (single progress callback at end).
+        """
+        config = create_test_config(num_sessions=10, workers=4)
+        callback_calls: list[tuple[int, int]] = []
+
+        def track(completed: int, total: int) -> None:
+            callback_calls.append((completed, total))
+
+        controller = SimulationController(config, progress_callback=track)
+        controller.run()
+
+        # Parallel: single callback at completion
+        assert len(callback_calls) == 1
+        assert callback_calls[0] == (10, 10)
+
+
+class TestMultipleWorkerFailures:
+    """Tests for handling multiple simultaneous worker failures."""
+
+    def test_multiple_worker_failures_reported(self) -> None:
+        """Test error message contains all failed worker errors."""
+        executor = ParallelExecutor(num_workers=3)
+
+        worker_results = [
+            WorkerResult(worker_id=0, session_results=[], error="Error A"),
+            WorkerResult(worker_id=1, session_results=[], error="Error B"),
+            WorkerResult(
+                worker_id=2,
+                session_results=[(0, None)],  # type: ignore[list-item]
+                error=None,
+            ),
+        ]
+
+        with pytest.raises(RuntimeError) as exc_info:
+            executor._merge_results(worker_results, num_sessions=10)
+
+        error_message = str(exc_info.value)
+        assert "Worker 0: Error A" in error_message
+        assert "Worker 1: Error B" in error_message
+
+
+class TestBonusStrategyInParallel:
+    """Tests for bonus strategy functionality in parallel execution."""
+
+    def test_parallel_with_bonus_enabled(self) -> None:
+        """Test parallel execution with bonus betting enabled."""
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=20,
+                hands_per_session=50,
+                random_seed=42,
+                workers=2,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=BonusStrategyConfig(
+                enabled=True,
+                type="always",
+                always=AlwaysBonusConfig(amount=5.0),
+            ),
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        assert len(results.session_results) == 20
+        # Verify all sessions completed successfully
+        for result in results.session_results:
+            assert result.hands_played > 0
+
+    def test_bonus_parallel_sequential_equivalence(self) -> None:
+        """Test bonus betting produces identical results in parallel and sequential."""
+        bonus_config = BonusStrategyConfig(
+            enabled=True,
+            type="always",
+            always=AlwaysBonusConfig(amount=5.0),
+        )
+
+        config_seq = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=15,
+                hands_per_session=50,
+                random_seed=12345,
+                workers=1,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=bonus_config,
+        )
+
+        config_par = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=15,
+                hands_per_session=50,
+                random_seed=12345,
+                workers=2,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=bonus_config,
+        )
+
+        results_seq = SimulationController(config_seq).run()
+        results_par = SimulationController(config_par).run()
+
+        # Verify identical results
+        for seq, par in zip(
+            results_seq.session_results, results_par.session_results, strict=True
+        ):
+            assert seq.session_profit == par.session_profit
+            assert seq.hands_played == par.hands_played
+
+
+class TestMaxWorkersLimit:
+    """Tests for MAX_WORKERS limit on worker count."""
+
+    def test_worker_count_capped_at_max_workers(self) -> None:
+        """Test that worker count is capped at MAX_WORKERS."""
+        from let_it_ride.simulation.parallel import MAX_WORKERS
+
+        # Request more workers than MAX_WORKERS
+        executor = ParallelExecutor(num_workers=MAX_WORKERS + 100)
+        assert executor.num_workers == MAX_WORKERS
+
+    def test_get_effective_worker_count_capped(self) -> None:
+        """Test get_effective_worker_count respects MAX_WORKERS."""
+        from let_it_ride.simulation.parallel import MAX_WORKERS
+
+        result = get_effective_worker_count(MAX_WORKERS + 500)
+        assert result == MAX_WORKERS

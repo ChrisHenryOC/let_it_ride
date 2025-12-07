@@ -78,15 +78,15 @@ Use `multiprocessing.Queue` for progress updates:
 ## Implementation Tasks
 
 1. [x] Review existing SimulationController
-2. [ ] Create ParallelExecutor class
-3. [ ] Implement worker function (top-level for pickling)
-4. [ ] Implement session batching
-5. [ ] Implement RNG pre-seeding
-6. [ ] Implement progress aggregation via Queue
-7. [ ] Implement graceful worker failure handling
-8. [ ] Integrate into SimulationController
-9. [ ] Write integration tests
-10. [ ] Test parallel vs sequential equivalence
+2. [x] Create ParallelExecutor class
+3. [x] Implement worker function (top-level for pickling)
+4. [x] Implement session batching
+5. [x] Implement RNG pre-seeding
+6. [x] Implement progress reporting (at completion, Queue-based not implemented)
+7. [x] Implement graceful worker failure handling
+8. [x] Integrate into SimulationController
+9. [x] Write integration tests
+10. [x] Test parallel vs sequential equivalence
 
 ## Testing Strategy
 
