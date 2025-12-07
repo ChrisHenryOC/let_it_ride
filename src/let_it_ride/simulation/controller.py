@@ -6,6 +6,8 @@ This module provides:
 - create_betting_system: Factory function for creating betting system instances
 
 Internal registries map strategy/betting system type names to factory functions.
+
+Parallel execution is supported via the ParallelExecutor when workers > 1.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ import random
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from let_it_ride.bankroll import (
     BettingSystem,
@@ -54,6 +56,9 @@ if TYPE_CHECKING:
         FullConfig,
         StrategyConfig,
     )
+
+# Minimum sessions needed to benefit from parallel overhead
+_MIN_SESSIONS_FOR_PARALLEL = 10
 
 # Type alias for progress callback
 ProgressCallback = Callable[[int, int], None]
@@ -312,11 +317,39 @@ def _get_bonus_paytable(config: FullConfig) -> BonusPaytable | None:
     )
 
 
+def _should_use_parallel(workers: int | Literal["auto"], num_sessions: int) -> bool:
+    """Determine if parallel execution should be used.
+
+    Args:
+        workers: Configured worker count or "auto".
+        num_sessions: Number of sessions to run.
+
+    Returns:
+        True if parallel execution should be used.
+    """
+    # Import here to avoid circular imports
+    from let_it_ride.simulation.parallel import get_effective_worker_count
+
+    effective_workers = get_effective_worker_count(workers)
+
+    # Use sequential for single worker or too few sessions
+    if effective_workers <= 1:
+        return False
+    if num_sessions < _MIN_SESSIONS_FOR_PARALLEL:
+        return False
+
+    return True
+
+
 class SimulationController:
     """Orchestrates the execution of multiple simulation sessions.
 
     The controller manages the lifecycle of sessions, handles RNG seeding
     for reproducibility, and aggregates results.
+
+    Supports both sequential and parallel execution. Parallel execution
+    is used when workers > 1 and there are enough sessions to benefit
+    from the overhead.
     """
 
     __slots__ = ("_config", "_progress_callback", "_base_seed")
@@ -332,7 +365,7 @@ class SimulationController:
             config: Full simulation configuration.
             progress_callback: Optional callback for progress reporting.
                 Called with (completed_sessions, total_sessions) after
-                each session completes.
+                each session completes (sequential) or at completion (parallel).
         """
         self._config = config
         self._progress_callback = progress_callback
@@ -341,8 +374,49 @@ class SimulationController:
     def run(self) -> SimulationResults:
         """Execute the simulation.
 
-        Runs the configured number of sessions sequentially, collecting
-        results and reporting progress.
+        Uses parallel execution when workers > 1 and there are enough sessions.
+        Otherwise runs sequentially.
+
+        Returns:
+            SimulationResults containing all session results and metadata.
+        """
+        workers = self._config.simulation.workers
+        num_sessions = self._config.simulation.num_sessions
+
+        if _should_use_parallel(workers, num_sessions):
+            return self._run_parallel()
+        return self._run_sequential()
+
+    def _run_parallel(self) -> SimulationResults:
+        """Execute the simulation using parallel workers.
+
+        Returns:
+            SimulationResults containing all session results and metadata.
+        """
+        # Import here to avoid circular imports
+        from let_it_ride.simulation.parallel import ParallelExecutor
+
+        start_time = datetime.now()
+
+        executor = ParallelExecutor(self._config.simulation.workers)
+        session_results = executor.run_sessions(
+            config=self._config,
+            progress_callback=self._progress_callback,
+        )
+
+        end_time = datetime.now()
+        total_hands = sum(r.hands_played for r in session_results)
+
+        return SimulationResults(
+            config=self._config,
+            session_results=session_results,
+            start_time=start_time,
+            end_time=end_time,
+            total_hands=total_hands,
+        )
+
+    def _run_sequential(self) -> SimulationResults:
+        """Execute the simulation sequentially.
 
         Returns:
             SimulationResults containing all session results and metadata.
