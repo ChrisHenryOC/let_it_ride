@@ -10,6 +10,7 @@ import pytest
 from let_it_ride.config.models import (
     AggressiveStrategyConfig,
     AlwaysBonusConfig,
+    BankrollConditionalBonusConfig,
     BankrollConfig,
     BettingSystemConfig,
     BonusStrategyConfig,
@@ -687,6 +688,109 @@ class TestBonusBetCalculation:
         assert captured_bonus_bet[0] == expected_bonus
 
         assert len(results.session_results) == 1
+
+    def test_bankroll_conditional_bonus_results_in_zero_bonus_bet(self) -> None:
+        """Test that bankroll_conditional bonus strategy currently results in zero bonus bet.
+
+        Note: bankroll_conditional is defined in config models but not yet implemented
+        in the controller. This test documents the current behavior where the controller
+        falls through to bonus_bet=0.0 for unsupported strategy types.
+
+        TODO: Once bankroll_conditional is implemented in the controller, update this
+        test to verify dynamic bonus betting based on session profit/bankroll conditions.
+        """
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=1,
+                hands_per_session=10,
+                random_seed=42,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=BonusStrategyConfig(
+                enabled=True,
+                type="bankroll_conditional",
+                bankroll_conditional=BankrollConditionalBonusConfig(
+                    base_amount=5.0,
+                    min_session_profit=10.0,
+                ),
+            ),
+        )
+
+        # Capture SessionConfig creation to verify bonus_bet
+        captured_bonus_bet: list[float] = []
+        original_init = SessionConfig.__init__
+
+        def capturing_init(self: SessionConfig, **kwargs: object) -> None:
+            captured_bonus_bet.append(float(kwargs.get("bonus_bet", 0.0)))
+            return original_init(self, **kwargs)  # type: ignore[misc]
+
+        with patch.object(SessionConfig, "__init__", capturing_init):
+            controller = SimulationController(config)
+            results = controller.run()
+
+        # Current behavior: bankroll_conditional is not implemented,
+        # so bonus_bet falls through to 0.0
+        assert len(captured_bonus_bet) == 1
+        assert captured_bonus_bet[0] == 0.0
+
+        # Simulation should still complete successfully
+        assert len(results.session_results) == 1
+        assert results.session_results[0].hands_played > 0
+
+    def test_bonus_enabled_with_type_never_results_in_zero_bonus_bet(self) -> None:
+        """Test edge case where enabled=True but type='never'.
+
+        This tests the implicit branch where bonus_strategy.enabled is True but
+        neither always nor static configs are set (because type='never' doesn't
+        require a sub-config). The controller should result in bonus_bet=0.0.
+        """
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=1,
+                hands_per_session=10,
+                random_seed=42,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            # Contradictory config: enabled=True but type='never'
+            bonus_strategy=BonusStrategyConfig(enabled=True, type="never"),
+        )
+
+        # Capture SessionConfig creation to verify bonus_bet
+        captured_bonus_bet: list[float] = []
+        original_init = SessionConfig.__init__
+
+        def capturing_init(self: SessionConfig, **kwargs: object) -> None:
+            captured_bonus_bet.append(float(kwargs.get("bonus_bet", 0.0)))
+            return original_init(self, **kwargs)  # type: ignore[misc]
+
+        with patch.object(SessionConfig, "__init__", capturing_init):
+            controller = SimulationController(config)
+            results = controller.run()
+
+        # When enabled=True but no always/static config, bonus_bet should be 0.0
+        assert len(captured_bonus_bet) == 1
+        assert captured_bonus_bet[0] == 0.0
+
+        assert len(results.session_results) == 1
+        assert results.session_results[0].hands_played > 0
 
 
 class TestEdgeCases:
