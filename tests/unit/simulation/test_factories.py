@@ -1,7 +1,7 @@
 """Unit tests for factory functions in controller module.
 
-Tests the create_strategy() and create_betting_system() factory functions
-with registry pattern implementation.
+Tests the create_strategy(), create_betting_system(), _get_main_paytable(),
+and _get_bonus_paytable() factory functions with registry pattern implementation.
 """
 
 from typing import Any
@@ -20,23 +20,38 @@ from let_it_ride.config.models import (
     AggressiveStrategyConfig,
     BankrollConfig,
     BettingSystemConfig,
+    BonusPaytableConfig,
+    BonusStrategyConfig,
     ConservativeStrategyConfig,
     CustomBettingConfig,
     CustomStrategyConfig,
     DAlembertBettingConfig,
     FibonacciBettingConfig,
+    FullConfig,
+    MainGamePaytableConfig,
     MartingaleBettingConfig,
     ParoliBettingConfig,
+    PaytablesConfig,
     ProportionalBettingConfig,
     ReverseMartingaleBettingConfig,
     StopConditionsConfig,
     StrategyConfig,
     StrategyRule,
 )
+from let_it_ride.config.paytables import (
+    BonusPaytable,
+    MainGamePaytable,
+    bonus_paytable_a,
+    bonus_paytable_b,
+    bonus_paytable_c,
+    standard_main_paytable,
+)
 from let_it_ride.simulation.controller import (
     _BETTING_SYSTEM_FACTORIES,
     _STRATEGY_FACTORIES,
     _action_to_decision,
+    _get_bonus_paytable,
+    _get_main_paytable,
     create_betting_system,
     create_strategy,
 )
@@ -587,3 +602,211 @@ class TestCreateBettingSystem:
             assert callable(system.get_bet)
             assert callable(system.record_result)
             assert callable(system.reset)
+
+
+def _create_full_config(
+    main_paytable_type: str = "standard",
+    bonus_enabled: bool = False,
+    bonus_paytable_type: str = "paytable_b",
+) -> FullConfig:
+    """Create a FullConfig for testing paytable factories.
+
+    Args:
+        main_paytable_type: Type of main game paytable.
+        bonus_enabled: Whether bonus betting is enabled.
+        bonus_paytable_type: Type of bonus paytable.
+
+    Returns:
+        A FullConfig instance.
+    """
+    return FullConfig(
+        paytables=PaytablesConfig(
+            main_game=MainGamePaytableConfig(type=main_paytable_type),
+            bonus=BonusPaytableConfig(type=bonus_paytable_type),
+        ),
+        bonus_strategy=BonusStrategyConfig(enabled=bonus_enabled),
+    )
+
+
+def _create_full_config_bypassing_validation(
+    main_paytable_type: str = "standard",
+    bonus_enabled: bool = False,
+    bonus_paytable_type: str = "paytable_b",
+) -> FullConfig:
+    """Create a FullConfig bypassing Pydantic validation.
+
+    This is used to test the factory function's own validation logic
+    independent of Pydantic model validators.
+
+    Args:
+        main_paytable_type: Type of main game paytable (can be invalid).
+        bonus_enabled: Whether bonus betting is enabled.
+        bonus_paytable_type: Type of bonus paytable (can be invalid).
+
+    Returns:
+        A FullConfig with potentially invalid values.
+    """
+    # Create main paytable config bypassing validation
+    main_game = MainGamePaytableConfig.__new__(MainGamePaytableConfig)
+    object.__setattr__(main_game, "type", main_paytable_type)
+    object.__setattr__(main_game, "custom", None)
+
+    # Create bonus paytable config bypassing validation
+    bonus = BonusPaytableConfig.__new__(BonusPaytableConfig)
+    object.__setattr__(bonus, "type", bonus_paytable_type)
+    object.__setattr__(bonus, "custom", None)
+    object.__setattr__(bonus, "progressive", None)
+
+    # Create paytables config
+    paytables = PaytablesConfig.__new__(PaytablesConfig)
+    object.__setattr__(paytables, "main_game", main_game)
+    object.__setattr__(paytables, "bonus", bonus)
+
+    # Create bonus strategy config
+    bonus_strategy = BonusStrategyConfig.__new__(BonusStrategyConfig)
+    object.__setattr__(bonus_strategy, "enabled", bonus_enabled)
+    object.__setattr__(bonus_strategy, "paytable", bonus_paytable_type)
+    object.__setattr__(bonus_strategy, "type", "never")
+
+    # Create full config with real defaults for other sections
+    config = FullConfig()
+    # Bypass immutability to set our test values
+    object.__setattr__(config, "paytables", paytables)
+    object.__setattr__(config, "bonus_strategy", bonus_strategy)
+
+    return config
+
+
+class TestGetMainPaytable:
+    """Tests for _get_main_paytable() factory function."""
+
+    def test_standard_paytable_returns_correct_type(self) -> None:
+        """Test that standard paytable type returns a MainGamePaytable."""
+        config = _create_full_config(main_paytable_type="standard")
+        paytable = _get_main_paytable(config)
+        assert isinstance(paytable, MainGamePaytable)
+
+    def test_standard_paytable_matches_expected_instance(self) -> None:
+        """Test that standard paytable returns the same values as standard_main_paytable()."""
+        config = _create_full_config(main_paytable_type="standard")
+        paytable = _get_main_paytable(config)
+        expected = standard_main_paytable()
+        # Verify key payouts match
+        assert paytable.payouts == expected.payouts
+
+    def test_liberal_paytable_raises_not_implemented(self) -> None:
+        """Test that liberal paytable type raises NotImplementedError."""
+        config = _create_full_config_bypassing_validation(main_paytable_type="liberal")
+        with pytest.raises(
+            NotImplementedError,
+            match="Main paytable type 'liberal' is not yet implemented",
+        ):
+            _get_main_paytable(config)
+
+    def test_tight_paytable_raises_not_implemented(self) -> None:
+        """Test that tight paytable type raises NotImplementedError."""
+        config = _create_full_config_bypassing_validation(main_paytable_type="tight")
+        with pytest.raises(
+            NotImplementedError,
+            match="Main paytable type 'tight' is not yet implemented",
+        ):
+            _get_main_paytable(config)
+
+    def test_custom_paytable_raises_not_implemented(self) -> None:
+        """Test that custom paytable type raises NotImplementedError."""
+        config = _create_full_config_bypassing_validation(main_paytable_type="custom")
+        with pytest.raises(
+            NotImplementedError,
+            match="Main paytable type 'custom' is not yet implemented",
+        ):
+            _get_main_paytable(config)
+
+
+class TestGetBonusPaytable:
+    """Tests for _get_bonus_paytable() factory function."""
+
+    def test_bonus_disabled_returns_none(self) -> None:
+        """Test that disabled bonus returns None."""
+        config = _create_full_config(bonus_enabled=False)
+        paytable = _get_bonus_paytable(config)
+        assert paytable is None
+
+    def test_paytable_a_returns_correct_type(self) -> None:
+        """Test that paytable_a returns a BonusPaytable."""
+        config = _create_full_config(
+            bonus_enabled=True, bonus_paytable_type="paytable_a"
+        )
+        paytable = _get_bonus_paytable(config)
+        assert isinstance(paytable, BonusPaytable)
+
+    def test_paytable_a_matches_expected_instance(self) -> None:
+        """Test that paytable_a returns the same values as bonus_paytable_a()."""
+        config = _create_full_config(
+            bonus_enabled=True, bonus_paytable_type="paytable_a"
+        )
+        paytable = _get_bonus_paytable(config)
+        expected = bonus_paytable_a()
+        assert paytable is not None
+        assert paytable.payouts == expected.payouts
+
+    def test_paytable_b_returns_correct_type(self) -> None:
+        """Test that paytable_b returns a BonusPaytable."""
+        config = _create_full_config(
+            bonus_enabled=True, bonus_paytable_type="paytable_b"
+        )
+        paytable = _get_bonus_paytable(config)
+        assert isinstance(paytable, BonusPaytable)
+
+    def test_paytable_b_matches_expected_instance(self) -> None:
+        """Test that paytable_b returns the same values as bonus_paytable_b()."""
+        config = _create_full_config(
+            bonus_enabled=True, bonus_paytable_type="paytable_b"
+        )
+        paytable = _get_bonus_paytable(config)
+        expected = bonus_paytable_b()
+        assert paytable is not None
+        assert paytable.payouts == expected.payouts
+
+    def test_paytable_c_returns_correct_type(self) -> None:
+        """Test that paytable_c returns a BonusPaytable."""
+        config = _create_full_config(
+            bonus_enabled=True, bonus_paytable_type="paytable_c"
+        )
+        paytable = _get_bonus_paytable(config)
+        assert isinstance(paytable, BonusPaytable)
+
+    def test_paytable_c_matches_expected_instance(self) -> None:
+        """Test that paytable_c returns the same values as bonus_paytable_c()."""
+        config = _create_full_config(
+            bonus_enabled=True, bonus_paytable_type="paytable_c"
+        )
+        paytable = _get_bonus_paytable(config)
+        expected = bonus_paytable_c()
+        assert paytable is not None
+        assert paytable.payouts == expected.payouts
+
+    def test_unknown_paytable_type_raises_value_error(self) -> None:
+        """Test that unknown bonus paytable type raises ValueError."""
+        config = _create_full_config_bypassing_validation(
+            bonus_enabled=True, bonus_paytable_type="unknown_paytable"
+        )
+        with pytest.raises(
+            ValueError,
+            match="Unknown bonus paytable type: 'unknown_paytable'",
+        ):
+            _get_bonus_paytable(config)
+
+    def test_custom_paytable_type_raises_value_error(self) -> None:
+        """Test that custom bonus paytable type raises ValueError.
+
+        Custom paytables are defined in the config schema but not yet
+        implemented in the factory function.
+        """
+        config = _create_full_config_bypassing_validation(
+            bonus_enabled=True, bonus_paytable_type="custom"
+        )
+        with pytest.raises(
+            ValueError,
+            match="Unknown bonus paytable type: 'custom'",
+        ):
+            _get_bonus_paytable(config)
