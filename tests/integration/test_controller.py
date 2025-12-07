@@ -3,6 +3,8 @@
 Tests multi-session simulation runs, reproducibility, and progress reporting.
 """
 
+from unittest.mock import patch
+
 import pytest
 
 from let_it_ride.config.models import (
@@ -24,6 +26,7 @@ from let_it_ride.simulation import (
     SimulationResults,
     StopReason,
 )
+from let_it_ride.simulation.session import SessionConfig
 
 
 def _create_strategy_config(strategy_type: str) -> StrategyConfig:
@@ -443,7 +446,11 @@ class TestErrorHandling:
 
 
 class TestBonusBetCalculation:
-    """Tests for bonus bet calculation in _create_session."""
+    """Tests for bonus bet calculation in _create_session.
+
+    These tests use mocking to verify that the correct bonus_bet value
+    is passed to SessionConfig, ensuring calculation bugs are caught.
+    """
 
     def test_bonus_disabled_results_in_zero_bonus_bet(self) -> None:
         """Test that disabled bonus strategy results in zero bonus bet."""
@@ -466,10 +473,22 @@ class TestBonusBetCalculation:
             bonus_strategy=BonusStrategyConfig(enabled=False),
         )
 
-        controller = SimulationController(config)
-        results = controller.run()
+        # Capture SessionConfig creation to verify bonus_bet
+        captured_bonus_bet: list[float] = []
+        original_init = SessionConfig.__init__
 
-        # Simulation should complete successfully with bonus disabled
+        def capturing_init(self: SessionConfig, **kwargs: object) -> None:
+            captured_bonus_bet.append(float(kwargs.get("bonus_bet", 0.0)))
+            return original_init(self, **kwargs)  # type: ignore[misc]
+
+        with patch.object(SessionConfig, "__init__", capturing_init):
+            controller = SimulationController(config)
+            results = controller.run()
+
+        # Verify bonus_bet=0.0 was passed
+        assert len(captured_bonus_bet) == 1
+        assert captured_bonus_bet[0] == 0.0
+
         assert len(results.session_results) == 1
         assert results.session_results[0].hands_played > 0
 
@@ -499,10 +518,22 @@ class TestBonusBetCalculation:
             ),
         )
 
-        controller = SimulationController(config)
-        results = controller.run()
+        # Capture SessionConfig creation to verify bonus_bet
+        captured_bonus_bet: list[float] = []
+        original_init = SessionConfig.__init__
 
-        # Simulation should complete with bonus bets placed
+        def capturing_init(self: SessionConfig, **kwargs: object) -> None:
+            captured_bonus_bet.append(float(kwargs.get("bonus_bet", 0.0)))
+            return original_init(self, **kwargs)  # type: ignore[misc]
+
+        with patch.object(SessionConfig, "__init__", capturing_init):
+            controller = SimulationController(config)
+            results = controller.run()
+
+        # Verify the correct bonus_bet was passed
+        assert len(captured_bonus_bet) == 1
+        assert captured_bonus_bet[0] == bonus_amount
+
         assert len(results.session_results) == 1
         assert results.session_results[0].hands_played > 0
 
@@ -532,17 +563,31 @@ class TestBonusBetCalculation:
             ),
         )
 
-        controller = SimulationController(config)
-        results = controller.run()
+        # Capture SessionConfig creation to verify bonus_bet
+        captured_bonus_bet: list[float] = []
+        original_init = SessionConfig.__init__
 
-        # Simulation should complete with bonus bets placed
+        def capturing_init(self: SessionConfig, **kwargs: object) -> None:
+            captured_bonus_bet.append(float(kwargs.get("bonus_bet", 0.0)))
+            return original_init(self, **kwargs)  # type: ignore[misc]
+
+        with patch.object(SessionConfig, "__init__", capturing_init):
+            controller = SimulationController(config)
+            results = controller.run()
+
+        # Verify the correct bonus_bet was passed
+        assert len(captured_bonus_bet) == 1
+        assert captured_bonus_bet[0] == static_amount
+
         assert len(results.session_results) == 1
         assert results.session_results[0].hands_played > 0
 
     def test_bonus_enabled_with_static_ratio(self) -> None:
         """Test bonus enabled with static.ratio configuration."""
         base_bet = 10.0
-        ratio = 0.5  # Expected bonus_bet = 5.0
+        ratio = 0.5
+        expected_bonus = base_bet * ratio  # 5.0
+
         config = FullConfig(
             simulation=SimulationConfig(
                 num_sessions=1,
@@ -566,67 +611,42 @@ class TestBonusBetCalculation:
             ),
         )
 
-        controller = SimulationController(config)
-        results = controller.run()
+        # Capture SessionConfig creation to verify bonus_bet
+        captured_bonus_bet: list[float] = []
+        original_init = SessionConfig.__init__
 
-        # Simulation should complete with bonus bets placed
-        assert len(results.session_results) == 1
-        assert results.session_results[0].hands_played > 0
+        def capturing_init(self: SessionConfig, **kwargs: object) -> None:
+            captured_bonus_bet.append(float(kwargs.get("bonus_bet", 0.0)))
+            return original_init(self, **kwargs)  # type: ignore[misc]
 
-    def test_bonus_ratio_with_various_base_bets(self) -> None:
-        """Test ratio calculation works correctly with different base_bet values."""
-        test_cases = [
-            (5.0, 0.5, 2.5),  # base_bet * ratio = expected
-            (10.0, 0.25, 2.5),
-            (20.0, 1.0, 20.0),
-            (1.0, 0.1, 0.1),
-        ]
-
-        for base_bet, ratio, expected_bonus in test_cases:
-            # Ensure starting bankroll covers minimum bet
-            min_required = base_bet * 3 + expected_bonus
-            starting_bankroll = max(500.0, min_required * 2)
-
-            config = FullConfig(
-                simulation=SimulationConfig(
-                    num_sessions=1,
-                    hands_per_session=5,
-                    random_seed=42,
-                ),
-                bankroll=BankrollConfig(
-                    starting_amount=starting_bankroll,
-                    base_bet=base_bet,
-                    stop_conditions=StopConditionsConfig(
-                        win_limit=1000.0,
-                        loss_limit=1000.0,
-                    ),
-                    betting_system=BettingSystemConfig(type="flat"),
-                ),
-                strategy=StrategyConfig(type="basic"),
-                bonus_strategy=BonusStrategyConfig(
-                    enabled=True,
-                    type="static",
-                    static=StaticBonusConfig(amount=None, ratio=ratio),
-                ),
-            )
-
+        with patch.object(SessionConfig, "__init__", capturing_init):
             controller = SimulationController(config)
             results = controller.run()
 
-            assert (
-                len(results.session_results) == 1
-            ), f"Failed for base_bet={base_bet}, ratio={ratio}"
+        # Verify the correct bonus_bet was calculated
+        assert len(captured_bonus_bet) == 1
+        assert captured_bonus_bet[0] == expected_bonus
 
-    def test_always_takes_precedence_over_static_when_both_configured(
-        self,
+        assert len(results.session_results) == 1
+        assert results.session_results[0].hands_played > 0
+
+    @pytest.mark.parametrize(
+        "base_bet,ratio,expected_bonus",
+        [
+            (5.0, 0.5, 2.5),
+            (10.0, 0.25, 2.5),
+            (20.0, 1.0, 20.0),
+            (1.0, 0.1, 0.1),
+        ],
+    )
+    def test_bonus_ratio_with_various_base_bets(
+        self, base_bet: float, ratio: float, expected_bonus: float
     ) -> None:
-        """Test that always config is used when both always and static are set.
+        """Test ratio calculation works correctly with different base_bet values."""
+        # Ensure starting bankroll covers minimum bet
+        min_required = base_bet * 3 + expected_bonus
+        starting_bankroll = max(500.0, min_required * 2)
 
-        Note: Pydantic validation normally prevents this, but the controller's
-        if/elif logic gives precedence to always. This documents the behavior.
-        """
-        # We can't test this directly since Pydantic prevents it,
-        # but we can verify the pattern by checking always works correctly
         config = FullConfig(
             simulation=SimulationConfig(
                 num_sessions=1,
@@ -634,21 +654,37 @@ class TestBonusBetCalculation:
                 random_seed=42,
             ),
             bankroll=BankrollConfig(
-                starting_amount=500.0,
-                base_bet=5.0,
-                stop_conditions=StopConditionsConfig(),
+                starting_amount=starting_bankroll,
+                base_bet=base_bet,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=1000.0,
+                    loss_limit=1000.0,
+                ),
                 betting_system=BettingSystemConfig(type="flat"),
             ),
             strategy=StrategyConfig(type="basic"),
             bonus_strategy=BonusStrategyConfig(
                 enabled=True,
-                type="always",
-                always=AlwaysBonusConfig(amount=3.0),
+                type="static",
+                static=StaticBonusConfig(amount=None, ratio=ratio),
             ),
         )
 
-        controller = SimulationController(config)
-        results = controller.run()
+        # Capture SessionConfig creation to verify bonus_bet
+        captured_bonus_bet: list[float] = []
+        original_init = SessionConfig.__init__
+
+        def capturing_init(self: SessionConfig, **kwargs: object) -> None:
+            captured_bonus_bet.append(float(kwargs.get("bonus_bet", 0.0)))
+            return original_init(self, **kwargs)  # type: ignore[misc]
+
+        with patch.object(SessionConfig, "__init__", capturing_init):
+            controller = SimulationController(config)
+            results = controller.run()
+
+        # Verify the correct bonus_bet was calculated
+        assert len(captured_bonus_bet) == 1
+        assert captured_bonus_bet[0] == expected_bonus
 
         assert len(results.session_results) == 1
 
