@@ -691,7 +691,8 @@ class TestGetMainPaytable:
         config = _create_full_config(main_paytable_type="standard")
         paytable = _get_main_paytable(config)
         expected = standard_main_paytable()
-        # Verify key payouts match
+        # Verify name and payouts match
+        assert paytable.name == expected.name
         assert paytable.payouts == expected.payouts
 
     def test_liberal_paytable_raises_not_implemented(self) -> None:
@@ -747,6 +748,7 @@ class TestGetBonusPaytable:
         paytable = _get_bonus_paytable(config)
         expected = bonus_paytable_a()
         assert paytable is not None
+        assert paytable.name == expected.name
         assert paytable.payouts == expected.payouts
 
     def test_paytable_b_returns_correct_type(self) -> None:
@@ -765,6 +767,7 @@ class TestGetBonusPaytable:
         paytable = _get_bonus_paytable(config)
         expected = bonus_paytable_b()
         assert paytable is not None
+        assert paytable.name == expected.name
         assert paytable.payouts == expected.payouts
 
     def test_paytable_c_returns_correct_type(self) -> None:
@@ -783,6 +786,7 @@ class TestGetBonusPaytable:
         paytable = _get_bonus_paytable(config)
         expected = bonus_paytable_c()
         assert paytable is not None
+        assert paytable.name == expected.name
         assert paytable.payouts == expected.payouts
 
     def test_unknown_paytable_type_raises_value_error(self) -> None:
