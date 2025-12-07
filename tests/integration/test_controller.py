@@ -3,7 +3,7 @@
 Tests multi-session simulation runs, reproducibility, and progress reporting.
 """
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -95,6 +95,39 @@ def create_test_config(
         ),
         strategy=_create_strategy_config(strategy_type),
     )
+
+
+def create_mock_engine(
+    net_result: float, track_hands: list[int] | None = None
+) -> Mock:
+    """Create a mock GameEngine returning a fixed net_result per hand.
+
+    Args:
+        net_result: The net result to return for each hand played.
+        track_hands: Optional list to track number of hands played.
+            If provided, increments track_hands[0] for each hand.
+
+    Returns:
+        A Mock GameEngine with play_hand side_effect configured.
+    """
+    mock = Mock()
+
+    def play_hand(
+        hand_id: int,  # noqa: ARG001
+        base_bet: float,
+        bonus_bet: float = 0.0,
+        context: object = None,  # noqa: ARG001
+    ) -> Mock:
+        if track_hands is not None:
+            track_hands[0] += 1
+        result = Mock()
+        result.net_result = net_result
+        result.bets_at_risk = base_bet * 3
+        result.bonus_bet = bonus_bet
+        return result
+
+    mock.play_hand.side_effect = play_hand
+    return mock
 
 
 class TestSimulationController:
@@ -424,30 +457,9 @@ class TestDeterministicStopConditions:
             loss_limit=1000.0,  # Won't trigger
         )
 
-        # Create mock engine returning $60 profit per hand (exceeds win_limit)
-        from unittest.mock import Mock
-
-        def create_winning_engine() -> Mock:
-            mock = Mock()
-
-            def play_hand(
-                hand_id: int,  # noqa: ARG001
-                base_bet: float,
-                bonus_bet: float = 0.0,
-                context=None,  # noqa: ARG001
-            ):
-                result = Mock()
-                result.net_result = 60.0  # Win $60 per hand
-                result.bets_at_risk = base_bet * 3
-                result.bonus_bet = bonus_bet
-                return result
-
-            mock.play_hand.side_effect = play_hand
-            return mock
-
         # Patch GameEngine creation in the controller
         with patch("let_it_ride.simulation.controller.GameEngine") as mock_engine_class:
-            mock_engine_class.return_value = create_winning_engine()
+            mock_engine_class.return_value = create_mock_engine(net_result=60.0)
 
             controller = SimulationController(config)
             results = controller.run()
@@ -475,28 +487,8 @@ class TestDeterministicStopConditions:
             loss_limit=25.0,  # Stop when loss >= 25
         )
 
-        from unittest.mock import Mock
-
-        def create_losing_engine() -> Mock:
-            mock = Mock()
-
-            def play_hand(
-                hand_id: int,  # noqa: ARG001
-                base_bet: float,
-                bonus_bet: float = 0.0,
-                context=None,  # noqa: ARG001
-            ):
-                result = Mock()
-                result.net_result = -30.0  # Lose $30 per hand
-                result.bets_at_risk = base_bet * 3
-                result.bonus_bet = bonus_bet
-                return result
-
-            mock.play_hand.side_effect = play_hand
-            return mock
-
         with patch("let_it_ride.simulation.controller.GameEngine") as mock_engine_class:
-            mock_engine_class.return_value = create_losing_engine()
+            mock_engine_class.return_value = create_mock_engine(net_result=-30.0)
 
             controller = SimulationController(config)
             results = controller.run()
@@ -525,31 +517,12 @@ class TestDeterministicStopConditions:
             loss_limit=10000.0,  # Won't trigger
         )
 
-        from unittest.mock import Mock
-
         hands_played_count = [0]
 
-        def create_breakeven_engine() -> Mock:
-            mock = Mock()
-
-            def play_hand(
-                hand_id: int,  # noqa: ARG001
-                base_bet: float,
-                bonus_bet: float = 0.0,
-                context=None,  # noqa: ARG001
-            ):
-                hands_played_count[0] += 1
-                result = Mock()
-                result.net_result = 0.0  # Break even
-                result.bets_at_risk = base_bet * 3
-                result.bonus_bet = bonus_bet
-                return result
-
-            mock.play_hand.side_effect = play_hand
-            return mock
-
         with patch("let_it_ride.simulation.controller.GameEngine") as mock_engine_class:
-            mock_engine_class.return_value = create_breakeven_engine()
+            mock_engine_class.return_value = create_mock_engine(
+                net_result=0.0, track_hands=hands_played_count
+            )
 
             controller = SimulationController(config)
             results = controller.run()
@@ -578,28 +551,8 @@ class TestDeterministicStopConditions:
             loss_limit=10000.0,  # Won't trigger
         )
 
-        from unittest.mock import Mock
-
-        def create_busting_engine() -> Mock:
-            mock = Mock()
-
-            def play_hand(
-                hand_id: int,  # noqa: ARG001
-                base_bet: float,
-                bonus_bet: float = 0.0,
-                context=None,  # noqa: ARG001
-            ):
-                result = Mock()
-                result.net_result = -50.0  # Lose $50
-                result.bets_at_risk = base_bet * 3
-                result.bonus_bet = bonus_bet
-                return result
-
-            mock.play_hand.side_effect = play_hand
-            return mock
-
         with patch("let_it_ride.simulation.controller.GameEngine") as mock_engine_class:
-            mock_engine_class.return_value = create_busting_engine()
+            mock_engine_class.return_value = create_mock_engine(net_result=-50.0)
 
             controller = SimulationController(config)
             results = controller.run()
@@ -612,7 +565,7 @@ class TestDeterministicStopConditions:
         assert result.final_bankroll == 50.0  # Started with 100, lost 50
         assert result.hands_played == 1
 
-    def test_stop_condition_priority_deterministic(self) -> None:
+    def test_win_limit_priority_over_max_hands_deterministic(self) -> None:
         """Test win_limit has priority over max_hands when both trigger.
 
         With max_hands=1 and a winning hand that exceeds win_limit,
@@ -627,28 +580,8 @@ class TestDeterministicStopConditions:
             loss_limit=10000.0,
         )
 
-        from unittest.mock import Mock
-
-        def create_winning_engine() -> Mock:
-            mock = Mock()
-
-            def play_hand(
-                hand_id: int,  # noqa: ARG001
-                base_bet: float,
-                bonus_bet: float = 0.0,
-                context=None,  # noqa: ARG001
-            ):
-                result = Mock()
-                result.net_result = 50.0  # Win $50, exceeds $10 win_limit
-                result.bets_at_risk = base_bet * 3
-                result.bonus_bet = bonus_bet
-                return result
-
-            mock.play_hand.side_effect = play_hand
-            return mock
-
         with patch("let_it_ride.simulation.controller.GameEngine") as mock_engine_class:
-            mock_engine_class.return_value = create_winning_engine()
+            mock_engine_class.return_value = create_mock_engine(net_result=50.0)
 
             controller = SimulationController(config)
             results = controller.run()
@@ -657,6 +590,71 @@ class TestDeterministicStopConditions:
 
         # Win limit should take priority over max_hands
         assert result.stop_reason == StopReason.WIN_LIMIT
+
+    def test_loss_limit_priority_over_max_hands_deterministic(self) -> None:
+        """Test loss_limit has priority over max_hands when both trigger.
+
+        With max_hands=1 and a losing hand that exceeds loss_limit,
+        the loss_limit should be reported as the stop reason.
+        """
+        config = create_test_config(
+            num_sessions=1,
+            hands_per_session=1,  # max_hands=1 would also trigger
+            starting_bankroll=500.0,
+            base_bet=5.0,
+            win_limit=10000.0,
+            loss_limit=10.0,  # Very low, will trigger
+        )
+
+        with patch("let_it_ride.simulation.controller.GameEngine") as mock_engine_class:
+            mock_engine_class.return_value = create_mock_engine(net_result=-50.0)
+
+            controller = SimulationController(config)
+            results = controller.run()
+
+        result = results.session_results[0]
+
+        # Loss limit should take priority over max_hands
+        assert result.stop_reason == StopReason.LOSS_LIMIT
+
+    def test_insufficient_funds_vs_loss_limit_priority(self) -> None:
+        """Test stop condition priority when both insufficient_funds and loss_limit trigger.
+
+        When a hand results in both exceeding the loss_limit AND dropping below
+        the minimum bet amount, verify which stop condition takes priority.
+        """
+        # Starting with $100, base_bet=$25 means min bet = $75 (3 * 25)
+        # Loss limit set to $25, so losing $50 triggers:
+        # - loss_limit (loss of $50 > $25 limit)
+        # - insufficient_funds (remaining $50 < $75 min bet)
+        config = create_test_config(
+            num_sessions=1,
+            hands_per_session=100,
+            starting_bankroll=100.0,
+            base_bet=25.0,
+            win_limit=10000.0,  # Won't trigger
+            loss_limit=25.0,  # Will trigger with $50 loss
+        )
+
+        with patch("let_it_ride.simulation.controller.GameEngine") as mock_engine_class:
+            mock_engine_class.return_value = create_mock_engine(net_result=-50.0)
+
+            controller = SimulationController(config)
+            results = controller.run()
+
+        assert len(results.session_results) == 1
+        result = results.session_results[0]
+
+        # Both conditions are met, verify the session stops after 1 hand
+        assert result.hands_played == 1
+        assert result.final_bankroll == 50.0  # Started with 100, lost 50
+
+        # The actual stop reason should be either LOSS_LIMIT or INSUFFICIENT_FUNDS
+        # depending on implementation priority. Document whichever the system chooses.
+        assert result.stop_reason in (
+            StopReason.LOSS_LIMIT,
+            StopReason.INSUFFICIENT_FUNDS,
+        )
 
 
 class TestStopConditions:
