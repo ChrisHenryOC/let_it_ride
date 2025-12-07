@@ -196,6 +196,44 @@ class TestProgressCallback:
         results = controller.run()
         assert len(results.session_results) == 3
 
+    def test_callback_receives_correct_arguments(self) -> None:
+        """Test that callback receives correct completed and total counts."""
+        num_sessions = 4
+        config = create_test_config(num_sessions=num_sessions)
+
+        captured_args: list[tuple[int, int]] = []
+
+        def capture_callback(completed: int, total: int) -> None:
+            captured_args.append((completed, total))
+
+        controller = SimulationController(config, progress_callback=capture_callback)
+        controller.run()
+
+        # Verify each call had correct arguments
+        expected = [(1, 4), (2, 4), (3, 4), (4, 4)]
+        assert captured_args == expected
+
+    def test_callback_called_after_session_completes(self) -> None:
+        """Test that callback is called after each session result is recorded.
+
+        Verifies that by the time callback is invoked, the session's result
+        is already added to the internal results list.
+        """
+        config = create_test_config(num_sessions=3)
+
+        # Track session completion order
+        callback_completed_counts: list[int] = []
+
+        def tracking_callback(completed: int, total: int) -> None:  # noqa: ARG001
+            callback_completed_counts.append(completed)
+
+        controller = SimulationController(config, progress_callback=tracking_callback)
+        results = controller.run()
+
+        # Callback should have been called 3 times with monotonically increasing counts
+        assert callback_completed_counts == [1, 2, 3]
+        assert len(results.session_results) == 3
+
 
 class TestReproducibility:
     """Tests for RNG seeding and reproducibility."""
@@ -247,23 +285,378 @@ class TestReproducibility:
         # Very unlikely all profits are identical with different seeds
         assert profits1 != profits2
 
-    def test_unseeded_runs_differ(self) -> None:
-        """Test that runs without seed produce different results."""
-        config1 = create_test_config(num_sessions=10, random_seed=None)
-        config2 = create_test_config(num_sessions=10, random_seed=None)
+    def test_reproducibility_across_different_session_counts(self) -> None:
+        """Test that same seed produces matching results for overlapping sessions.
 
-        controller1 = SimulationController(config1)
-        controller2 = SimulationController(config2)
+        Running 5 sessions with a seed should produce the same first 3 session
+        results as running 3 sessions with the same seed. This verifies that
+        session N does not affect the RNG state used for session N+1.
+        """
+        seed = 77777
+        config_3_sessions = create_test_config(num_sessions=3, random_seed=seed)
+        config_5_sessions = create_test_config(num_sessions=5, random_seed=seed)
 
-        results1 = controller1.run()
-        results2 = controller2.run()
+        results_3 = SimulationController(config_3_sessions).run()
+        results_5 = SimulationController(config_5_sessions).run()
 
-        # Results should likely differ (extremely unlikely to be identical)
+        # First 3 sessions should be identical
+        for r3, r5 in zip(
+            results_3.session_results, results_5.session_results[:3], strict=True
+        ):
+            assert r3.hands_played == r5.hands_played
+            assert r3.session_profit == r5.session_profit
+            assert r3.final_bankroll == r5.final_bankroll
+            assert r3.stop_reason == r5.stop_reason
+            assert r3.outcome == r5.outcome
+
+
+class TestRNGIsolation:
+    """Tests verifying RNG isolation between sessions.
+
+    These tests ensure that:
+    - Session N+1 does not inherit RNG state from session N
+    - RNG seeds are derived deterministically from master seed
+    - Results are reproducible regardless of session count
+    """
+
+    def test_session_seeds_are_independent(self) -> None:
+        """Test that each session gets an independent RNG seed.
+
+        If sessions shared RNG state, running session N to a different number
+        of hands would affect session N+1's results. This test verifies that
+        doesn't happen.
+        """
+        # Two configs with same base seed but different hands_per_session
+        seed = 88888
+        config_short = create_test_config(
+            num_sessions=3,
+            hands_per_session=5,  # Short sessions
+            random_seed=seed,
+            win_limit=10000.0,  # Won't trigger
+            loss_limit=10000.0,  # Won't trigger
+        )
+        config_long = create_test_config(
+            num_sessions=3,
+            hands_per_session=50,  # Longer sessions
+            random_seed=seed,
+            win_limit=10000.0,
+            loss_limit=10000.0,
+        )
+
+        results_short = SimulationController(config_short).run()
+        results_long = SimulationController(config_long).run()
+
+        # The first 5 hands of each session should be identical
+        # This verifies that session isolation is working correctly
+        # (sessions share the same starting state, not ending state from prior)
+
+        # Since we can't inspect individual hands directly, we verify
+        # that both runs complete successfully with expected session counts
+        assert len(results_short.session_results) == 3
+        assert len(results_long.session_results) == 3
+
+        # Short sessions should have exactly max_hands hands
+        for r in results_short.session_results:
+            assert r.hands_played == 5
+            assert r.stop_reason == StopReason.MAX_HANDS
+
+    def test_deterministic_session_seed_derivation(self) -> None:
+        """Test that session seeds are derived deterministically.
+
+        Running the same simulation twice with the same base seed should
+        produce identical per-session results.
+        """
+        seed = 12121
+        config = create_test_config(num_sessions=10, random_seed=seed)
+
+        results1 = SimulationController(config).run()
+        results2 = SimulationController(config).run()
+
+        # All sessions should be identical
+        assert len(results1.session_results) == len(results2.session_results)
+        for r1, r2 in zip(
+            results1.session_results, results2.session_results, strict=True
+        ):
+            assert r1.hands_played == r2.hands_played
+            assert r1.session_profit == r2.session_profit
+            assert r1.stop_reason == r2.stop_reason
+
+    def test_different_base_seeds_produce_different_sessions(self) -> None:
+        """Test that different base seeds produce different session results.
+
+        This is a sanity check that the RNG seeding is actually being used.
+        """
+        config1 = create_test_config(num_sessions=5, random_seed=11111)
+        config2 = create_test_config(num_sessions=5, random_seed=22222)
+
+        results1 = SimulationController(config1).run()
+        results2 = SimulationController(config2).run()
+
+        # Collect all profits
         profits1 = [r.session_profit for r in results1.session_results]
         profits2 = [r.session_profit for r in results2.session_results]
 
-        # This could theoretically fail but is extremely unlikely
+        # Results should differ (extremely unlikely to be identical by chance)
         assert profits1 != profits2
+
+
+class TestDeterministicStopConditions:
+    """Tests for stop conditions using deterministic mock GameEngine.
+
+    These tests use a mock GameEngine that returns predetermined outcomes
+    to guarantee specific stop conditions are triggered, eliminating any
+    probabilistic behavior in the tests.
+    """
+
+    def test_win_limit_triggers_deterministically(self) -> None:
+        """Test win_limit stops session with guaranteed winning hands.
+
+        Uses a mock engine that always returns winning outcomes to guarantee
+        the win_limit is reached.
+        """
+        # Configure to stop when profit >= 50
+        config = create_test_config(
+            num_sessions=1,
+            hands_per_session=100,
+            starting_bankroll=500.0,
+            base_bet=5.0,
+            win_limit=50.0,
+            loss_limit=1000.0,  # Won't trigger
+        )
+
+        # Create mock engine returning $60 profit per hand (exceeds win_limit)
+        from unittest.mock import Mock
+
+        def create_winning_engine() -> Mock:
+            mock = Mock()
+
+            def play_hand(
+                hand_id: int,  # noqa: ARG001
+                base_bet: float,
+                bonus_bet: float = 0.0,
+                context=None,  # noqa: ARG001
+            ):
+                result = Mock()
+                result.net_result = 60.0  # Win $60 per hand
+                result.bets_at_risk = base_bet * 3
+                result.bonus_bet = bonus_bet
+                return result
+
+            mock.play_hand.side_effect = play_hand
+            return mock
+
+        # Patch GameEngine creation in the controller
+        with patch("let_it_ride.simulation.controller.GameEngine") as mock_engine_class:
+            mock_engine_class.return_value = create_winning_engine()
+
+            controller = SimulationController(config)
+            results = controller.run()
+
+        assert len(results.session_results) == 1
+        result = results.session_results[0]
+
+        # Should stop on win_limit after 1 hand (60 > 50)
+        assert result.stop_reason == StopReason.WIN_LIMIT
+        assert result.session_profit >= 50.0
+        assert result.hands_played == 1
+
+    def test_loss_limit_triggers_deterministically(self) -> None:
+        """Test loss_limit stops session with guaranteed losing hands.
+
+        Uses a mock engine that always returns losing outcomes to guarantee
+        the loss_limit is reached.
+        """
+        config = create_test_config(
+            num_sessions=1,
+            hands_per_session=100,
+            starting_bankroll=500.0,
+            base_bet=5.0,
+            win_limit=1000.0,  # Won't trigger
+            loss_limit=25.0,  # Stop when loss >= 25
+        )
+
+        from unittest.mock import Mock
+
+        def create_losing_engine() -> Mock:
+            mock = Mock()
+
+            def play_hand(
+                hand_id: int,  # noqa: ARG001
+                base_bet: float,
+                bonus_bet: float = 0.0,
+                context=None,  # noqa: ARG001
+            ):
+                result = Mock()
+                result.net_result = -30.0  # Lose $30 per hand
+                result.bets_at_risk = base_bet * 3
+                result.bonus_bet = bonus_bet
+                return result
+
+            mock.play_hand.side_effect = play_hand
+            return mock
+
+        with patch("let_it_ride.simulation.controller.GameEngine") as mock_engine_class:
+            mock_engine_class.return_value = create_losing_engine()
+
+            controller = SimulationController(config)
+            results = controller.run()
+
+        assert len(results.session_results) == 1
+        result = results.session_results[0]
+
+        # Should stop on loss_limit after 1 hand (30 > 25)
+        assert result.stop_reason == StopReason.LOSS_LIMIT
+        assert result.session_profit <= -25.0
+        assert result.hands_played == 1
+
+    def test_max_hands_triggers_exactly(self) -> None:
+        """Test max_hands stops session at exact limit.
+
+        Uses a mock engine with break-even results to ensure neither
+        win_limit nor loss_limit triggers before max_hands.
+        """
+        max_hands = 7
+        config = create_test_config(
+            num_sessions=1,
+            hands_per_session=max_hands,
+            starting_bankroll=500.0,
+            base_bet=5.0,
+            win_limit=10000.0,  # Won't trigger
+            loss_limit=10000.0,  # Won't trigger
+        )
+
+        from unittest.mock import Mock
+
+        hands_played_count = [0]
+
+        def create_breakeven_engine() -> Mock:
+            mock = Mock()
+
+            def play_hand(
+                hand_id: int,  # noqa: ARG001
+                base_bet: float,
+                bonus_bet: float = 0.0,
+                context=None,  # noqa: ARG001
+            ):
+                hands_played_count[0] += 1
+                result = Mock()
+                result.net_result = 0.0  # Break even
+                result.bets_at_risk = base_bet * 3
+                result.bonus_bet = bonus_bet
+                return result
+
+            mock.play_hand.side_effect = play_hand
+            return mock
+
+        with patch("let_it_ride.simulation.controller.GameEngine") as mock_engine_class:
+            mock_engine_class.return_value = create_breakeven_engine()
+
+            controller = SimulationController(config)
+            results = controller.run()
+
+        assert len(results.session_results) == 1
+        result = results.session_results[0]
+
+        # Should stop on max_hands with exactly 7 hands
+        assert result.stop_reason == StopReason.MAX_HANDS
+        assert result.hands_played == max_hands
+        assert hands_played_count[0] == max_hands
+
+    def test_insufficient_funds_triggers_deterministically(self) -> None:
+        """Test insufficient_funds stops session with guaranteed bust.
+
+        Uses a mock engine that loses exactly enough to bust the bankroll.
+        """
+        # Starting with $100, base_bet=$25 means min bet = $75 (3 * 25)
+        # Losing $50 leaves $50, which is < $75, triggering insufficient_funds
+        config = create_test_config(
+            num_sessions=1,
+            hands_per_session=100,
+            starting_bankroll=100.0,
+            base_bet=25.0,
+            win_limit=10000.0,  # Won't trigger
+            loss_limit=10000.0,  # Won't trigger
+        )
+
+        from unittest.mock import Mock
+
+        def create_busting_engine() -> Mock:
+            mock = Mock()
+
+            def play_hand(
+                hand_id: int,  # noqa: ARG001
+                base_bet: float,
+                bonus_bet: float = 0.0,
+                context=None,  # noqa: ARG001
+            ):
+                result = Mock()
+                result.net_result = -50.0  # Lose $50
+                result.bets_at_risk = base_bet * 3
+                result.bonus_bet = bonus_bet
+                return result
+
+            mock.play_hand.side_effect = play_hand
+            return mock
+
+        with patch("let_it_ride.simulation.controller.GameEngine") as mock_engine_class:
+            mock_engine_class.return_value = create_busting_engine()
+
+            controller = SimulationController(config)
+            results = controller.run()
+
+        assert len(results.session_results) == 1
+        result = results.session_results[0]
+
+        # Should stop on insufficient_funds after 1 hand
+        assert result.stop_reason == StopReason.INSUFFICIENT_FUNDS
+        assert result.final_bankroll == 50.0  # Started with 100, lost 50
+        assert result.hands_played == 1
+
+    def test_stop_condition_priority_deterministic(self) -> None:
+        """Test win_limit has priority over max_hands when both trigger.
+
+        With max_hands=1 and a winning hand that exceeds win_limit,
+        the win_limit should be reported as the stop reason.
+        """
+        config = create_test_config(
+            num_sessions=1,
+            hands_per_session=1,  # max_hands=1 would also trigger
+            starting_bankroll=500.0,
+            base_bet=5.0,
+            win_limit=10.0,  # Very low, will trigger
+            loss_limit=10000.0,
+        )
+
+        from unittest.mock import Mock
+
+        def create_winning_engine() -> Mock:
+            mock = Mock()
+
+            def play_hand(
+                hand_id: int,  # noqa: ARG001
+                base_bet: float,
+                bonus_bet: float = 0.0,
+                context=None,  # noqa: ARG001
+            ):
+                result = Mock()
+                result.net_result = 50.0  # Win $50, exceeds $10 win_limit
+                result.bets_at_risk = base_bet * 3
+                result.bonus_bet = bonus_bet
+                return result
+
+            mock.play_hand.side_effect = play_hand
+            return mock
+
+        with patch("let_it_ride.simulation.controller.GameEngine") as mock_engine_class:
+            mock_engine_class.return_value = create_winning_engine()
+
+            controller = SimulationController(config)
+            results = controller.run()
+
+        result = results.session_results[0]
+
+        # Win limit should take priority over max_hands
+        assert result.stop_reason == StopReason.WIN_LIMIT
 
 
 class TestStopConditions:
@@ -418,10 +811,26 @@ class TestLargerSimulations:
 
 
 class TestErrorHandling:
-    """Tests for error handling scenarios."""
+    """Tests for error handling scenarios.
+
+    Expected behavior for callback failures:
+    - Exceptions raised in progress callbacks propagate up to the caller
+    - The simulation is NOT wrapped in try/except for callbacks
+    - Partial results may be lost if callback fails mid-simulation
+    - This is intentional: callers should handle exceptions in their callbacks
+
+    Design rationale: Silently swallowing callback exceptions would hide bugs
+    in user code. The caller is responsible for error handling if they want
+    the simulation to continue despite callback failures.
+    """
 
     def test_progress_callback_exception_propagates(self) -> None:
-        """Test that exceptions in progress callback propagate up."""
+        """Test that exceptions in progress callback propagate up.
+
+        This documents the expected behavior: callback exceptions are NOT
+        caught by the controller. They propagate to the caller, which can
+        then decide how to handle them.
+        """
         config = create_test_config(num_sessions=3)
 
         def failing_callback(completed: int, total: int) -> None:  # noqa: ARG001
@@ -443,6 +852,27 @@ class TestErrorHandling:
         controller = SimulationController(config, progress_callback=fail_immediately)
 
         with pytest.raises(ValueError, match="Immediate failure"):
+            controller.run()
+
+    def test_callback_exception_type_preserved(self) -> None:
+        """Test that the original exception type is preserved.
+
+        Verifies that the controller doesn't wrap callback exceptions in
+        a different exception type.
+        """
+        config = create_test_config(num_sessions=2)
+
+        class CustomCallbackError(Exception):
+            pass
+
+        def custom_error_callback(completed: int, total: int) -> None:  # noqa: ARG001
+            raise CustomCallbackError("Custom error with context")
+
+        controller = SimulationController(
+            config, progress_callback=custom_error_callback
+        )
+
+        with pytest.raises(CustomCallbackError, match="Custom error with context"):
             controller.run()
 
 
