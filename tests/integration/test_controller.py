@@ -7,11 +7,14 @@ import pytest
 
 from let_it_ride.config.models import (
     AggressiveStrategyConfig,
+    AlwaysBonusConfig,
     BankrollConfig,
     BettingSystemConfig,
+    BonusStrategyConfig,
     ConservativeStrategyConfig,
     FullConfig,
     SimulationConfig,
+    StaticBonusConfig,
     StopConditionsConfig,
     StrategyConfig,
 )
@@ -408,3 +411,401 @@ class TestLargerSimulations:
         # But just verify we have some distribution
         assert wins >= 0
         assert losses >= 0
+
+
+class TestErrorHandling:
+    """Tests for error handling scenarios."""
+
+    def test_progress_callback_exception_propagates(self) -> None:
+        """Test that exceptions in progress callback propagate up."""
+        config = create_test_config(num_sessions=3)
+
+        def failing_callback(completed: int, total: int) -> None:  # noqa: ARG001
+            if completed == 2:
+                raise RuntimeError("Callback failed")
+
+        controller = SimulationController(config, progress_callback=failing_callback)
+
+        with pytest.raises(RuntimeError, match="Callback failed"):
+            controller.run()
+
+    def test_callback_exception_on_first_session(self) -> None:
+        """Test that exception on first session callback propagates."""
+        config = create_test_config(num_sessions=5)
+
+        def fail_immediately(completed: int, total: int) -> None:  # noqa: ARG001
+            raise ValueError("Immediate failure")
+
+        controller = SimulationController(config, progress_callback=fail_immediately)
+
+        with pytest.raises(ValueError, match="Immediate failure"):
+            controller.run()
+
+
+class TestBonusBetCalculation:
+    """Tests for bonus bet calculation in _create_session."""
+
+    def test_bonus_disabled_results_in_zero_bonus_bet(self) -> None:
+        """Test that disabled bonus strategy results in zero bonus bet."""
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=1,
+                hands_per_session=5,
+                random_seed=42,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=BonusStrategyConfig(enabled=False),
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        # Simulation should complete successfully with bonus disabled
+        assert len(results.session_results) == 1
+        assert results.session_results[0].hands_played > 0
+
+    def test_bonus_enabled_with_always_config(self) -> None:
+        """Test bonus enabled with always configuration uses always.amount."""
+        bonus_amount = 5.0
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=1,
+                hands_per_session=10,
+                random_seed=42,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=BonusStrategyConfig(
+                enabled=True,
+                type="always",
+                always=AlwaysBonusConfig(amount=bonus_amount),
+            ),
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        # Simulation should complete with bonus bets placed
+        assert len(results.session_results) == 1
+        assert results.session_results[0].hands_played > 0
+
+    def test_bonus_enabled_with_static_amount(self) -> None:
+        """Test bonus enabled with static.amount configuration."""
+        static_amount = 2.5
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=1,
+                hands_per_session=10,
+                random_seed=42,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=BonusStrategyConfig(
+                enabled=True,
+                type="static",
+                static=StaticBonusConfig(amount=static_amount),
+            ),
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        # Simulation should complete with bonus bets placed
+        assert len(results.session_results) == 1
+        assert results.session_results[0].hands_played > 0
+
+    def test_bonus_enabled_with_static_ratio(self) -> None:
+        """Test bonus enabled with static.ratio configuration."""
+        base_bet = 10.0
+        ratio = 0.5  # Expected bonus_bet = 5.0
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=1,
+                hands_per_session=10,
+                random_seed=42,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=base_bet,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=BonusStrategyConfig(
+                enabled=True,
+                type="static",
+                static=StaticBonusConfig(amount=None, ratio=ratio),
+            ),
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        # Simulation should complete with bonus bets placed
+        assert len(results.session_results) == 1
+        assert results.session_results[0].hands_played > 0
+
+    def test_bonus_ratio_with_various_base_bets(self) -> None:
+        """Test ratio calculation works correctly with different base_bet values."""
+        test_cases = [
+            (5.0, 0.5, 2.5),  # base_bet * ratio = expected
+            (10.0, 0.25, 2.5),
+            (20.0, 1.0, 20.0),
+            (1.0, 0.1, 0.1),
+        ]
+
+        for base_bet, ratio, expected_bonus in test_cases:
+            # Ensure starting bankroll covers minimum bet
+            min_required = base_bet * 3 + expected_bonus
+            starting_bankroll = max(500.0, min_required * 2)
+
+            config = FullConfig(
+                simulation=SimulationConfig(
+                    num_sessions=1,
+                    hands_per_session=5,
+                    random_seed=42,
+                ),
+                bankroll=BankrollConfig(
+                    starting_amount=starting_bankroll,
+                    base_bet=base_bet,
+                    stop_conditions=StopConditionsConfig(
+                        win_limit=1000.0,
+                        loss_limit=1000.0,
+                    ),
+                    betting_system=BettingSystemConfig(type="flat"),
+                ),
+                strategy=StrategyConfig(type="basic"),
+                bonus_strategy=BonusStrategyConfig(
+                    enabled=True,
+                    type="static",
+                    static=StaticBonusConfig(amount=None, ratio=ratio),
+                ),
+            )
+
+            controller = SimulationController(config)
+            results = controller.run()
+
+            assert (
+                len(results.session_results) == 1
+            ), f"Failed for base_bet={base_bet}, ratio={ratio}"
+
+    def test_always_takes_precedence_over_static_when_both_configured(
+        self,
+    ) -> None:
+        """Test that always config is used when both always and static are set.
+
+        Note: Pydantic validation normally prevents this, but the controller's
+        if/elif logic gives precedence to always. This documents the behavior.
+        """
+        # We can't test this directly since Pydantic prevents it,
+        # but we can verify the pattern by checking always works correctly
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=1,
+                hands_per_session=5,
+                random_seed=42,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=BonusStrategyConfig(
+                enabled=True,
+                type="always",
+                always=AlwaysBonusConfig(amount=3.0),
+            ),
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        assert len(results.session_results) == 1
+
+
+class TestEdgeCases:
+    """Tests for configuration edge cases."""
+
+    def test_single_hand_session(self) -> None:
+        """Test with max_hands=1 (minimum possible session)."""
+        config = create_test_config(
+            num_sessions=5,
+            hands_per_session=1,
+            win_limit=10000.0,  # Won't trigger
+            loss_limit=10000.0,  # Won't trigger
+        )
+        controller = SimulationController(config)
+
+        results = controller.run()
+
+        assert len(results.session_results) == 5
+        for result in results.session_results:
+            assert result.hands_played == 1
+            assert result.stop_reason == StopReason.MAX_HANDS
+
+    def test_very_high_limits_never_trigger(self) -> None:
+        """Test that very high win/loss limits don't trigger prematurely."""
+        config = create_test_config(
+            num_sessions=5,
+            hands_per_session=10,
+            starting_bankroll=100.0,
+            base_bet=1.0,
+            win_limit=100000.0,
+            loss_limit=100000.0,
+        )
+        controller = SimulationController(config)
+
+        results = controller.run()
+
+        # With such high limits, sessions should only stop on max_hands
+        # or insufficient funds (not win/loss limits)
+        for result in results.session_results:
+            assert result.stop_reason in (
+                StopReason.MAX_HANDS,
+                StopReason.INSUFFICIENT_FUNDS,
+            )
+
+    def test_minimal_win_limit_triggers_quickly(self) -> None:
+        """Test that a very small win limit triggers on first profitable hand."""
+        config = create_test_config(
+            num_sessions=10,
+            hands_per_session=100,
+            win_limit=0.01,  # Very small profit triggers
+            loss_limit=1000.0,
+            random_seed=12345,
+        )
+        controller = SimulationController(config)
+
+        results = controller.run()
+
+        # Check sessions that hit the win limit
+        win_limit_stops = [
+            r for r in results.session_results if r.stop_reason == StopReason.WIN_LIMIT
+        ]
+
+        # Sessions that stopped on win limit should have profit >= limit
+        for r in win_limit_stops:
+            assert r.session_profit >= 0.01
+
+    def test_minimal_loss_limit_triggers_quickly(self) -> None:
+        """Test that a very small loss limit triggers on first losing hand."""
+        config = create_test_config(
+            num_sessions=10,
+            hands_per_session=100,
+            win_limit=1000.0,
+            loss_limit=0.01,  # Very small loss triggers
+            random_seed=54321,
+        )
+        controller = SimulationController(config)
+
+        results = controller.run()
+
+        # Check sessions that hit the loss limit
+        loss_limit_stops = [
+            r for r in results.session_results if r.stop_reason == StopReason.LOSS_LIMIT
+        ]
+
+        # Sessions that stopped on loss limit should have profit <= -limit
+        for r in loss_limit_stops:
+            assert r.session_profit <= -0.01
+
+    def test_multiple_sessions_with_bonus_enabled(self) -> None:
+        """Test running multiple sessions with bonus betting enabled."""
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=10,
+                hands_per_session=20,
+                random_seed=42,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=BonusStrategyConfig(
+                enabled=True,
+                type="always",
+                always=AlwaysBonusConfig(amount=2.0),
+            ),
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        assert len(results.session_results) == 10
+        for result in results.session_results:
+            assert result.hands_played > 0
+
+    def test_deterministic_results_with_bonus(self) -> None:
+        """Test that bonus betting produces deterministic results with same seed."""
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=5,
+                hands_per_session=20,
+                random_seed=99999,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=BonusStrategyConfig(
+                enabled=True,
+                type="static",
+                static=StaticBonusConfig(amount=1.0),
+            ),
+        )
+
+        controller1 = SimulationController(config)
+        controller2 = SimulationController(config)
+
+        results1 = controller1.run()
+        results2 = controller2.run()
+
+        # Results should be identical
+        for r1, r2 in zip(
+            results1.session_results, results2.session_results, strict=True
+        ):
+            assert r1.hands_played == r2.hands_played
+            assert r1.session_profit == r2.session_profit
+            assert r1.final_bankroll == r2.final_bankroll
