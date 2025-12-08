@@ -438,6 +438,16 @@ class TestAnalyzeChairPositions:
         with pytest.raises(ValueError, match="empty results"):
             analyze_chair_positions([])
 
+    def test_results_with_no_seat_data_raises_error(self) -> None:
+        """Results with empty seat_results should raise ValueError."""
+        empty_result = TableSessionResult(
+            seat_results=(),
+            total_rounds=50,
+            stop_reason=StopReason.MAX_HANDS,
+        )
+        with pytest.raises(ValueError, match="No seat data"):
+            analyze_chair_positions([empty_result])
+
     def test_single_table_result(self) -> None:
         """Single table result should be analyzed correctly."""
         table_result = create_table_session_result(

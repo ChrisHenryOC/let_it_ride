@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from scipy import stats
+from scipy import stats as scipy_stats
 
 from let_it_ride.analytics.validation import calculate_wilson_confidence_interval
 from let_it_ride.simulation.session import SessionOutcome
@@ -36,8 +36,8 @@ class SeatStatistics:
         losses: Number of losing sessions.
         pushes: Number of push sessions.
         win_rate: Proportion of winning sessions (wins / total_rounds).
-        win_rate_ci_lower: Lower bound of 95% CI for win rate.
-        win_rate_ci_upper: Upper bound of 95% CI for win rate.
+        win_rate_ci_lower: Lower bound of CI for win rate (confidence level configurable).
+        win_rate_ci_upper: Upper bound of CI for win rate (confidence level configurable).
         expected_value: Average profit per round.
         total_profit: Total profit across all rounds.
     """
@@ -105,10 +105,11 @@ def _aggregate_seat_data(
     for table_result in results:
         for seat_result in table_result.seat_results:
             seat_num = seat_result.seat_number
-            if seat_num not in aggregations:
-                aggregations[seat_num] = _SeatAggregation()
+            agg = aggregations.get(seat_num)
+            if agg is None:
+                agg = _SeatAggregation()
+                aggregations[seat_num] = agg
 
-            agg = aggregations[seat_num]
             outcome = seat_result.session_result.outcome
 
             if outcome == SessionOutcome.WIN:
@@ -204,7 +205,7 @@ def _test_seat_independence(
     expected = [expected_wins_per_seat] * num_seats
 
     # Perform chi-square test
-    statistic, p_value = stats.chisquare(observed_wins, f_exp=expected)
+    statistic, p_value = scipy_stats.chisquare(observed_wins, f_exp=expected)
 
     # Determine if we can reject the null hypothesis
     is_independent = p_value > significance_level

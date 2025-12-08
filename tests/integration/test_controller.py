@@ -97,9 +97,7 @@ def create_test_config(
     )
 
 
-def create_mock_engine(
-    net_result: float, track_hands: list[int] | None = None
-) -> Mock:
+def create_mock_engine(net_result: float, track_hands: list[int] | None = None) -> Mock:
     """Create a mock GameEngine returning a fixed net_result per hand.
 
     Args:

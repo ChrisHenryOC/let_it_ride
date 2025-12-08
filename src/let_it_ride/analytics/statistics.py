@@ -370,7 +370,9 @@ def _calculate_risk_metrics(
 
     prob_any_loss = losses / n
     prob_loss_50pct = loss_50pct_count / n if loss_50pct_threshold is not None else 0.0
-    prob_loss_100pct = loss_100pct_count / n if loss_100pct_threshold is not None else 0.0
+    prob_loss_100pct = (
+        loss_100pct_count / n if loss_100pct_threshold is not None else 0.0
+    )
 
     # Max drawdown statistics
     if drawdowns:
