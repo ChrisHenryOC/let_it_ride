@@ -8,10 +8,26 @@ This module provides aggregation of results across multiple sessions:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, replace
 from statistics import mean, median, stdev
 
 from let_it_ride.simulation.session import SessionOutcome, SessionResult
+
+
+def _calculate_frequency_percentages(frequencies: dict[str, int]) -> dict[str, float]:
+    """Calculate percentage for each frequency entry.
+
+    Args:
+        frequencies: Dictionary of hand rank counts.
+
+    Returns:
+        Dictionary of hand rank percentages (0.0 to 1.0).
+    """
+    total = sum(frequencies.values())
+    if total == 0:
+        return {}
+    return {key: count / total for key, count in frequencies.items()}
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,7 +65,8 @@ class AggregateStatistics:
         session_profit_min: Minimum session profit.
         session_profit_max: Maximum session profit.
 
-        session_profits: List of individual session profits (for merge support).
+        session_profits: Tuple of individual session profits (for merge support).
+            Note: Retained for accurate statistics when merging aggregates.
     """
 
     # Session metrics
@@ -231,19 +248,11 @@ def merge_aggregates(
     bonus_profit = bonus_won - bonus_wagered
     bonus_ev_per_hand = bonus_profit / total_hands if total_hands > 0 else 0.0
 
-    # Merge hand frequencies
-    hand_frequencies: dict[str, int] = {}
-    for hand_rank, count in agg1.hand_frequencies.items():
-        hand_frequencies[hand_rank] = count
-    for hand_rank, count in agg2.hand_frequencies.items():
-        hand_frequencies[hand_rank] = hand_frequencies.get(hand_rank, 0) + count
-
-    # Recalculate percentages
-    total_freq = sum(hand_frequencies.values())
-    hand_frequency_pct: dict[str, float] = {}
-    if total_freq > 0:
-        for hand_rank, count in hand_frequencies.items():
-            hand_frequency_pct[hand_rank] = count / total_freq
+    # Merge hand frequencies using Counter for cleaner semantics
+    hand_frequencies = dict(
+        Counter(agg1.hand_frequencies) + Counter(agg2.hand_frequencies)
+    )
+    hand_frequency_pct = _calculate_frequency_percentages(hand_frequencies)
 
     # Combine session profits for statistics
     combined_profits = agg1.session_profits + agg2.session_profits
@@ -296,40 +305,15 @@ def aggregate_with_hand_frequencies(
 
     Returns:
         AggregateStatistics with hand frequency data included.
+
+    Raises:
+        ValueError: If results list is empty.
     """
     base_stats = aggregate_results(results)
+    hand_frequency_pct = _calculate_frequency_percentages(hand_frequencies)
 
-    # Calculate percentages
-    total_freq = sum(hand_frequencies.values())
-    hand_frequency_pct: dict[str, float] = {}
-    if total_freq > 0:
-        for hand_rank, count in hand_frequencies.items():
-            hand_frequency_pct[hand_rank] = count / total_freq
-
-    # Create new stats with hand frequencies
-    return AggregateStatistics(
-        total_sessions=base_stats.total_sessions,
-        winning_sessions=base_stats.winning_sessions,
-        losing_sessions=base_stats.losing_sessions,
-        push_sessions=base_stats.push_sessions,
-        session_win_rate=base_stats.session_win_rate,
-        total_hands=base_stats.total_hands,
-        total_wagered=base_stats.total_wagered,
-        total_won=base_stats.total_won,
-        net_result=base_stats.net_result,
-        expected_value_per_hand=base_stats.expected_value_per_hand,
-        main_wagered=base_stats.main_wagered,
-        main_won=base_stats.main_won,
-        main_ev_per_hand=base_stats.main_ev_per_hand,
-        bonus_wagered=base_stats.bonus_wagered,
-        bonus_won=base_stats.bonus_won,
-        bonus_ev_per_hand=base_stats.bonus_ev_per_hand,
+    return replace(
+        base_stats,
         hand_frequencies=hand_frequencies,
         hand_frequency_pct=hand_frequency_pct,
-        session_profit_mean=base_stats.session_profit_mean,
-        session_profit_std=base_stats.session_profit_std,
-        session_profit_median=base_stats.session_profit_median,
-        session_profit_min=base_stats.session_profit_min,
-        session_profit_max=base_stats.session_profit_max,
-        session_profits=base_stats.session_profits,
     )

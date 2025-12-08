@@ -634,3 +634,161 @@ class TestKnownDatasetVerification:
         )
         assert merged_stats.session_profit_min == direct_stats.session_profit_min
         assert merged_stats.session_profit_max == direct_stats.session_profit_max
+
+
+class TestReviewFindings:
+    """Tests addressing code review findings for PR #111."""
+
+    def test_total_won_calculation(self) -> None:
+        """total_won should equal net_result + total_wagered."""
+        results = [
+            create_session_result(
+                outcome=SessionOutcome.WIN,
+                session_profit=100.0,  # net_result
+                total_wagered=3000.0,
+                total_bonus_wagered=100.0,
+            ),
+        ]
+        stats = aggregate_results(results)
+
+        # total_wagered = main_wagered + bonus_wagered = 3000 + 100 = 3100
+        # total_won = net_result + total_wagered = 100 + 3100 = 3200
+        expected_total_won = stats.net_result + stats.total_wagered
+        assert stats.total_won == pytest.approx(expected_total_won)
+        assert stats.total_won == pytest.approx(3200.0)
+
+    def test_total_won_with_loss(self) -> None:
+        """total_won calculation with negative net_result."""
+        results = [
+            create_session_result(
+                outcome=SessionOutcome.LOSS,
+                session_profit=-500.0,
+                total_wagered=3000.0,
+                total_bonus_wagered=100.0,
+            ),
+        ]
+        stats = aggregate_results(results)
+
+        # total_wagered = 3000 + 100 = 3100
+        # total_won = -500 + 3100 = 2600
+        assert stats.total_won == pytest.approx(2600.0)
+        assert stats.total_won == pytest.approx(stats.net_result + stats.total_wagered)
+
+    def test_zero_hands_ev_calculation(self) -> None:
+        """EV per hand should be 0 when total_hands is 0 (defensive case)."""
+        results = [
+            create_session_result(
+                outcome=SessionOutcome.PUSH,
+                hands_played=0,
+                session_profit=0.0,
+            )
+        ]
+        stats = aggregate_results(results)
+
+        assert stats.total_hands == 0
+        assert stats.expected_value_per_hand == 0.0
+        assert stats.main_ev_per_hand == 0.0
+        assert stats.bonus_ev_per_hand == 0.0
+
+    def test_merge_is_associative(self) -> None:
+        """merge_aggregates should be associative: merge(merge(A, B), C) == merge(A, merge(B, C))."""
+        results_a = [
+            create_session_result(outcome=SessionOutcome.WIN, session_profit=100.0)
+        ]
+        results_b = [
+            create_session_result(outcome=SessionOutcome.LOSS, session_profit=-50.0)
+        ]
+        results_c = [
+            create_session_result(outcome=SessionOutcome.PUSH, session_profit=0.0)
+        ]
+
+        agg_a = aggregate_results(results_a)
+        agg_b = aggregate_results(results_b)
+        agg_c = aggregate_results(results_c)
+
+        # (A + B) + C
+        left_to_right = merge_aggregates(merge_aggregates(agg_a, agg_b), agg_c)
+        # A + (B + C)
+        right_to_left = merge_aggregates(agg_a, merge_aggregates(agg_b, agg_c))
+
+        assert left_to_right.total_sessions == right_to_left.total_sessions
+        assert left_to_right.winning_sessions == right_to_left.winning_sessions
+        assert left_to_right.losing_sessions == right_to_left.losing_sessions
+        assert left_to_right.push_sessions == right_to_left.push_sessions
+        assert left_to_right.net_result == pytest.approx(right_to_left.net_result)
+        assert left_to_right.total_hands == right_to_left.total_hands
+        assert left_to_right.session_profit_mean == pytest.approx(
+            right_to_left.session_profit_mean
+        )
+
+    def test_all_losing_sessions(self) -> None:
+        """Verify statistics when all sessions are losses (100% loss rate)."""
+        results = [
+            create_session_result(
+                outcome=SessionOutcome.LOSS,
+                hands_played=100,
+                session_profit=-100.0,
+            ),
+            create_session_result(
+                outcome=SessionOutcome.LOSS,
+                hands_played=100,
+                session_profit=-200.0,
+            ),
+            create_session_result(
+                outcome=SessionOutcome.LOSS,
+                hands_played=100,
+                session_profit=-50.0,
+            ),
+        ]
+        stats = aggregate_results(results)
+
+        assert stats.session_win_rate == 0.0
+        assert stats.winning_sessions == 0
+        assert stats.losing_sessions == 3
+        assert stats.push_sessions == 0
+        assert stats.net_result == pytest.approx(-350.0)
+        assert stats.expected_value_per_hand < 0  # Verify negative EV
+
+    def test_financial_precision_many_sessions(self) -> None:
+        """Financial totals should maintain precision across many sessions."""
+        # Use values that could cause float precision issues
+        results = [
+            create_session_result(
+                outcome=SessionOutcome.WIN,
+                session_profit=0.01,
+                total_wagered=0.03,
+                total_bonus_wagered=0.01,
+            )
+            for _ in range(100)
+        ]
+        stats = aggregate_results(results)
+
+        assert stats.net_result == pytest.approx(1.0, rel=1e-9)
+        assert stats.main_wagered == pytest.approx(3.0, rel=1e-9)
+        assert stats.bonus_wagered == pytest.approx(1.0, rel=1e-9)
+
+    @pytest.mark.slow
+    def test_aggregate_large_dataset(self) -> None:
+        """Verify aggregation handles large session counts efficiently."""
+        import random
+        import time
+
+        random.seed(42)  # Reproducible results
+        results = [
+            create_session_result(
+                outcome=random.choice(
+                    [SessionOutcome.WIN, SessionOutcome.LOSS, SessionOutcome.PUSH]
+                ),
+                session_profit=random.uniform(-100, 100),
+                hands_played=100,
+            )
+            for _ in range(10000)
+        ]
+
+        start = time.perf_counter()
+        stats = aggregate_results(results)
+        elapsed = time.perf_counter() - start
+
+        assert stats.total_sessions == 10000
+        assert stats.total_hands == 1000000  # 10000 * 100
+        assert elapsed < 1.0  # Should complete in under 1 second
