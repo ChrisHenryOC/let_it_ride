@@ -15,7 +15,7 @@ Please analyze and fix the GitHub issue: $ARGUMENTS.
 # PLAN
 
 1. Use `gh issue view` to get full issue details
-2. Launch an **Explore agent** (thoroughness: medium) to understand context:
+2. For complex issues, launch an **Explore agent** (thoroughness: medium) to understand context:
    - Search `/scratchpads/` for previous thoughts on this issue
    - Search closed PRs for related history
    - Find relevant source files and existing patterns
@@ -40,9 +40,10 @@ Please analyze and fix the GitHub issue: $ARGUMENTS.
    - Negative tests (verify error handling)
 3. Run the full test suite: `poetry run pytest`
 4. Format and lint code:
-   - Run `poetry run ruff format src/ tests/` to auto-format
-   - Run `poetry run ruff check src/ tests/ --fix` to auto-fix lint issues
-   - If any files were modified, stage and amend the previous commit
+   ```bash
+   poetry run ruff format src/ tests/ && poetry run ruff check src/ tests/ --fix
+   ```
+   If any files were modified, stage and amend the previous commit
 5. Ensure type checking passes: `poetry run mypy src/`
 6. All functions must have type annotations for parameters and return values
 7. Launch **test-coverage-reviewer agent** for coverage verification
@@ -57,12 +58,4 @@ Before creating the PR, launch the **code-quality-reviewer agent** to check your
 2. Create PR with `gh pr create`:
    - Title: `{feat|fix}: LIR-N description`
    - Body must include: `Closes #{github_issue_number}`
-3. Note the PR number for review
-
-# REVIEW (separate session)
-
-After creating the PR, start a fresh session for unbiased review:
-1. Run `/clear` to reset context
-2. Run `/review-pr {pr_number}` for automated review
-
-Remember to use the GitHub CLI (`gh`) for all GitHub-related tasks.
+3. Note the PR number for `/review-pr`
