@@ -20,7 +20,14 @@ List all review files:
 ls "$REVIEW_DIR"
 ```
 
+Check for @claude comments on the PR and note their IDs for replying later:
+```bash
+gh api repos/{owner}/{repo}/pulls/$ARGUMENTS/comments --jq '.[] | select(.body | contains("@claude")) | {id, path, body: .body[:80]}'
+```
+
 # GATHER FINDINGS
+
+## From Review Files
 
 Read ALL review files in the review directory. For EACH file, extract ALL issues marked as:
 1. **Critical** (must fix)
@@ -29,17 +36,23 @@ Read ALL review files in the review directory. For EACH file, extract ALL issues
 
 Skip Low severity issues unless specifically requested.
 
+## From @claude PR Comments
+
+If any @claude comments were found in SETUP, treat each as a **High** severity issue:
+- Record the comment ID for replying after the fix
+- Extract the file path and requested change from the comment
+- Add to the issue matrix with "PR Comment" as the reviewer
+
 # BUILD ISSUE MATRIX
 
 **CRITICAL**: Before implementing ANY fixes, build a complete matrix of ALL high and medium issues.
 
 Create a markdown table with ALL findings from ALL reviewers:
 
-| # | Reviewer | Severity | Issue Summary | File:Line | In PR Scope? | Actionable? |
-|---|----------|----------|---------------|-----------|--------------|-------------|
-| 1 | code-quality | Medium | Description... | file.py:123 | Yes/No | Yes/No |
-| 2 | performance | Medium | Description... | file.py:456 | Yes/No | Yes/No |
-| ... | ... | ... | ... | ... | ... | ... |
+| # | Reviewer | Severity | Issue Summary | File:Line | In PR Scope? | Actionable? | Comment ID |
+|---|----------|----------|---------------|-----------|--------------|-------------|------------|
+
+Note: "Comment ID" is only populated for @claude PR comments (needed for replies).
 
 For each issue, determine:
 - **In PR Scope?**: Is the file/code mentioned actually part of this PR's changes?
@@ -60,16 +73,8 @@ Mark issues as "Deferred" if they are out of scope or require significant work b
 
 Use the TodoWrite tool to create a task list of ALL actionable issues:
 - One todo per unique issue (or grouped issues)
-- Include severity in the todo description
+- Include severity in the todo description (e.g., "[High] Fix docstring mismatch")
 - Mark deferred items separately
-
-Example:
-```
-1. [High] Fix TypeError/ValueError docstring mismatch in from_dict
-2. [Medium] Add type-specific count functions (addresses code-quality + performance)
-3. [Medium] Use Counter for distribution counting
-4. [Deferred] Add hypothesis property-based tests (requires new dependency)
-```
 
 # IMPLEMENT
 
@@ -79,33 +84,32 @@ For each issue (in priority order: Critical > High > Medium):
 2. **Read the relevant file** before making changes
 3. **Implement the fix** following project conventions
 4. **Mark todo as completed** immediately after fixing
-5. **Run validation** after each fix:
+5. **Reply to @claude comments** (if the issue came from a PR comment):
    ```bash
-   poetry run pytest tests/unit/ -x -q
-   poetry run mypy src/
-   poetry run ruff check src/ tests/
+   gh api repos/{owner}/{repo}/pulls/$ARGUMENTS/comments/{COMMENT_ID}/replies \
+     --method POST -f body="Fixed in $(git rev-parse --short HEAD). [description of change]"
    ```
 
-# COMMIT
+# VALIDATE, COMMIT, AND PUSH
 
-After each logical group of fixes:
+After all fixes are implemented, run validation once:
+```bash
+poetry run pytest tests/unit/ -x -q
+poetry run mypy src/
+poetry run ruff check src/ tests/
+```
+
+Then commit and push:
 ```bash
 git add -A
 git commit -m "fix: [description of what was fixed]
 
 Addresses review findings:
 - [Reviewer: severity] Issue description
-- [Reviewer: severity] Issue description
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
-```
-
-# PUSH
-
-Push all commits to the PR branch:
-```bash
 git push
 ```
 
@@ -176,35 +180,46 @@ git push
 
 # FINAL SUMMARY
 
-Provide a complete summary with:
+Build a complete summary with:
 
 ## Issues Fixed
-| # | Severity | Issue | Reviewer(s) |
-|---|----------|-------|-------------|
-| 1 | High | ... | test-coverage |
-| 2 | Medium | ... | code-quality, performance |
+| # | Severity | Issue | Reviewer(s) | Replied? |
+|---|----------|-------|-------------|----------|
 
 ## Initially Deferred Items
 | # | Severity | Issue | Decision | Outcome |
 |---|----------|-------|----------|---------|
-| 1 | Medium | Add hypothesis tests | A) Fix now | Fixed in this PR |
-| 2 | Medium | GameHandResult slots | B) Create issue | New issue LIR-XX (GitHub #YY) |
-| 3 | Medium | Registry pattern refactor | B) Create issue | Added to LIR-XX (GitHub #YY) |
-| 4 | Low | Minor style suggestion | C) Skip | No action taken |
 
 ## Validation
-- Tests: X passed
+- Tests: passed/failed
 - Type checking: passed/failed
 - Linting: passed/failed
 
+# POST SUMMARY TO PR
+
+Post the final summary as a comment on the PR using a HEREDOC:
+
+```bash
+gh pr comment $ARGUMENTS --body "$(cat <<'EOF'
+## Code Review Fixes Applied
+
+[Paste the complete final summary here, including:]
+- Issues Fixed table
+- Initially Deferred Items table
+- Validation results
+
+---
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
+```
+
+Then display the same summary to the console for the user.
+
 ---
 
-**Remember:**
+**Critical Reminders:**
 - Build the COMPLETE issue matrix BEFORE implementing ANY fixes
-- Use TodoWrite to track ALL issues systematically
-- Mark each todo complete IMMEDIATELY after fixing
-- Document ALL deferred issues with clear reasons
-- Don't silently skip issues - either fix them or document why they're deferred
-- Review EACH deferred item individually with the user (A/B/C decision)
-- For "B) Create issue" items: always update implementation_todo.md with proper sequencing
-- For "A) Fix now" items: add back to todo list and implement before finalizing
+- Don't silently skip issues - either fix them or explicitly defer with user consent
+- For "B) Create issue": always update `docs/implementation_todo.md`
+- Reply to ALL @claude PR comments after fixing

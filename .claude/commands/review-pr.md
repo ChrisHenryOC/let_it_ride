@@ -30,16 +30,8 @@ Instruct each agent to:
 1. Only provide noteworthy feedback
 2. Save detailed findings to `code_reviews/PR$ARGUMENTS-{title}/{agent-name}.md`
 
-## Step 3: Post comments
+## Step 3: Consolidate and deduplicate
 
-Review agent feedback and post only what you deem noteworthy:
-- Inline comments for specific issues
-- Top-level comments for general observations
-- Keep feedback concise
-
-## Step 4: Consolidate and deduplicate
-
-Before posting comments:
 1. Review all agent findings from `code_reviews/PR$ARGUMENTS-*/`
 2. Merge overlapping concerns (e.g., performance + code quality on same issue)
 3. Remove duplicates flagged by multiple agents
@@ -49,7 +41,14 @@ Before posting comments:
 - Critical: Security vulnerabilities, data loss, breaking changes
 - High: Performance bottlenecks >10%, missing critical tests
 - Medium: Code quality issues affecting maintainability
-- Low: Minor suggestions (usually skip posting)
+- Low: Minor suggestions (usually skip)
+
+## Step 4: Post summary comment
+
+Post a summary comment on the PR with consolidated findings:
+```bash
+gh pr comment $ARGUMENTS --body "[summary of key findings by severity]"
+```
 
 ## Step 5: Commit review files to PR
 
@@ -87,37 +86,12 @@ This ensures review findings are:
 
 ---
 
-## Agent Instructions for Inline Comments
+## Agent Instructions
 
 The PR diff has been saved to `/tmp/pr$ARGUMENTS.diff`. Each agent MUST:
 
-1. **Read the diff first** - Use the `Read` tool on `/tmp/pr$ARGUMENTS.diff` (do NOT use Bash with cat)
-
-2. **Save detailed findings** to `code_reviews/PR$ARGUMENTS-{title}/{agent-name}.md`
-   Structure as:
+1. **Read the diff first** using the `Read` tool on `/tmp/pr$ARGUMENTS.diff`
+2. **Save detailed findings** to `code_reviews/PR$ARGUMENTS-{title}/{agent-name}.md`:
    - Summary (2-3 sentences)
    - Findings by severity (Critical/High/Medium/Low)
    - Specific recommendations with file:line references
-
-3. **For each issue requiring an inline comment**, calculate the position:
-   - Find the file's `@@` hunk header line number in the diff
-   - Find your target line number in the diff
-   - Position = target_line_number - hunk_header_line_number
-     (The @@ line itself is position 1, so do NOT add 1)
-
-4. **Return in this exact format** (positions are REQUIRED):
-   ```
-   INLINE_COMMENT:
-   - file: src/example/file.py
-   - position: 42
-   - comment: Your comment text here
-   ```
-
-**Example calculation:**
-- File's `@@` line is at diff line 185
-- Target code is at diff line 210
-- Position = 210 - 185 = 25
-
-Comments without calculated positions will be discarded.
-
----
