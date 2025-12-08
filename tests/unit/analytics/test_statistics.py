@@ -916,9 +916,7 @@ class TestRiskMetricsBoundaryConditions:
     def test_zero_starting_bankroll_disables_loss_thresholds(self) -> None:
         """Zero starting bankroll should result in 0.0 for loss threshold probs."""
         profits = (-1000.0, -500.0, 100.0)
-        risk = _calculate_risk_metrics(
-            session_profits=profits, starting_bankroll=0.0
-        )
+        risk = _calculate_risk_metrics(session_profits=profits, starting_bankroll=0.0)
         assert risk.prob_loss_50pct == 0.0
         assert risk.prob_loss_100pct == 0.0
         # But prob_any_loss should still work
@@ -945,7 +943,7 @@ class TestPercentileEdgeValues:
         data = (1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)
         percentiles = _calculate_percentiles(data, (0, 50, 100))
 
-        assert percentiles[0] == 1.0   # min
+        assert percentiles[0] == 1.0  # min
         assert percentiles[100] == 9.0  # max
         # Median should be 5.0
         assert percentiles[50] == 5.0
@@ -957,35 +955,47 @@ class TestConfidenceLevelValidation:
     def test_confidence_level_zero_raises_error(self) -> None:
         """confidence_level of 0 should raise ValueError."""
         data = (1.0, 2.0, 3.0, 4.0, 5.0)
-        with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+        with pytest.raises(
+            ValueError, match="confidence_level must be between 0 and 1"
+        ):
             _calculate_mean_confidence_interval(data, confidence_level=0.0)
 
     def test_confidence_level_one_raises_error(self) -> None:
         """confidence_level of 1 should raise ValueError."""
         data = (1.0, 2.0, 3.0, 4.0, 5.0)
-        with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+        with pytest.raises(
+            ValueError, match="confidence_level must be between 0 and 1"
+        ):
             _calculate_mean_confidence_interval(data, confidence_level=1.0)
 
     def test_confidence_level_negative_raises_error(self) -> None:
         """Negative confidence_level should raise ValueError."""
         data = (1.0, 2.0, 3.0, 4.0, 5.0)
-        with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+        with pytest.raises(
+            ValueError, match="confidence_level must be between 0 and 1"
+        ):
             _calculate_mean_confidence_interval(data, confidence_level=-0.5)
 
     def test_confidence_level_greater_than_one_raises_error(self) -> None:
         """confidence_level > 1 should raise ValueError."""
         data = (1.0, 2.0, 3.0, 4.0, 5.0)
-        with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+        with pytest.raises(
+            ValueError, match="confidence_level must be between 0 and 1"
+        ):
             _calculate_mean_confidence_interval(data, confidence_level=2.0)
 
     def test_calculate_statistics_invalid_confidence_level(self) -> None:
         """calculate_statistics should validate confidence_level."""
         agg = create_aggregate_statistics()
-        with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+        with pytest.raises(
+            ValueError, match="confidence_level must be between 0 and 1"
+        ):
             calculate_statistics(agg, confidence_level=0.0)
 
     def test_calculate_statistics_from_results_invalid_confidence_level(self) -> None:
         """calculate_statistics_from_results should validate confidence_level."""
         results = [create_session_result()]
-        with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+        with pytest.raises(
+            ValueError, match="confidence_level must be between 0 and 1"
+        ):
             calculate_statistics_from_results(results, confidence_level=1.5)

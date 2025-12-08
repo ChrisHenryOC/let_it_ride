@@ -7,10 +7,26 @@ Please analyze and fix the GitHub issue: $ARGUMENTS.
 
 # IDENTIFY THE ISSUE
 
-1. Determine if $ARGUMENTS is a LIR identifier or GitHub issue number:
-   - If "LIR-N" format: `gh issue list --search "LIR-N in:title"` to find the GitHub issue
-   - If a number: `gh issue view $ARGUMENTS` directly
-2. Confirm the issue title and description match expectations before proceeding
+## MANDATORY USER APPROVAL CHECKPOINT
+
+**STOP! Before doing ANY work, you MUST get explicit user approval for the issue.**
+
+This applies to ALL cases - "next", LIR identifiers, and issue numbers.
+
+1. First, identify the issue:
+   - **If "next":** Read `docs/implementation_todo.md` and `gh issue list --state open` to find the next issue
+   - **If "LIR-N" format:** `gh issue list --search "LIR-N in:title"` to find the GitHub issue
+   - **If a number:** `gh issue view $ARGUMENTS` directly
+
+2. **THEN IMMEDIATELY USE AskUserQuestion** to get approval:
+   - Present: GitHub issue number, LIR identifier, title, and brief description
+   - Ask: "Should I proceed with this issue?"
+   - Options: "Yes, proceed" / "No, choose different issue"
+   - **DO NOT SKIP THIS STEP. DO NOT PROCEED WITHOUT USER CONFIRMATION.**
+
+3. If user declines, ask which issue they prefer and repeat step 2
+
+4. Only after explicit "Yes" confirmation, proceed to the PLAN phase
 
 # PLAN
 

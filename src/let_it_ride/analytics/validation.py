@@ -231,7 +231,9 @@ def validate_simulation(
     warnings: list[str] = []
 
     # Normalize hand frequencies for chi-square test
-    normalized_frequencies = _normalize_hand_frequencies(aggregate_stats.hand_frequencies)
+    normalized_frequencies = _normalize_hand_frequencies(
+        aggregate_stats.hand_frequencies
+    )
 
     # Calculate chi-square test
     # Handle case where hand_frequencies might be empty

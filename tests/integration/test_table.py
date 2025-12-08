@@ -1064,3 +1064,113 @@ class TestTableWithStrategyContext:
             strategy.context_history
         ):
             assert hands_played == i
+
+
+# --- Chair Position Analytics Integration Tests ---
+
+
+class TestChairPositionAnalyticsIntegration:
+    """Integration tests for chair position analytics with real TableSession."""
+
+    def test_chair_position_analytics_with_real_table_session(
+        self,
+        main_paytable: MainGamePaytable,
+        rng: random.Random,
+    ) -> None:
+        """Verify analyze_chair_positions works with real TableSession results."""
+        from let_it_ride.analytics import analyze_chair_positions
+
+        table_config = TableConfig(num_seats=4)
+        config = TableSessionConfig(
+            table_config=table_config,
+            starting_bankroll=500.0,
+            base_bet=5.0,
+            max_hands=20,
+        )
+        deck = Deck()
+        strategy = BasicStrategy()
+        table = Table(
+            deck,
+            strategy,
+            main_paytable,
+            None,
+            rng,
+            table_config=table_config,
+        )
+        betting_system = FlatBetting(5.0)
+
+        # Run multiple sessions to get enough data
+        results = []
+        for _ in range(10):
+            # Create fresh table/session for each run
+            deck = Deck()
+            table = Table(
+                deck,
+                strategy,
+                main_paytable,
+                None,
+                rng,
+                table_config=table_config,
+            )
+            session = TableSession(config, table, betting_system)
+            results.append(session.run_to_completion())
+
+        # Analyze the results
+        analysis = analyze_chair_positions(results)
+
+        # Verify analysis produces valid results
+        assert len(analysis.seat_statistics) == 4
+
+        # Each seat should have played 10 sessions * 20 hands = correct rounds
+        for seat_stat in analysis.seat_statistics:
+            assert seat_stat.total_rounds == 10
+            assert seat_stat.seat_number in (1, 2, 3, 4)
+            assert 0.0 <= seat_stat.win_rate <= 1.0
+            assert seat_stat.win_rate_ci_lower <= seat_stat.win_rate
+            assert seat_stat.win_rate_ci_upper >= seat_stat.win_rate
+            assert seat_stat.wins + seat_stat.losses + seat_stat.pushes == 10
+
+        # Chi-square analysis should produce valid output
+        assert analysis.chi_square_statistic >= 0.0
+        assert 0.0 <= analysis.chi_square_p_value <= 1.0
+        assert isinstance(analysis.is_position_independent, bool)
+
+    def test_chair_position_analytics_with_six_seats(
+        self,
+        main_paytable: MainGamePaytable,
+    ) -> None:
+        """Verify analytics work with maximum 6 seats."""
+        from let_it_ride.analytics import analyze_chair_positions
+
+        rng = random.Random(42)  # Fixed seed for reproducibility
+        table_config = TableConfig(num_seats=6)
+        config = TableSessionConfig(
+            table_config=table_config,
+            starting_bankroll=500.0,
+            base_bet=5.0,
+            max_hands=15,
+        )
+
+        # Run sessions
+        results = []
+        strategy = BasicStrategy()
+        for _ in range(20):
+            deck = Deck()
+            table = Table(
+                deck,
+                strategy,
+                main_paytable,
+                None,
+                rng,
+                table_config=table_config,
+            )
+            betting_system = FlatBetting(5.0)
+            session = TableSession(config, table, betting_system)
+            results.append(session.run_to_completion())
+
+        analysis = analyze_chair_positions(results)
+
+        # Should have stats for all 6 seats
+        assert len(analysis.seat_statistics) == 6
+        seat_numbers = [s.seat_number for s in analysis.seat_statistics]
+        assert seat_numbers == [1, 2, 3, 4, 5, 6]
