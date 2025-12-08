@@ -208,7 +208,7 @@ def _test_seat_independence(
     statistic, p_value = scipy_stats.chisquare(observed_wins, f_exp=expected)
 
     # Determine if we can reject the null hypothesis
-    is_independent = p_value > significance_level
+    is_independent = bool(p_value > significance_level)
 
     return float(statistic), float(p_value), is_independent
 
