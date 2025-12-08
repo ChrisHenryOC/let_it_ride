@@ -276,6 +276,11 @@ class TestWilsonConfidenceInterval:
         with pytest.raises(ValueError, match="between 0 and total"):
             calculate_wilson_confidence_interval(150, 100)
 
+    def test_negative_successes_raises(self) -> None:
+        """Should raise ValueError for negative successes."""
+        with pytest.raises(ValueError, match="between 0 and total"):
+            calculate_wilson_confidence_interval(-5, 100)
+
     def test_different_confidence_levels(self) -> None:
         """Higher confidence level should produce wider CI."""
         lower_90, upper_90 = calculate_wilson_confidence_interval(
@@ -327,6 +332,9 @@ class TestValidateSimulation:
         assert report.chi_square_result is not None
         assert len(report.observed_frequencies) == len(THEORETICAL_HAND_PROBS)
         assert len(report.expected_frequencies) == len(THEORETICAL_HAND_PROBS)
+        # Verify valid simulation is marked as valid
+        assert report.is_valid is True
+        assert len(report.warnings) == 0
 
     def test_empty_hand_frequencies_warning(self) -> None:
         """Empty hand frequencies should produce warning."""
@@ -336,12 +344,26 @@ class TestValidateSimulation:
 
         assert any("No hand frequency data" in w for w in report.warnings)
 
-    def test_extreme_win_rate_warning(self) -> None:
-        """Extreme session win rate should produce warning."""
+    def test_extreme_high_win_rate_warning(self) -> None:
+        """Extreme high session win rate should produce warning."""
         stats = create_aggregate_statistics(
             total_sessions=100,
             winning_sessions=95,  # 95% win rate is suspicious
             losing_sessions=5,
+            push_sessions=0,
+        )
+
+        report = validate_simulation(stats)
+
+        assert any("unusually extreme" in w for w in report.warnings)
+        assert not report.is_valid
+
+    def test_extreme_low_win_rate_warning(self) -> None:
+        """Extreme low session win rate should produce warning."""
+        stats = create_aggregate_statistics(
+            total_sessions=100,
+            winning_sessions=5,  # 5% win rate is suspicious
+            losing_sessions=95,
             push_sessions=0,
         )
 
@@ -363,6 +385,34 @@ class TestValidateSimulation:
         report = validate_simulation(stats)
 
         assert any("EV deviation" in w for w in report.warnings)
+
+    def test_skewed_distribution_chi_square_warning(self) -> None:
+        """Skewed hand distribution should produce chi-square warning."""
+        # Create extremely skewed frequencies that will fail chi-square
+        hand_frequencies = {
+            "royal_flush": 10000,  # Way too many royal flushes
+            "straight_flush": 0,
+            "four_of_a_kind": 0,
+            "full_house": 0,
+            "flush": 0,
+            "straight": 0,
+            "three_of_a_kind": 0,
+            "two_pair": 0,
+            "pair_tens_or_better": 40000,
+            "pair_below_tens": 0,
+            "high_card": 50000,
+        }
+
+        stats = create_aggregate_statistics(
+            total_hands=100000,
+            hand_frequencies=hand_frequencies,
+        )
+
+        report = validate_simulation(stats)
+
+        # Should have the chi-square warning for very low p-value
+        assert any("very low" in w for w in report.warnings)
+        assert not report.is_valid
 
     def test_report_contains_all_fields(self) -> None:
         """Validation report should contain all required fields."""
@@ -467,7 +517,7 @@ class TestValidationReportDataclass:
             ev_deviation_pct=0.029,
             session_win_rate=0.30,
             session_win_rate_ci=(0.25, 0.35),
-            warnings=[],
+            warnings=(),
             is_valid=True,
         )
 
@@ -494,7 +544,7 @@ class TestValidationReportDataclass:
             ev_deviation_pct=0.029,
             session_win_rate=0.30,
             session_win_rate_ci=(0.25, 0.35),
-            warnings=[],
+            warnings=(),
             is_valid=True,
         )
 

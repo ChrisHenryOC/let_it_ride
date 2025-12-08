@@ -73,7 +73,7 @@ class ValidationReport:
         ev_deviation_pct: Percentage deviation of actual from theoretical EV.
         session_win_rate: Observed session win rate.
         session_win_rate_ci: 95% confidence interval for session win rate.
-        warnings: List of warning messages for suspicious deviations.
+        warnings: Tuple of warning messages for suspicious deviations.
         is_valid: Overall validity (chi-square passes and no severe warnings).
     """
 
@@ -85,7 +85,7 @@ class ValidationReport:
     ev_deviation_pct: float
     session_win_rate: float
     session_win_rate_ci: tuple[float, float]
-    warnings: list[str]
+    warnings: tuple[str, ...]
     is_valid: bool
 
 
@@ -206,7 +206,7 @@ def calculate_wilson_confidence_interval(
 
 
 def validate_simulation(
-    stats: AggregateStatistics,
+    aggregate_stats: AggregateStatistics,
     significance_level: float = 0.05,
     base_bet: float = 1.0,
 ) -> ValidationReport:
@@ -214,11 +214,11 @@ def validate_simulation(
 
     Performs comprehensive statistical validation:
     1. Chi-square test for hand frequency distribution
-    2. Expected value convergence check
+    2. Expected value convergence check (deviation percentage comparison)
     3. Session win rate confidence interval
 
     Args:
-        stats: Aggregate statistics from simulation.
+        aggregate_stats: Aggregate statistics from simulation.
         significance_level: P-value threshold for chi-square test (default 0.05).
         base_bet: Base bet amount for EV calculation (default 1.0).
 
@@ -226,12 +226,12 @@ def validate_simulation(
         ValidationReport with all test results and warnings.
 
     Raises:
-        ValueError: If stats has insufficient data for validation.
+        ValueError: If aggregate_stats.total_sessions <= 0 (via Wilson CI calculation).
     """
     warnings: list[str] = []
 
     # Normalize hand frequencies for chi-square test
-    normalized_frequencies = _normalize_hand_frequencies(stats.hand_frequencies)
+    normalized_frequencies = _normalize_hand_frequencies(aggregate_stats.hand_frequencies)
 
     # Calculate chi-square test
     # Handle case where hand_frequencies might be empty
@@ -273,7 +273,7 @@ def validate_simulation(
     # EV convergence testing
     # Theoretical EV per unit bet is negative house edge
     ev_theoretical = -THEORETICAL_HOUSE_EDGE * base_bet
-    ev_actual = stats.expected_value_per_hand
+    ev_actual = aggregate_stats.expected_value_per_hand
 
     # Calculate deviation percentage (avoid division by zero)
     if abs(ev_theoretical) > 1e-10:
@@ -288,10 +288,10 @@ def validate_simulation(
         )
 
     # Session win rate confidence interval
-    session_win_rate = stats.session_win_rate
+    session_win_rate = aggregate_stats.session_win_rate
     session_win_rate_ci = calculate_wilson_confidence_interval(
-        successes=stats.winning_sessions,
-        total=stats.total_sessions,
+        successes=aggregate_stats.winning_sessions,
+        total=aggregate_stats.total_sessions,
     )
 
     # Check for extreme win rates (very unusual)
@@ -315,6 +315,6 @@ def validate_simulation(
         ev_deviation_pct=ev_deviation_pct,
         session_win_rate=session_win_rate,
         session_win_rate_ci=session_win_rate_ci,
-        warnings=warnings,
+        warnings=tuple(warnings),
         is_valid=is_valid,
     )
