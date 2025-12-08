@@ -59,3 +59,15 @@ Before creating the PR, launch the **code-quality-reviewer agent** to check your
    - Title: `{feat|fix}: LIR-N description`
    - Body must include: `Closes #{github_issue_number}`
 3. Note the PR number for `/review-pr`
+
+---
+
+## METRICS LOGGING (Required)
+
+Before presenting the final outcome, log metrics per `.claude/memories/metrics-logging-protocol.md`:
+
+1. Ensure `.claude/metrics/` directory exists
+2. Construct the metrics JSON reflecting this execution (command name: "issue", steps_total: 6 - IDENTIFY/PLAN/CREATE/TEST/VERIFY/PUSH)
+3. Append to `.claude/metrics/command_log.jsonl`
+
+Pay special attention to the `observations` fields - these drive continuous improvement.
