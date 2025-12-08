@@ -3,11 +3,17 @@
 This module contains analytics and export functionality:
 - Core statistics calculator
 - Statistical validation
+- Chair position analytics
 - Strategy comparison analytics
 - Export formats (CSV, JSON, HTML)
 - Visualizations (histograms, trajectories)
 """
 
+from let_it_ride.analytics.chair_position import (
+    ChairPositionAnalysis,
+    SeatStatistics,
+    analyze_chair_positions,
+)
 from let_it_ride.analytics.statistics import (
     ConfidenceInterval,
     DetailedStatistics,
@@ -25,6 +31,11 @@ from let_it_ride.analytics.validation import (
 )
 
 __all__ = [
+    # Chair position types
+    "ChairPositionAnalysis",
+    "SeatStatistics",
+    # Chair position functions
+    "analyze_chair_positions",
     # Statistics types
     "ConfidenceInterval",
     "DetailedStatistics",
