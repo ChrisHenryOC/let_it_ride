@@ -15,6 +15,9 @@ from dataclasses import dataclass
 from statistics import mean, quantiles, stdev, variance
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
 from scipy import stats
 
 from let_it_ride.analytics.validation import calculate_wilson_confidence_interval
@@ -121,60 +124,60 @@ class DetailedStatistics:
 def _calculate_skewness(
     data: tuple[float, ...], data_mean: float, data_std: float
 ) -> float:
-    """Calculate Fisher-Pearson skewness coefficient.
+    """Calculate Fisher-Pearson skewness coefficient (sample-adjusted).
 
-    Uses the adjusted Fisher-Pearson standardized moment coefficient:
-    g1 = (n / ((n-1)(n-2))) * sum((xi - mean)^3) / std^3
+    Uses scipy.stats.skew with bias=False, equivalent to the adjusted
+    Fisher-Pearson standardized moment coefficient.
 
     Args:
         data: Tuple of values.
-        data_mean: Pre-calculated mean of data.
+        data_mean: Pre-calculated mean of data (unused, kept for API compatibility).
         data_std: Pre-calculated sample standard deviation of data.
 
     Returns:
         Skewness coefficient. Positive = right skewed, negative = left skewed.
+        Returns 0.0 if n < 3 or std == 0.
     """
+    # Suppress unused parameter warnings - kept for API compatibility
+    _ = data_mean
+
     n = len(data)
     if n < 3:
         return 0.0
     if data_std == 0:
         return 0.0
 
-    sum_cubed = sum((x - data_mean) ** 3 for x in data)
-    adjustment = n / ((n - 1) * (n - 2))
-    return adjustment * sum_cubed / (data_std**3)
+    return float(stats.skew(data, bias=False))
 
 
 def _calculate_kurtosis(
     data: tuple[float, ...], data_mean: float, data_std: float
 ) -> float:
-    """Calculate excess kurtosis (Fisher's definition).
+    """Calculate excess kurtosis (Fisher's definition, sample-adjusted).
 
-    Uses the adjusted formula for sample excess kurtosis:
-    g2 = ((n(n+1)) / ((n-1)(n-2)(n-3))) * sum((xi - mean)^4) / std^4
-         - 3*(n-1)^2 / ((n-2)(n-3))
+    Uses scipy.stats.kurtosis with fisher=True and bias=False,
+    equivalent to the sample-adjusted excess kurtosis formula.
 
     Args:
         data: Tuple of values.
-        data_mean: Pre-calculated mean of data.
+        data_mean: Pre-calculated mean of data (unused, kept for API compatibility).
         data_std: Pre-calculated sample standard deviation of data.
 
     Returns:
         Excess kurtosis. Normal distribution has excess kurtosis of 0.
         Positive = heavy tails (leptokurtic), negative = light tails (platykurtic).
+        Returns 0.0 if n < 4 or std == 0.
     """
+    # Suppress unused parameter warnings - kept for API compatibility
+    _ = data_mean
+
     n = len(data)
     if n < 4:
         return 0.0
     if data_std == 0:
         return 0.0
 
-    sum_fourth = sum((x - data_mean) ** 4 for x in data)
-    term1 = (n * (n + 1)) / ((n - 1) * (n - 2) * (n - 3))
-    term2 = sum_fourth / (data_std**4)
-    term3 = (3 * (n - 1) ** 2) / ((n - 2) * (n - 3))
-
-    return term1 * term2 - term3
+    return float(stats.kurtosis(data, fisher=True, bias=False))
 
 
 def _calculate_percentiles(
@@ -255,6 +258,21 @@ def _calculate_distribution_stats(
     )
 
 
+def _validate_confidence_level(confidence_level: float) -> None:
+    """Validate that confidence_level is in the valid range (0, 1).
+
+    Args:
+        confidence_level: The confidence level to validate.
+
+    Raises:
+        ValueError: If confidence_level is not between 0 and 1 (exclusive).
+    """
+    if not 0 < confidence_level < 1:
+        raise ValueError(
+            f"confidence_level must be between 0 and 1 (exclusive), got {confidence_level}"
+        )
+
+
 def _calculate_mean_confidence_interval(
     data: tuple[float, ...], confidence_level: float = 0.95
 ) -> ConfidenceInterval:
@@ -268,7 +286,11 @@ def _calculate_mean_confidence_interval(
 
     Returns:
         ConfidenceInterval for the mean.
+
+    Raises:
+        ValueError: If confidence_level is not between 0 and 1.
     """
+    _validate_confidence_level(confidence_level)
     n = len(data)
     if n < 2:
         # With insufficient data, return point estimate with no interval
@@ -290,61 +312,65 @@ def _calculate_mean_confidence_interval(
 
 
 def _calculate_risk_metrics(
-    session_results: list[SessionResult] | None = None,
+    session_results: Sequence[SessionResult] | None = None,
     session_profits: tuple[float, ...] | None = None,
     starting_bankroll: float = 0.0,
 ) -> RiskMetrics:
     """Calculate risk-related metrics from session results.
 
     Args:
-        session_results: List of SessionResult objects (preferred if available).
+        session_results: Sequence of SessionResult objects (preferred if available).
         session_profits: Tuple of session profits (used if session_results not provided).
         starting_bankroll: Starting bankroll for loss percentage calculations.
 
     Returns:
         RiskMetrics with calculated risk statistics.
+        Returns all-zero RiskMetrics if neither session_results nor session_profits
+        is provided, or if the provided data is empty.
     """
-    if session_results is not None:
+    # Define default zeroed RiskMetrics for empty/None cases
+    default_metrics = RiskMetrics(
+        prob_any_loss=0.0,
+        prob_loss_50pct=0.0,
+        prob_loss_100pct=0.0,
+        max_drawdown_mean=0.0,
+        max_drawdown_std=0.0,
+    )
+
+    # Extract profits and drawdowns from input, handling None/empty cases
+    if session_results is not None and len(session_results) > 0:
         profits = tuple(r.session_profit for r in session_results)
         drawdowns = tuple(r.max_drawdown for r in session_results)
         # Get starting bankroll from first result if not provided
-        if starting_bankroll == 0.0 and session_results:
+        if starting_bankroll == 0.0:
             starting_bankroll = session_results[0].starting_bankroll
-    elif session_profits is not None:
+    elif session_profits is not None and len(session_profits) > 0:
         profits = session_profits
         drawdowns = ()  # Not available without SessionResult
     else:
-        return RiskMetrics(
-            prob_any_loss=0.0,
-            prob_loss_50pct=0.0,
-            prob_loss_100pct=0.0,
-            max_drawdown_mean=0.0,
-            max_drawdown_std=0.0,
-        )
+        return default_metrics
 
     n = len(profits)
-    if n == 0:
-        return RiskMetrics(
-            prob_any_loss=0.0,
-            prob_loss_50pct=0.0,
-            prob_loss_100pct=0.0,
-            max_drawdown_mean=0.0,
-            max_drawdown_std=0.0,
-        )
 
-    # Probability of any loss
-    losses = sum(1 for p in profits if p < 0)
+    # Calculate loss thresholds
+    loss_50pct_threshold = -0.5 * starting_bankroll if starting_bankroll > 0 else None
+    loss_100pct_threshold = -starting_bankroll if starting_bankroll > 0 else None
+
+    # Count all loss conditions in single pass
+    losses = 0
+    loss_50pct_count = 0
+    loss_100pct_count = 0
+    for p in profits:
+        if p < 0:
+            losses += 1
+            if loss_50pct_threshold is not None and p <= loss_50pct_threshold:
+                loss_50pct_count += 1
+                if loss_100pct_threshold is not None and p <= loss_100pct_threshold:
+                    loss_100pct_count += 1
+
     prob_any_loss = losses / n
-
-    # Probability of losing 50% or more of starting bankroll
-    if starting_bankroll > 0:
-        loss_50pct_threshold = -0.5 * starting_bankroll
-        loss_100pct_threshold = -starting_bankroll
-        prob_loss_50pct = sum(1 for p in profits if p <= loss_50pct_threshold) / n
-        prob_loss_100pct = sum(1 for p in profits if p <= loss_100pct_threshold) / n
-    else:
-        prob_loss_50pct = 0.0
-        prob_loss_100pct = 0.0
+    prob_loss_50pct = loss_50pct_count / n if loss_50pct_threshold is not None else 0.0
+    prob_loss_100pct = loss_100pct_count / n if loss_100pct_threshold is not None else 0.0
 
     # Max drawdown statistics
     if drawdowns:
@@ -385,8 +411,9 @@ def calculate_statistics(
         DetailedStatistics with all computed metrics.
 
     Raises:
-        ValueError: If aggregate_stats has no sessions.
+        ValueError: If aggregate_stats has no sessions or confidence_level is invalid.
     """
+    _validate_confidence_level(confidence_level)
     if aggregate_stats.total_sessions <= 0:
         raise ValueError("Cannot calculate statistics with zero sessions")
 
@@ -470,10 +497,11 @@ def calculate_statistics_from_results(
         DetailedStatistics with all computed metrics.
 
     Raises:
-        ValueError: If results list is empty.
+        ValueError: If results list is empty or confidence_level is invalid.
     """
     from let_it_ride.simulation.aggregation import aggregate_results
 
+    _validate_confidence_level(confidence_level)
     if not results:
         raise ValueError("Cannot calculate statistics from empty results list")
 

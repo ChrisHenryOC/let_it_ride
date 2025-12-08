@@ -762,3 +762,230 @@ class TestIntegrationWithAggregation:
         assert (
             abs(stats.session_profit_distribution.std - agg.session_profit_std) < 0.01
         )
+
+
+class TestEmptySessionProfits:
+    """Tests for empty session_profits edge case."""
+
+    def test_empty_session_profits_raises_error(self) -> None:
+        """Empty session_profits with positive total_sessions should raise ValueError."""
+        agg = create_aggregate_statistics(
+            total_sessions=10,
+            winning_sessions=3,
+            losing_sessions=7,
+            push_sessions=0,
+            session_profits=(),  # Empty tuple
+        )
+
+        with pytest.raises(ValueError, match="No session profit data"):
+            calculate_statistics(agg)
+
+
+class TestScipyReferenceValidation:
+    """Tests validating skewness and kurtosis match scipy implementations."""
+
+    def test_skewness_matches_scipy(self) -> None:
+        """Verify skewness matches scipy.stats.skew with bias=False."""
+        from statistics import mean as stats_mean
+        from statistics import stdev
+
+        from scipy import stats as scipy_stats
+
+        # Right-skewed data
+        data = (1.0, 2.0, 2.0, 3.0, 3.0, 3.0, 10.0, 20.0)
+        data_mean = stats_mean(data)
+        data_std = stdev(data)
+
+        expected = scipy_stats.skew(data, bias=False)
+        actual = _calculate_skewness(data, data_mean, data_std)
+
+        assert abs(actual - expected) < 0.001
+
+    def test_kurtosis_matches_scipy(self) -> None:
+        """Verify kurtosis matches scipy.stats.kurtosis with fisher=True, bias=False."""
+        from statistics import mean as stats_mean
+        from statistics import stdev
+
+        from scipy import stats as scipy_stats
+
+        # Heavy-tailed data
+        data = (1.0, 2.0, 3.0, 4.0, 5.0, 100.0)
+        data_mean = stats_mean(data)
+        data_std = stdev(data)
+
+        expected = scipy_stats.kurtosis(data, fisher=True, bias=False)
+        actual = _calculate_kurtosis(data, data_mean, data_std)
+
+        assert abs(actual - expected) < 0.001
+
+    def test_skewness_symmetric_data(self) -> None:
+        """Symmetric data should have skewness near zero."""
+        from statistics import mean as stats_mean
+        from statistics import stdev
+
+        data = (1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)
+        data_mean = stats_mean(data)
+        data_std = stdev(data)
+
+        skew = _calculate_skewness(data, data_mean, data_std)
+        assert abs(skew) < 0.01
+
+    def test_kurtosis_normal_like_data(self) -> None:
+        """Normal-like data should have excess kurtosis near zero."""
+        from statistics import mean as stats_mean
+        from statistics import stdev
+
+        from scipy import stats as scipy_stats
+
+        # Generate normal-like data using known values
+        data = tuple(scipy_stats.norm.ppf(i / 101) for i in range(1, 101))
+        data_mean = stats_mean(data)
+        data_std = stdev(data)
+
+        kurt = _calculate_kurtosis(data, data_mean, data_std)
+        # Normal distribution has excess kurtosis of 0
+        # With sample adjustment and finite data, should be close
+        assert abs(kurt) < 0.5
+
+
+class TestConfidenceIntervalValidation:
+    """Tests validating CI t-distribution critical value calculations."""
+
+    def test_ci_bounds_known_dataset(self) -> None:
+        """Verify CI bounds with manually calculable values."""
+        from scipy import stats as scipy_stats
+
+        # Known dataset where we can verify the math
+        data = (10.0, 12.0, 14.0, 16.0, 18.0)  # mean=14, std~=3.162
+        n = 5
+
+        ci = _calculate_mean_confidence_interval(data, confidence_level=0.95)
+
+        # Manual calculation
+        from statistics import mean as stats_mean
+        from statistics import stdev
+
+        data_mean = stats_mean(data)
+        data_std = stdev(data)
+        t_critical = scipy_stats.t.ppf(0.975, df=n - 1)  # ~2.776
+        margin = t_critical * (data_std / math.sqrt(n))
+
+        expected_lower = data_mean - margin
+        expected_upper = data_mean + margin
+
+        assert abs(ci.lower - expected_lower) < 0.001
+        assert abs(ci.upper - expected_upper) < 0.001
+
+    def test_ci_contains_mean(self) -> None:
+        """CI should always contain the sample mean."""
+        from statistics import mean as stats_mean
+
+        data = (5.0, 10.0, 15.0, 20.0, 25.0, 30.0)
+        data_mean = stats_mean(data)
+
+        ci = _calculate_mean_confidence_interval(data, confidence_level=0.95)
+
+        assert ci.lower <= data_mean <= ci.upper
+
+
+class TestRiskMetricsBoundaryConditions:
+    """Tests for risk metrics boundary conditions."""
+
+    def test_loss_threshold_boundary_exact_50pct(self) -> None:
+        """Exactly 50% loss should count toward prob_loss_50pct."""
+        # -500 is exactly 50% of 1000
+        profits = (-500.0, -499.99, 100.0)
+        risk = _calculate_risk_metrics(
+            session_profits=profits, starting_bankroll=1000.0
+        )
+        # Only -500.0 is <= -500 (50% threshold)
+        assert abs(risk.prob_loss_50pct - 1 / 3) < 0.001
+
+    def test_loss_threshold_boundary_exact_100pct(self) -> None:
+        """Exactly 100% loss should count toward prob_loss_100pct."""
+        # -1000 is exactly 100% of 1000
+        profits = (-1000.0, -999.99, -500.0, 100.0)
+        risk = _calculate_risk_metrics(
+            session_profits=profits, starting_bankroll=1000.0
+        )
+        # Only -1000.0 is <= -1000 (100% threshold)
+        assert abs(risk.prob_loss_100pct - 1 / 4) < 0.001
+        # -1000.0, -999.99, and -500.0 are all <= -500 (50% threshold)
+        assert abs(risk.prob_loss_50pct - 3 / 4) < 0.001
+
+    def test_zero_starting_bankroll_disables_loss_thresholds(self) -> None:
+        """Zero starting bankroll should result in 0.0 for loss threshold probs."""
+        profits = (-1000.0, -500.0, 100.0)
+        risk = _calculate_risk_metrics(
+            session_profits=profits, starting_bankroll=0.0
+        )
+        assert risk.prob_loss_50pct == 0.0
+        assert risk.prob_loss_100pct == 0.0
+        # But prob_any_loss should still work
+        assert abs(risk.prob_any_loss - 2 / 3) < 0.001
+
+
+class TestPercentileEdgeValues:
+    """Tests for percentile edge cases 0 and 100."""
+
+    def test_percentile_0_returns_min(self) -> None:
+        """Percentile 0 should return min value."""
+        data = (5.0, 10.0, 15.0, 20.0, 25.0)
+        percentiles = _calculate_percentiles(data, (0, 50, 100))
+        assert percentiles[0] == 5.0
+
+    def test_percentile_100_returns_max(self) -> None:
+        """Percentile 100 should return max value."""
+        data = (5.0, 10.0, 15.0, 20.0, 25.0)
+        percentiles = _calculate_percentiles(data, (0, 50, 100))
+        assert percentiles[100] == 25.0
+
+    def test_all_extreme_percentiles(self) -> None:
+        """Test 0, 50, and 100 percentiles together."""
+        data = (1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0)
+        percentiles = _calculate_percentiles(data, (0, 50, 100))
+
+        assert percentiles[0] == 1.0   # min
+        assert percentiles[100] == 9.0  # max
+        # Median should be 5.0
+        assert percentiles[50] == 5.0
+
+
+class TestConfidenceLevelValidation:
+    """Tests for confidence_level parameter validation."""
+
+    def test_confidence_level_zero_raises_error(self) -> None:
+        """confidence_level of 0 should raise ValueError."""
+        data = (1.0, 2.0, 3.0, 4.0, 5.0)
+        with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+            _calculate_mean_confidence_interval(data, confidence_level=0.0)
+
+    def test_confidence_level_one_raises_error(self) -> None:
+        """confidence_level of 1 should raise ValueError."""
+        data = (1.0, 2.0, 3.0, 4.0, 5.0)
+        with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+            _calculate_mean_confidence_interval(data, confidence_level=1.0)
+
+    def test_confidence_level_negative_raises_error(self) -> None:
+        """Negative confidence_level should raise ValueError."""
+        data = (1.0, 2.0, 3.0, 4.0, 5.0)
+        with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+            _calculate_mean_confidence_interval(data, confidence_level=-0.5)
+
+    def test_confidence_level_greater_than_one_raises_error(self) -> None:
+        """confidence_level > 1 should raise ValueError."""
+        data = (1.0, 2.0, 3.0, 4.0, 5.0)
+        with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+            _calculate_mean_confidence_interval(data, confidence_level=2.0)
+
+    def test_calculate_statistics_invalid_confidence_level(self) -> None:
+        """calculate_statistics should validate confidence_level."""
+        agg = create_aggregate_statistics()
+        with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+            calculate_statistics(agg, confidence_level=0.0)
+
+    def test_calculate_statistics_from_results_invalid_confidence_level(self) -> None:
+        """calculate_statistics_from_results should validate confidence_level."""
+        results = [create_session_result()]
+        with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+            calculate_statistics_from_results(results, confidence_level=1.5)
