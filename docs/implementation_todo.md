@@ -39,6 +39,8 @@ This document provides an ordered list of remaining issues to complete, sequence
 | LIR-52 | Error Handling and Edge Case Tests | ✅ Complete (PR #104) |
 | LIR-53 | Test Quality Improvements for SimulationController | ✅ Complete (PR #105) |
 | LIR-21 | Parallel Session Execution | ✅ Complete (PR #107) |
+| LIR-22 | Simulation Results Aggregation | ✅ Complete (PR #111) |
+| LIR-23 | Statistical Validation Module | ✅ Complete (PR #112) |
 
 ---
 
@@ -48,44 +50,42 @@ This document provides an ordered list of remaining issues to complete, sequence
 
 | # | LIR | Title | Dependencies | Priority |
 |---|-----|-------|--------------|----------|
-| 1 | LIR-22 | Simulation Results Aggregation | LIR-19 ✅ | Critical |
-| 2 | LIR-23 | Statistical Validation Module | LIR-22 | High |
-| 3 | LIR-24 | RNG Quality and Seeding | LIR-1 ✅ | Medium |
-| 4 | LIR-54 | Enhanced RNG Isolation Verification with Hand-Level Testing | LIR-53 ✅ | Medium |
+| 1 | LIR-24 | RNG Quality and Seeding | LIR-1 ✅ | Medium |
+| 2 | LIR-54 | Enhanced RNG Isolation Verification with Hand-Level Testing | LIR-53 ✅ | Medium |
 
 ### Phase 5: Analytics and Reporting
 
 | # | LIR | Title | Dependencies | Priority |
 |---|-----|-------|--------------|----------|
-| 8 | LIR-25 | Core Statistics Calculator | LIR-22 | Critical |
-| 9 | LIR-26 | Strategy Comparison Analytics | LIR-25 | High |
-| 10 | LIR-27 | CSV Export | LIR-22 | Critical |
-| 11 | LIR-28 | JSON Export | LIR-22 | High |
-| 12 | LIR-29 | Visualization - Session Outcome Histogram | LIR-22 | Medium |
-| 13 | LIR-30 | Visualization - Bankroll Trajectory | LIR-29 | Medium |
-| 14 | LIR-44 | Chair Position Analytics | LIR-43 ✅, LIR-25 | Medium |
+| 3 | LIR-25 | Core Statistics Calculator | LIR-22 ✅ | Critical |
+| 4 | LIR-26 | Strategy Comparison Analytics | LIR-25 | High |
+| 5 | LIR-27 | CSV Export | LIR-22 ✅ | Critical |
+| 6 | LIR-28 | JSON Export | LIR-22 ✅ | High |
+| 7 | LIR-29 | Visualization - Session Outcome Histogram | LIR-22 ✅ | Medium |
+| 8 | LIR-30 | Visualization - Bankroll Trajectory | LIR-29 | Medium |
+| 9 | LIR-44 | Chair Position Analytics | LIR-43 ✅, LIR-25 | Medium |
 
 ### Phase 6: CLI and Integration
 
 | # | LIR | Title | Dependencies | Priority |
 |---|-----|-------|--------------|----------|
-| 15 | LIR-31 | CLI Entry Point | LIR-8 ✅, LIR-20 ✅ | Critical |
-| 16 | LIR-32 | Console Output Formatting | LIR-31 | High |
-| 17 | LIR-33 | Sample Configuration Files | LIR-8 ✅ | High |
-| 18 | LIR-34 | End-to-End Integration Test | All previous | Critical |
-| 19 | LIR-35 | Performance Optimization and Benchmarking | LIR-34 | Medium |
+| 10 | LIR-31 | CLI Entry Point | LIR-8 ✅, LIR-20 ✅ | Critical |
+| 11 | LIR-32 | Console Output Formatting | LIR-31 | High |
+| 12 | LIR-33 | Sample Configuration Files | LIR-8 ✅ | High |
+| 13 | LIR-34 | End-to-End Integration Test | All previous | Critical |
+| 14 | LIR-35 | Performance Optimization and Benchmarking | LIR-34 | Medium |
 
 ### Phase 7: Advanced Features
 
 | # | LIR | Title | Dependencies | Priority |
 |---|-----|-------|--------------|----------|
-| 20 | LIR-37 | Streak-Based Bonus Strategy | LIR-14 ✅ | Low |
-| 21 | LIR-38 | Risk of Ruin Calculator | LIR-25 | Low |
-| 22 | LIR-39 | HTML Report Generation | LIR-29, LIR-30 | Low |
-| 23 | LIR-40 | Documentation and User Guide | All previous | Medium |
-| 24 | LIR-47 | Session API Consistency and DRY Refactoring | None | Low |
-| 25 | LIR-48 | TableSession Performance Optimization | LIR-35 | Low |
-| 26 | LIR-49 | Table Integration Test Coverage Improvements | LIR-45 ✅ | Low |
+| 15 | LIR-37 | Streak-Based Bonus Strategy | LIR-14 ✅ | Low |
+| 16 | LIR-38 | Risk of Ruin Calculator | LIR-25 | Low |
+| 17 | LIR-39 | HTML Report Generation | LIR-29, LIR-30 | Low |
+| 18 | LIR-40 | Documentation and User Guide | All previous | Medium |
+| 19 | LIR-47 | Session API Consistency and DRY Refactoring | None | Low |
+| 20 | LIR-48 | TableSession Performance Optimization | LIR-35 | Low |
+| 21 | LIR-49 | Table Integration Test Coverage Improvements | LIR-45 ✅ | Low |
 
 ---
 
@@ -99,33 +99,33 @@ The following sequence respects dependencies and prioritizes critical path items
     LIR-52  Error Handling and Edge Case Tests ✅ (PR #104)
     LIR-53  Test Quality Improvements for SimulationController ✅ (PR #105)
     LIR-21  Parallel Session Execution ✅ (PR #107)
+    LIR-22  Simulation Results Aggregation ✅ (PR #111)
+    LIR-23  Statistical Validation Module ✅ (PR #112)
     ─────────────────────────────────────────────────────────────
-1.  LIR-22  Simulation Results Aggregation
-2.  LIR-24  RNG Quality and Seeding
-3.  LIR-54  Enhanced RNG Isolation Verification (depends on LIR-53 ✅)
-4.  LIR-23  Statistical Validation Module
+1.  LIR-24  RNG Quality and Seeding
+2.  LIR-54  Enhanced RNG Isolation Verification (depends on LIR-53 ✅)
     ─────── Phase 4 Complete (Simulation Infrastructure) ───────
-5.  LIR-25  Core Statistics Calculator
-6.  LIR-27  CSV Export
-7.  LIR-28  JSON Export
-8.  LIR-26  Strategy Comparison Analytics
-9.  LIR-29  Visualization - Session Outcome Histogram
-10. LIR-30  Visualization - Bankroll Trajectory
-11. LIR-44  Chair Position Analytics
+3.  LIR-25  Core Statistics Calculator
+4.  LIR-27  CSV Export
+5.  LIR-28  JSON Export
+6.  LIR-26  Strategy Comparison Analytics
+7.  LIR-29  Visualization - Session Outcome Histogram
+8.  LIR-30  Visualization - Bankroll Trajectory
+9.  LIR-44  Chair Position Analytics
     ─────── Phase 5 Complete (Analytics and Reporting) ───────
-12. LIR-31  CLI Entry Point
-13. LIR-33  Sample Configuration Files
-14. LIR-32  Console Output Formatting
-15. LIR-34  End-to-End Integration Test
-16. LIR-35  Performance Optimization and Benchmarking
+10. LIR-31  CLI Entry Point
+11. LIR-33  Sample Configuration Files
+12. LIR-32  Console Output Formatting
+13. LIR-34  End-to-End Integration Test
+14. LIR-35  Performance Optimization and Benchmarking
     ─────── Phase 6 Complete (CLI and Integration) ───────
-17. LIR-37  Streak-Based Bonus Strategy
-18. LIR-38  Risk of Ruin Calculator
-19. LIR-39  HTML Report Generation
-20. LIR-47  Session API Consistency and DRY Refactoring (anytime)
-21. LIR-48  TableSession Performance Optimization (after LIR-35 profiling)
-22. LIR-49  Table Integration Test Coverage Improvements
-23. LIR-40  Documentation and User Guide
+15. LIR-37  Streak-Based Bonus Strategy
+16. LIR-38  Risk of Ruin Calculator
+17. LIR-39  HTML Report Generation
+18. LIR-47  Session API Consistency and DRY Refactoring (anytime)
+19. LIR-48  TableSession Performance Optimization (after LIR-35 profiling)
+20. LIR-49  Table Integration Test Coverage Improvements
+21. LIR-40  Documentation and User Guide
     ─────── Phase 7 Complete (Advanced Features) ───────
 ```
 
@@ -135,17 +135,17 @@ The following sequence respects dependencies and prioritizes critical path items
 
 | Category | Count |
 |----------|-------|
-| Completed | 29 |
+| Completed | 31 |
 | Cancelled | 2 |
-| Remaining | 23 |
+| Remaining | 21 |
 | **Total** | **54** |
 
 **Recently Completed:**
+- LIR-23: Statistical Validation Module ✅ (PR #112)
+- LIR-22: Simulation Results Aggregation ✅ (PR #111)
 - LIR-21: Parallel Session Execution ✅ (PR #107)
 - LIR-53: Test Quality Improvements for SimulationController ✅ (PR #105)
 - LIR-52: Error Handling and Edge Case Tests ✅ (PR #104)
-- LIR-51: Unit Tests for Controller Factory Functions ✅ (PR #103)
-- LIR-50: Refactor Factory Functions to Registry Pattern ✅ (PR #102)
 
 **Open Issues (from PR reviews):**
 - LIR-54: Enhanced RNG Isolation Verification with Hand-Level Testing (GitHub #106)
@@ -153,9 +153,9 @@ The following sequence respects dependencies and prioritizes critical path items
 - LIR-48: TableSession Performance Optimization (GitHub #90)
 - LIR-49: Table Integration Test Coverage Improvements (GitHub #93)
 
-**Critical Path:** LIR-22 → LIR-25 → LIR-31 → LIR-34
+**Critical Path:** LIR-25 → LIR-31 → LIR-34
 
 **Next Up:**
-- LIR-22 (Results Aggregation) - critical path, all dependencies complete
+- LIR-25 (Core Statistics Calculator) - critical path, LIR-22 ✅ complete
 - LIR-24 (RNG Quality and Seeding) - no blockers
 - LIR-54 (Enhanced RNG Isolation) - depends on LIR-53 ✅
