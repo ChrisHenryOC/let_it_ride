@@ -6,6 +6,8 @@ This module provides:
 - create_betting_system: Factory function for creating betting system instances
 
 Internal registries map strategy/betting system type names to factory functions.
+
+Parallel execution is supported via the ParallelExecutor when workers > 1.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ import random
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from let_it_ride.bankroll import (
     BettingSystem,
@@ -25,17 +27,15 @@ from let_it_ride.bankroll import (
     ParoliBetting,
     ReverseMartingaleBetting,
 )
-from let_it_ride.config.paytables import (
-    BonusPaytable,
-    MainGamePaytable,
-    bonus_paytable_a,
-    bonus_paytable_b,
-    bonus_paytable_c,
-    standard_main_paytable,
-)
+from let_it_ride.config.paytables import BonusPaytable, MainGamePaytable
 from let_it_ride.core.deck import Deck
 from let_it_ride.core.game_engine import GameEngine
-from let_it_ride.simulation.session import Session, SessionConfig, SessionResult
+from let_it_ride.simulation.session import Session, SessionResult
+from let_it_ride.simulation.utils import (
+    calculate_bonus_bet,
+    get_bonus_paytable,
+    get_main_paytable,
+)
 from let_it_ride.strategy import (
     AlwaysPullStrategy,
     AlwaysRideStrategy,
@@ -54,6 +54,9 @@ if TYPE_CHECKING:
         FullConfig,
         StrategyConfig,
     )
+
+# Minimum sessions needed to benefit from parallel overhead
+_MIN_SESSIONS_FOR_PARALLEL = 10
 
 # Type alias for progress callback
 ProgressCallback = Callable[[int, int], None]
@@ -262,54 +265,28 @@ def create_betting_system(config: BankrollConfig) -> BettingSystem:
     return factory(config)
 
 
-def _get_main_paytable(config: FullConfig) -> MainGamePaytable:
-    """Get the main game paytable from configuration.
+def _should_use_parallel(workers: int | Literal["auto"], num_sessions: int) -> bool:
+    """Determine if parallel execution should be used.
 
     Args:
-        config: The full simulation configuration.
+        workers: Configured worker count or "auto".
+        num_sessions: Number of sessions to run.
 
     Returns:
-        The appropriate MainGamePaytable instance.
-
-    Raises:
-        NotImplementedError: If the paytable type is not yet supported.
+        True if parallel execution should be used.
     """
-    paytable_type = config.paytables.main_game.type
-    if paytable_type == "standard":
-        return standard_main_paytable()
-    # liberal, tight, and custom paytables not yet implemented
-    raise NotImplementedError(
-        f"Main paytable type '{paytable_type}' is not yet implemented. "
-        "Only 'standard' is currently supported."
-    )
+    # Import here to avoid circular imports
+    from let_it_ride.simulation.parallel import get_effective_worker_count
 
+    effective_workers = get_effective_worker_count(workers)
 
-def _get_bonus_paytable(config: FullConfig) -> BonusPaytable | None:
-    """Get the bonus paytable from configuration.
+    # Use sequential for single worker or too few sessions
+    if effective_workers <= 1:
+        return False
+    if num_sessions < _MIN_SESSIONS_FOR_PARALLEL:
+        return False
 
-    Args:
-        config: The full simulation configuration.
-
-    Returns:
-        The appropriate BonusPaytable instance, or None if bonus is disabled.
-
-    Raises:
-        ValueError: If the bonus paytable type is unknown.
-    """
-    if not config.bonus_strategy.enabled:
-        return None
-
-    paytable_type = config.paytables.bonus.type
-    if paytable_type == "paytable_a":
-        return bonus_paytable_a()
-    if paytable_type == "paytable_b":
-        return bonus_paytable_b()
-    if paytable_type == "paytable_c":
-        return bonus_paytable_c()
-    raise ValueError(
-        f"Unknown bonus paytable type: '{paytable_type}'. "
-        "Supported types: 'paytable_a', 'paytable_b', 'paytable_c'."
-    )
+    return True
 
 
 class SimulationController:
@@ -317,6 +294,10 @@ class SimulationController:
 
     The controller manages the lifecycle of sessions, handles RNG seeding
     for reproducibility, and aggregates results.
+
+    Supports both sequential and parallel execution. Parallel execution
+    is used when workers > 1 and there are enough sessions to benefit
+    from the overhead.
     """
 
     __slots__ = ("_config", "_progress_callback", "_base_seed")
@@ -332,7 +313,7 @@ class SimulationController:
             config: Full simulation configuration.
             progress_callback: Optional callback for progress reporting.
                 Called with (completed_sessions, total_sessions) after
-                each session completes.
+                each session completes (sequential) or at completion (parallel).
         """
         self._config = config
         self._progress_callback = progress_callback
@@ -341,8 +322,49 @@ class SimulationController:
     def run(self) -> SimulationResults:
         """Execute the simulation.
 
-        Runs the configured number of sessions sequentially, collecting
-        results and reporting progress.
+        Uses parallel execution when workers > 1 and there are enough sessions.
+        Otherwise runs sequentially.
+
+        Returns:
+            SimulationResults containing all session results and metadata.
+        """
+        workers = self._config.simulation.workers
+        num_sessions = self._config.simulation.num_sessions
+
+        if _should_use_parallel(workers, num_sessions):
+            return self._run_parallel()
+        return self._run_sequential()
+
+    def _run_parallel(self) -> SimulationResults:
+        """Execute the simulation using parallel workers.
+
+        Returns:
+            SimulationResults containing all session results and metadata.
+        """
+        # Import here to avoid circular imports
+        from let_it_ride.simulation.parallel import ParallelExecutor
+
+        start_time = datetime.now()
+
+        executor = ParallelExecutor(self._config.simulation.workers)
+        session_results = executor.run_sessions(
+            config=self._config,
+            progress_callback=self._progress_callback,
+        )
+
+        end_time = datetime.now()
+        total_hands = sum(r.hands_played for r in session_results)
+
+        return SimulationResults(
+            config=self._config,
+            session_results=session_results,
+            start_time=start_time,
+            end_time=end_time,
+            total_hands=total_hands,
+        )
+
+    def _run_sequential(self) -> SimulationResults:
+        """Execute the simulation sequentially.
 
         Returns:
             SimulationResults containing all session results and metadata.
@@ -354,8 +376,8 @@ class SimulationController:
         # Create immutable components once and reuse across sessions
         # (Strategy, paytables, and betting system configs are identical per-session)
         strategy = create_strategy(self._config.strategy)
-        main_paytable = _get_main_paytable(self._config)
-        bonus_paytable = _get_bonus_paytable(self._config)
+        main_paytable = get_main_paytable(self._config)
+        bonus_paytable = get_bonus_paytable(self._config)
 
         def betting_system_factory() -> BettingSystem:
             return create_betting_system(self._config.bankroll)
@@ -416,35 +438,11 @@ class SimulationController:
         Returns:
             A new Session instance ready to run.
         """
-        # Build SessionConfig from FullConfig
-        bankroll_config = self._config.bankroll
-        stop_conditions = bankroll_config.stop_conditions
+        # Build SessionConfig from FullConfig using shared utilities
+        from let_it_ride.simulation.utils import create_session_config
 
-        # Determine bonus bet amount (0 if bonus disabled)
-        bonus_bet = 0.0
-        if self._config.bonus_strategy.enabled:
-            # For now, use a fixed bonus bet if enabled
-            # TODO: Support dynamic bonus betting from strategy
-            if self._config.bonus_strategy.always is not None:
-                bonus_bet = self._config.bonus_strategy.always.amount
-            elif self._config.bonus_strategy.static is not None:
-                if self._config.bonus_strategy.static.amount is not None:
-                    bonus_bet = self._config.bonus_strategy.static.amount
-                elif self._config.bonus_strategy.static.ratio is not None:
-                    bonus_bet = (
-                        bankroll_config.base_bet
-                        * self._config.bonus_strategy.static.ratio
-                    )
-
-        session_config = SessionConfig(
-            starting_bankroll=bankroll_config.starting_amount,
-            base_bet=bankroll_config.base_bet,
-            win_limit=stop_conditions.win_limit,
-            loss_limit=stop_conditions.loss_limit,
-            max_hands=self._config.simulation.hands_per_session,
-            stop_on_insufficient_funds=stop_conditions.stop_on_insufficient_funds,
-            bonus_bet=bonus_bet,
-        )
+        bonus_bet = calculate_bonus_bet(self._config)
+        session_config = create_session_config(self._config, bonus_bet)
 
         # Create game components - Deck must be fresh per session
         deck = Deck()

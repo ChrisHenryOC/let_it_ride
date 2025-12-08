@@ -1,7 +1,7 @@
-"""Unit tests for factory functions in controller module.
+"""Unit tests for factory functions in controller and utils modules.
 
-Tests the create_strategy(), create_betting_system(), _get_main_paytable(),
-and _get_bonus_paytable() factory functions with registry pattern implementation.
+Tests the create_strategy(), create_betting_system(), get_main_paytable(),
+and get_bonus_paytable() factory functions with registry pattern implementation.
 """
 
 from typing import Any
@@ -50,10 +50,12 @@ from let_it_ride.simulation.controller import (
     _BETTING_SYSTEM_FACTORIES,
     _STRATEGY_FACTORIES,
     _action_to_decision,
-    _get_bonus_paytable,
-    _get_main_paytable,
     create_betting_system,
     create_strategy,
+)
+from let_it_ride.simulation.utils import (
+    get_bonus_paytable,
+    get_main_paytable,
 )
 from let_it_ride.strategy import (
     AlwaysPullStrategy,
@@ -678,18 +680,18 @@ def _create_full_config_bypassing_validation(
 
 
 class TestGetMainPaytable:
-    """Tests for _get_main_paytable() factory function."""
+    """Tests for get_main_paytable() factory function."""
 
     def test_standard_paytable_returns_correct_type(self) -> None:
         """Test that standard paytable type returns a MainGamePaytable."""
         config = _create_full_config(main_paytable_type="standard")
-        paytable = _get_main_paytable(config)
+        paytable = get_main_paytable(config)
         assert isinstance(paytable, MainGamePaytable)
 
     def test_standard_paytable_matches_expected_instance(self) -> None:
         """Test that standard paytable returns the same values as standard_main_paytable()."""
         config = _create_full_config(main_paytable_type="standard")
-        paytable = _get_main_paytable(config)
+        paytable = get_main_paytable(config)
         expected = standard_main_paytable()
         # Verify name and payouts match
         assert paytable.name == expected.name
@@ -702,7 +704,7 @@ class TestGetMainPaytable:
             NotImplementedError,
             match="Main paytable type 'liberal' is not yet implemented",
         ):
-            _get_main_paytable(config)
+            get_main_paytable(config)
 
     def test_tight_paytable_raises_not_implemented(self) -> None:
         """Test that tight paytable type raises NotImplementedError."""
@@ -711,7 +713,7 @@ class TestGetMainPaytable:
             NotImplementedError,
             match="Main paytable type 'tight' is not yet implemented",
         ):
-            _get_main_paytable(config)
+            get_main_paytable(config)
 
     def test_custom_paytable_raises_not_implemented(self) -> None:
         """Test that custom paytable type raises NotImplementedError."""
@@ -720,16 +722,16 @@ class TestGetMainPaytable:
             NotImplementedError,
             match="Main paytable type 'custom' is not yet implemented",
         ):
-            _get_main_paytable(config)
+            get_main_paytable(config)
 
 
 class TestGetBonusPaytable:
-    """Tests for _get_bonus_paytable() factory function."""
+    """Tests for get_bonus_paytable() factory function."""
 
     def test_bonus_disabled_returns_none(self) -> None:
         """Test that disabled bonus returns None."""
         config = _create_full_config(bonus_enabled=False)
-        paytable = _get_bonus_paytable(config)
+        paytable = get_bonus_paytable(config)
         assert paytable is None
 
     def test_paytable_a_returns_correct_type(self) -> None:
@@ -737,7 +739,7 @@ class TestGetBonusPaytable:
         config = _create_full_config(
             bonus_enabled=True, bonus_paytable_type="paytable_a"
         )
-        paytable = _get_bonus_paytable(config)
+        paytable = get_bonus_paytable(config)
         assert isinstance(paytable, BonusPaytable)
 
     def test_paytable_a_matches_expected_instance(self) -> None:
@@ -745,7 +747,7 @@ class TestGetBonusPaytable:
         config = _create_full_config(
             bonus_enabled=True, bonus_paytable_type="paytable_a"
         )
-        paytable = _get_bonus_paytable(config)
+        paytable = get_bonus_paytable(config)
         expected = bonus_paytable_a()
         assert paytable is not None
         assert paytable.name == expected.name
@@ -756,7 +758,7 @@ class TestGetBonusPaytable:
         config = _create_full_config(
             bonus_enabled=True, bonus_paytable_type="paytable_b"
         )
-        paytable = _get_bonus_paytable(config)
+        paytable = get_bonus_paytable(config)
         assert isinstance(paytable, BonusPaytable)
 
     def test_paytable_b_matches_expected_instance(self) -> None:
@@ -764,7 +766,7 @@ class TestGetBonusPaytable:
         config = _create_full_config(
             bonus_enabled=True, bonus_paytable_type="paytable_b"
         )
-        paytable = _get_bonus_paytable(config)
+        paytable = get_bonus_paytable(config)
         expected = bonus_paytable_b()
         assert paytable is not None
         assert paytable.name == expected.name
@@ -775,7 +777,7 @@ class TestGetBonusPaytable:
         config = _create_full_config(
             bonus_enabled=True, bonus_paytable_type="paytable_c"
         )
-        paytable = _get_bonus_paytable(config)
+        paytable = get_bonus_paytable(config)
         assert isinstance(paytable, BonusPaytable)
 
     def test_paytable_c_matches_expected_instance(self) -> None:
@@ -783,7 +785,7 @@ class TestGetBonusPaytable:
         config = _create_full_config(
             bonus_enabled=True, bonus_paytable_type="paytable_c"
         )
-        paytable = _get_bonus_paytable(config)
+        paytable = get_bonus_paytable(config)
         expected = bonus_paytable_c()
         assert paytable is not None
         assert paytable.name == expected.name
@@ -798,7 +800,7 @@ class TestGetBonusPaytable:
             ValueError,
             match="Unknown bonus paytable type: 'unknown_paytable'",
         ):
-            _get_bonus_paytable(config)
+            get_bonus_paytable(config)
 
     def test_custom_paytable_type_raises_value_error(self) -> None:
         """Test that custom bonus paytable type raises ValueError.
@@ -813,4 +815,4 @@ class TestGetBonusPaytable:
             ValueError,
             match="Unknown bonus paytable type: 'custom'",
         ):
-            _get_bonus_paytable(config)
+            get_bonus_paytable(config)
