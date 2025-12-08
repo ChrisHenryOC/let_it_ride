@@ -2,7 +2,7 @@
 
 This document provides an ordered list of remaining issues to complete, sequenced according to their dependencies.
 
-**Last Updated:** 2025-12-07 (Synced with GitHub issue statuses - PR #105 review complete)
+**Last Updated:** 2025-12-08 (Synced with GitHub issue statuses)
 
 ## Completed Issues
 
@@ -36,6 +36,9 @@ This document provides an ordered list of remaining issues to complete, sequence
 | LIR-46 | Extract Shared Hand Processing Logic | ✅ Complete (PR #85) |
 | LIR-50 | Refactor Factory Functions to Registry Pattern | ✅ Complete (PR #102) |
 | LIR-51 | Unit Tests for Controller Factory Functions | ✅ Complete (PR #103) |
+| LIR-52 | Error Handling and Edge Case Tests | ✅ Complete (PR #104) |
+| LIR-53 | Test Quality Improvements for SimulationController | ✅ Complete (PR #105) |
+| LIR-21 | Parallel Session Execution | ✅ Complete (PR #107) |
 
 ---
 
@@ -45,13 +48,10 @@ This document provides an ordered list of remaining issues to complete, sequence
 
 | # | LIR | Title | Dependencies | Priority |
 |---|-----|-------|--------------|----------|
-| 1 | LIR-52 | Error Handling and Edge Case Tests | LIR-20 ✅, LIR-51 ✅ | High |
-| 2 | LIR-53 | Test Quality Improvements for SimulationController | LIR-20 ✅ | Medium |
-| 3 | LIR-21 | Parallel Session Execution | LIR-20 ✅ | High |
-| 4 | LIR-22 | Simulation Results Aggregation | LIR-19 ✅ | Critical |
-| 5 | LIR-23 | Statistical Validation Module | LIR-22 | High |
-| 6 | LIR-24 | RNG Quality and Seeding | LIR-1 ✅ | Medium |
-| 7 | LIR-54 | Enhanced RNG Isolation Verification with Hand-Level Testing | LIR-53 | Medium |
+| 1 | LIR-22 | Simulation Results Aggregation | LIR-19 ✅ | Critical |
+| 2 | LIR-23 | Statistical Validation Module | LIR-22 | High |
+| 3 | LIR-24 | RNG Quality and Seeding | LIR-1 ✅ | Medium |
+| 4 | LIR-54 | Enhanced RNG Isolation Verification with Hand-Level Testing | LIR-53 ✅ | Medium |
 
 ### Phase 5: Analytics and Reporting
 
@@ -96,36 +96,36 @@ The following sequence respects dependencies and prioritizes critical path items
 ```
     ─────── Phase 3.5 Complete (Multi-Player Foundation) ───────
     LIR-51  Unit Tests for Controller Factory Functions ✅ (PR #103)
+    LIR-52  Error Handling and Edge Case Tests ✅ (PR #104)
+    LIR-53  Test Quality Improvements for SimulationController ✅ (PR #105)
+    LIR-21  Parallel Session Execution ✅ (PR #107)
     ─────────────────────────────────────────────────────────────
-1.  LIR-52  Error Handling and Edge Case Tests (PR #104 in review)
-2.  LIR-53  Test Quality Improvements for SimulationController (PR #105 in review)
-3.  LIR-22  Simulation Results Aggregation
-4.  LIR-21  Parallel Session Execution
-5.  LIR-24  RNG Quality and Seeding
-6.  LIR-54  Enhanced RNG Isolation Verification (depends on LIR-53)
-7.  LIR-23  Statistical Validation Module
+1.  LIR-22  Simulation Results Aggregation
+2.  LIR-24  RNG Quality and Seeding
+3.  LIR-54  Enhanced RNG Isolation Verification (depends on LIR-53 ✅)
+4.  LIR-23  Statistical Validation Module
     ─────── Phase 4 Complete (Simulation Infrastructure) ───────
-8.  LIR-25  Core Statistics Calculator
-9.  LIR-27  CSV Export
-10. LIR-28  JSON Export
-11. LIR-26  Strategy Comparison Analytics
-12. LIR-29  Visualization - Session Outcome Histogram
-13. LIR-30  Visualization - Bankroll Trajectory
-14. LIR-44  Chair Position Analytics
+5.  LIR-25  Core Statistics Calculator
+6.  LIR-27  CSV Export
+7.  LIR-28  JSON Export
+8.  LIR-26  Strategy Comparison Analytics
+9.  LIR-29  Visualization - Session Outcome Histogram
+10. LIR-30  Visualization - Bankroll Trajectory
+11. LIR-44  Chair Position Analytics
     ─────── Phase 5 Complete (Analytics and Reporting) ───────
-15. LIR-31  CLI Entry Point
-16. LIR-33  Sample Configuration Files
-17. LIR-32  Console Output Formatting
-18. LIR-34  End-to-End Integration Test
-19. LIR-35  Performance Optimization and Benchmarking
+12. LIR-31  CLI Entry Point
+13. LIR-33  Sample Configuration Files
+14. LIR-32  Console Output Formatting
+15. LIR-34  End-to-End Integration Test
+16. LIR-35  Performance Optimization and Benchmarking
     ─────── Phase 6 Complete (CLI and Integration) ───────
-20. LIR-37  Streak-Based Bonus Strategy
-21. LIR-38  Risk of Ruin Calculator
-22. LIR-39  HTML Report Generation
-23. LIR-47  Session API Consistency and DRY Refactoring (anytime)
-24. LIR-48  TableSession Performance Optimization (after LIR-35 profiling)
-25. LIR-49  Table Integration Test Coverage Improvements
-26. LIR-40  Documentation and User Guide
+17. LIR-37  Streak-Based Bonus Strategy
+18. LIR-38  Risk of Ruin Calculator
+19. LIR-39  HTML Report Generation
+20. LIR-47  Session API Consistency and DRY Refactoring (anytime)
+21. LIR-48  TableSession Performance Optimization (after LIR-35 profiling)
+22. LIR-49  Table Integration Test Coverage Improvements
+23. LIR-40  Documentation and User Guide
     ─────── Phase 7 Complete (Advanced Features) ───────
 ```
 
@@ -135,26 +135,20 @@ The following sequence respects dependencies and prioritizes critical path items
 
 | Category | Count |
 |----------|-------|
-| Completed | 26 |
+| Completed | 29 |
 | Cancelled | 2 |
-| Remaining | 26 |
+| Remaining | 23 |
 | **Total** | **54** |
 
 **Recently Completed:**
+- LIR-21: Parallel Session Execution ✅ (PR #107)
+- LIR-53: Test Quality Improvements for SimulationController ✅ (PR #105)
+- LIR-52: Error Handling and Edge Case Tests ✅ (PR #104)
 - LIR-51: Unit Tests for Controller Factory Functions ✅ (PR #103)
 - LIR-50: Refactor Factory Functions to Registry Pattern ✅ (PR #102)
-- LIR-20: Simulation Controller (Sequential) ✅ (PR #96)
-- LIR-45: Table Integration Tests ✅ (PR #92)
-- LIR-43: Multi-Player Session Management ✅ (PR #88)
 
-**In Review:**
-- LIR-52: Error Handling and Edge Case Tests (GitHub #99, PR #104) - High priority, review fixes applied
-- LIR-53: Test Quality Improvements for SimulationController (GitHub #100, PR #105) - Medium, review fixes applied
-
-**New Issues (from PR #105 review):**
-- LIR-54: Enhanced RNG Isolation Verification with Hand-Level Testing (GitHub #106) - Medium, requires infrastructure
-
-**Other Open Issues (from earlier PR reviews):**
+**Open Issues (from PR reviews):**
+- LIR-54: Enhanced RNG Isolation Verification with Hand-Level Testing (GitHub #106)
 - LIR-47: Session API Consistency and DRY Refactoring (GitHub #89)
 - LIR-48: TableSession Performance Optimization (GitHub #90)
 - LIR-49: Table Integration Test Coverage Improvements (GitHub #93)
@@ -162,6 +156,6 @@ The following sequence respects dependencies and prioritizes critical path items
 **Critical Path:** LIR-22 → LIR-25 → LIR-31 → LIR-34
 
 **Next Up:**
-- LIR-52 (Error Handling Tests) - PR #104 in review, fixes applied
-- LIR-53 (Test Quality Improvements) - PR #105 in review, fixes applied
 - LIR-22 (Results Aggregation) - critical path, all dependencies complete
+- LIR-24 (RNG Quality and Seeding) - no blockers
+- LIR-54 (Enhanced RNG Isolation) - depends on LIR-53 ✅
