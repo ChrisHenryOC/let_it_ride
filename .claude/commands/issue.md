@@ -28,6 +28,11 @@ Please analyze and fix the GitHub issue: $ARGUMENTS.
 
 # CREATE
 
+**CHECKPOINT:** Before writing any code, verify the scratchpad exists:
+- File: `/scratchpads/issue-{number}-{short-name}.md`
+- Must contain: GitHub issue link, planned tasks
+- If missing, create it now before proceeding
+
 - Create branch: `feature/issue-{number}-{short-description}` or `fix/issue-{number}-...`
 - Implement in small steps according to your plan
 - Commit after each logical step with descriptive messages
