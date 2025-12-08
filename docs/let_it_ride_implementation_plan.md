@@ -1306,6 +1306,11 @@ Implement comprehensive end-to-end tests validating the complete simulation pipe
 - `tests/e2e/test_full_simulation.py`
 - `tests/e2e/test_output_formats.py`
 
+**Deferred Items from Code Reviews:**
+- [PR #78 LIR-41] DeckEmptyError edge case test
+- [PR #78 LIR-41] YAML loader test for dealer section
+- [PR #111 LIR-22] Integration test connecting `aggregate_results()` to `SimulationController.run()` output
+
 **Estimated Scope:** ~300 lines
 
 ---
