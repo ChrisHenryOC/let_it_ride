@@ -223,3 +223,15 @@ Then display the same summary to the console for the user.
 - Don't silently skip issues - either fix them or explicitly defer with user consent
 - For "B) Create issue": always update `docs/implementation_todo.md`
 - Reply to ALL @claude PR comments after fixing
+
+---
+
+## METRICS LOGGING (Required)
+
+Before presenting the final outcome, log metrics per `.claude/memories/metrics-logging-protocol.md`:
+
+1. Ensure `.claude/metrics/` directory exists
+2. Construct the metrics JSON reflecting this execution (command name: "fix-review", steps_total: 8 - SETUP/GATHER/BUILD-MATRIX/CONSOLIDATE/TODO/IMPLEMENT/VALIDATE/DEFERRED/SUMMARY)
+3. Append to `.claude/metrics/command_log.jsonl`
+
+Pay special attention to the `observations` fields - these drive continuous improvement.

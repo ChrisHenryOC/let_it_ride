@@ -95,3 +95,15 @@ The PR diff has been saved to `/tmp/pr$ARGUMENTS.diff`. Each agent MUST:
    - Summary (2-3 sentences)
    - Findings by severity (Critical/High/Medium/Low)
    - Specific recommendations with file:line references
+
+---
+
+## METRICS LOGGING (Required)
+
+Before presenting the final outcome, log metrics per `.claude/memories/metrics-logging-protocol.md`:
+
+1. Ensure `.claude/metrics/` directory exists
+2. Construct the metrics JSON reflecting this execution (command name: "review-pr", steps_total: 5)
+3. Append to `.claude/metrics/command_log.jsonl`
+
+Pay special attention to the `observations` fields - these drive continuous improvement.
