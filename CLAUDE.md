@@ -72,12 +72,19 @@ Simulations are configured via YAML files. Key sections:
 - `simulation`: num_sessions, hands_per_session, random_seed, workers
 - `table`: num_seats (1-6 for multi-player simulation)
 - `dealer`: discard_enabled, discard_cards (burn cards before community)
-- `deck`: shuffle_algorithm (fisher_yates/cryptographic)
+- `deck`: shuffle_algorithm (fisher_yates/cryptographic), use_crypto (high-entropy seeds)
 - `bankroll`: starting_amount, base_bet, stop_conditions, betting_system
 - `strategy`: type (basic/always_ride/always_pull/conservative/aggressive/custom)
 - `bonus_strategy`: type (never/always/static/bankroll_conditional)
 - `paytables`: main_game and bonus payout tables
 - `output`: directory, formats (csv/json/html), visualizations
+
+### RNG Management
+
+The `RNGManager` class provides centralized seed management for reproducible simulations:
+- `use_crypto=True`: Use secrets module for high-entropy seeding (non-reproducible)
+- `validate_rng_quality()`: Run chi-square uniformity and Wald-Wolfowitz runs tests
+- State serialization supports checkpointing and resume
 
 ## Performance Targets
 

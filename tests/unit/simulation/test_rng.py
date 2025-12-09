@@ -16,6 +16,10 @@ import pytest
 from let_it_ride.simulation.rng import (
     RNGManager,
     RNGQualityResult,
+    _chi_square_uniformity_test,
+    _get_chi_square_critical,
+    _get_z_critical,
+    _runs_test,
     validate_rng_quality,
 )
 
@@ -625,3 +629,163 @@ class TestCryptoRNGBehavior:
 
         # Worker RNGs should be identical despite crypto mode
         assert rng1.random() == rng2.random()
+
+
+class TestChiSquareUniformityTest:
+    """Direct tests for _chi_square_uniformity_test helper function."""
+
+    def test_uniform_samples_pass(self) -> None:
+        """Uniform distribution passes chi-square test."""
+        # Generate samples uniformly distributed across buckets
+        rng = random.Random(42)
+        samples = [rng.random() for _ in range(10000)]
+
+        stat, passed = _chi_square_uniformity_test(samples, num_buckets=10, alpha=0.05)
+
+        assert passed is True
+        assert isinstance(stat, float)
+        assert stat >= 0  # Chi-square is always non-negative
+
+    def test_heavily_skewed_samples_fail(self) -> None:
+        """Non-uniform distribution fails chi-square test."""
+        # All samples in first bucket
+        samples = [0.05] * 1000
+
+        stat, passed = _chi_square_uniformity_test(samples, num_buckets=10, alpha=0.05)
+
+        assert passed is False
+        assert stat > 100  # Very high chi-square for completely skewed data
+
+    def test_two_buckets_uniform(self) -> None:
+        """Two buckets with uniform distribution passes."""
+        # Half in each bucket
+        samples = [0.25] * 500 + [0.75] * 500
+
+        stat, passed = _chi_square_uniformity_test(samples, num_buckets=2, alpha=0.05)
+
+        assert passed is True
+        assert stat == 0.0  # Perfect 50/50 split
+
+    def test_boundary_sample_handled_correctly(self) -> None:
+        """Sample value 1.0 (edge case) maps to last bucket."""
+        # Values at exactly 1.0 should go to last bucket (index num_buckets-1)
+        samples = [0.999999] * 100
+
+        stat, passed = _chi_square_uniformity_test(samples, num_buckets=10, alpha=0.05)
+
+        # All in last bucket - should fail uniformity
+        assert passed is False
+
+
+class TestRunsTest:
+    """Direct tests for _runs_test helper function."""
+
+    def test_too_few_samples_returns_early(self) -> None:
+        """Runs test returns (0.0, True) for n < 20."""
+        samples = [0.1, 0.2, 0.3, 0.4, 0.5]  # Only 5 samples
+
+        z_score, passed = _runs_test(samples, alpha=0.05)
+
+        assert z_score == 0.0
+        assert passed is True
+
+    def test_exactly_20_samples_runs_test(self) -> None:
+        """Runs test executes with exactly 20 samples."""
+        rng = random.Random(42)
+        samples = [rng.random() for _ in range(20)]
+
+        z_score, passed = _runs_test(samples, alpha=0.05)
+
+        assert isinstance(z_score, float)
+        assert isinstance(passed, bool)
+
+    def test_all_same_value_fails(self) -> None:
+        """All identical values fail (all on one side of median)."""
+        samples = [0.5] * 100
+
+        z_score, passed = _runs_test(samples, alpha=0.05)
+
+        # All values equal median, so n2 = 0
+        assert z_score == 0.0
+        assert passed is False
+
+    def test_alternating_pattern_detected(self) -> None:
+        """Perfectly alternating pattern has many runs."""
+        # Alternating high/low values - too many runs indicates pattern
+        samples = [0.25 if i % 2 == 0 else 0.75 for i in range(100)]
+
+        z_score, passed = _runs_test(samples, alpha=0.05)
+
+        # Alternating pattern creates excessive runs
+        # z_score should be very high (positive)
+        assert abs(z_score) > 1.96  # Beyond 95% confidence interval
+        assert passed is False
+
+    def test_uniform_random_passes(self) -> None:
+        """Properly random sequence passes runs test."""
+        rng = random.Random(42)
+        samples = [rng.random() for _ in range(1000)]
+
+        z_score, passed = _runs_test(samples, alpha=0.05)
+
+        assert passed is True
+        assert abs(z_score) <= 1.96
+
+
+class TestGetChiSquareCritical:
+    """Direct tests for _get_chi_square_critical helper function."""
+
+    def test_table_lookup_df_9(self) -> None:
+        """Known critical value from table for df=9, alpha=0.05."""
+        critical = _get_chi_square_critical(df=9, alpha=0.05)
+        assert critical == 16.919
+
+    def test_table_lookup_df_9_alpha_01(self) -> None:
+        """Known critical value from table for df=9, alpha=0.01."""
+        critical = _get_chi_square_critical(df=9, alpha=0.01)
+        assert critical == 21.666
+
+    def test_wilson_hilferty_approximation_large_df(self) -> None:
+        """Wilson-Hilferty approximation used for df not in table."""
+        # df=50 is not in the lookup table
+        critical = _get_chi_square_critical(df=50, alpha=0.05)
+
+        # Wilson-Hilferty approximation - verify it returns a reasonable value
+        # Expected chi-square(50, 0.05) ~ 67.5-72
+        assert 65 < critical < 75
+        assert isinstance(critical, float)
+
+    def test_wilson_hilferty_approximation_df_100(self) -> None:
+        """Wilson-Hilferty for large df=100."""
+        critical = _get_chi_square_critical(df=100, alpha=0.05)
+
+        # Expected ~ 124
+        assert 120 < critical < 130
+
+
+class TestGetZCritical:
+    """Direct tests for _get_z_critical helper function."""
+
+    def test_alpha_0_01(self) -> None:
+        """Z critical for alpha=0.01 is 2.576."""
+        assert _get_z_critical(0.01) == 2.576
+
+    def test_alpha_0_05(self) -> None:
+        """Z critical for alpha=0.05 is 1.96."""
+        assert _get_z_critical(0.05) == 1.96
+
+    def test_alpha_0_10(self) -> None:
+        """Z critical for alpha=0.10 is 1.645."""
+        assert _get_z_critical(0.10) == 1.645
+
+    def test_alpha_0_20(self) -> None:
+        """Z critical for alpha=0.20 is 1.28."""
+        assert _get_z_critical(0.20) == 1.28
+
+    def test_alpha_between_01_and_05(self) -> None:
+        """Alpha between 0.01 and 0.05 uses 0.05 threshold (1.96)."""
+        assert _get_z_critical(0.03) == 1.96
+
+    def test_alpha_very_small(self) -> None:
+        """Very small alpha uses 0.01 threshold (2.576)."""
+        assert _get_z_critical(0.001) == 2.576
