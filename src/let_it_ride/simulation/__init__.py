@@ -30,6 +30,11 @@ from let_it_ride.simulation.results import (
     count_hand_distribution_from_records,
     get_decision_from_string,
 )
+from let_it_ride.simulation.rng import (
+    RNGManager,
+    RNGQualityResult,
+    validate_rng_quality,
+)
 from let_it_ride.simulation.session import (
     Session,
     SessionConfig,
@@ -49,6 +54,8 @@ __all__ = [
     "AggregateStatistics",
     "HandRecord",
     "ProgressCallback",
+    "RNGManager",
+    "RNGQualityResult",
     "SeatSessionResult",
     "Session",
     "SessionConfig",
@@ -71,4 +78,5 @@ __all__ = [
     "create_strategy",
     "get_decision_from_string",
     "merge_aggregates",
+    "validate_rng_quality",
 ]

@@ -1435,6 +1435,8 @@ Create comprehensive documentation for installation, usage, and strategy referen
 - [ ] Installation guide (Poetry, pip)
 - [ ] Quick start tutorial
 - [ ] Configuration reference (all options documented)
+  - [ ] Document RNG configuration options (`use_crypto`, `validate_rng_quality`)
+  - [ ] Update requirements doc NFR-202 to specify chi-square and Wald-Wolfowitz runs tests
 - [ ] Strategy guide with basic strategy charts
 - [ ] API documentation (if applicable)
 - [ ] Example workflows
@@ -1449,6 +1451,36 @@ Create comprehensive documentation for installation, usage, and strategy referen
 - `docs/api.md`
 
 **Estimated Scope:** ~500 lines (documentation)
+
+---
+
+### LIR-45: Property-Based Testing with Hypothesis
+
+**Labels:** `testing`, `enhancement`, `priority-low`
+
+**Description:**
+Add property-based testing using the `hypothesis` library to strengthen test coverage for simulation-critical components, particularly the RNG management module.
+
+**Background:**
+Identified during code review for PR #115 (LIR-24 RNG Quality and Seeding). Property-based tests strengthen confidence in seed uniqueness guarantees across different inputs.
+
+**Acceptance Criteria:**
+- [ ] Add `hypothesis` to dev dependencies
+- [ ] Add property tests for `RNGManager`:
+  - All generated session seeds are unique for any valid `num_sessions`
+  - Different worker_ids always produce different first random values
+  - State serialization roundtrip preserves all properties
+- [ ] Add property tests for `validate_rng_quality`:
+  - Standard `random.Random` passes for any seed
+- [ ] Document hypothesis usage patterns in test code
+
+**Dependencies:** LIR-24
+
+**Files to Modify:**
+- `pyproject.toml` (add hypothesis dependency)
+- `tests/unit/simulation/test_rng.py` (add property tests)
+
+**Estimated Scope:** ~100 lines
 
 ---
 
@@ -1592,16 +1624,17 @@ All ─► LIR-40
 | 4 | LIR-20 through LIR-24 | Simulation | ~1,050 |
 | 5 | LIR-25 through LIR-30, LIR-44 | Analytics + Chair Position | ~1,200 |
 | 6 | LIR-31 through LIR-35 | CLI/Integration | ~1,150 |
-| 7 | LIR-37 through LIR-40 | Advanced (Note: LIR-36 cancelled) | ~1,200 |
-| **Total** | **42** | | **~9,350** |
+| 7 | LIR-37 through LIR-40, LIR-45 | Advanced (Note: LIR-36 cancelled) | ~1,300 |
+| **Total** | **43** | | **~9,450** |
 
-This plan provides 42 well-scoped issues that Claude Code can execute against, with clear acceptance criteria and dependency tracking for efficient parallel development.
+This plan provides 43 well-scoped issues that Claude Code can execute against, with clear acceptance criteria and dependency tracking for efficient parallel development.
 
 **New Items (POC Findings):**
 - LIR-41 (Dealer Discard Mechanics) - Phase 2, ~100 lines
 - LIR-42 (Table Abstraction) - Phase 3.5, ~300 lines
 - LIR-43 (Multi-Player Session Management) - Phase 3.5, ~250 lines
 - LIR-44 (Chair Position Analytics) - Phase 5, ~150 lines
+- LIR-45 (Property-Based Testing) - Phase 7, ~100 lines
 
 **Cancelled Items:**
 - LIR-3 (Multi-Deck Shoe Implementation) - Not needed; each hand uses freshly shuffled single deck
