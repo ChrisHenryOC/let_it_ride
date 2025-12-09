@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import random
 
+import pytest
+
 from let_it_ride.simulation.rng import (
     RNGManager,
     RNGQualityResult,
@@ -452,3 +454,174 @@ class TestRNGManagerIntegration:
             restored_second_half.append(rng.random())
 
         assert second_half_values == restored_second_half
+
+
+class TestFromStateValidation:
+    """Test error handling in from_state()."""
+
+    def test_from_state_missing_key_raises_key_error(self) -> None:
+        """from_state raises KeyError when required keys are missing."""
+        # Missing base_seed
+        state = {
+            "use_crypto": False,
+            "seed_counter": 0,
+            "master_rng_state": random.Random(42).getstate(),
+        }
+        with pytest.raises(KeyError, match="base_seed"):
+            RNGManager.from_state(state)
+
+    def test_from_state_empty_dict_raises_key_error(self) -> None:
+        """from_state raises KeyError for empty state dict."""
+        with pytest.raises(KeyError):
+            RNGManager.from_state({})
+
+    def test_from_state_invalid_base_seed_type_raises_type_error(self) -> None:
+        """from_state raises TypeError for invalid base_seed type."""
+        state = {
+            "base_seed": "not_an_int",
+            "use_crypto": False,
+            "seed_counter": 0,
+            "master_rng_state": random.Random(42).getstate(),
+        }
+        with pytest.raises(TypeError, match="base_seed must be an int"):
+            RNGManager.from_state(state)
+
+    def test_from_state_invalid_use_crypto_type_raises_type_error(self) -> None:
+        """from_state raises TypeError for invalid use_crypto type."""
+        state = {
+            "base_seed": 42,
+            "use_crypto": "not_a_bool",
+            "seed_counter": 0,
+            "master_rng_state": random.Random(42).getstate(),
+        }
+        with pytest.raises(TypeError, match="use_crypto must be a bool"):
+            RNGManager.from_state(state)
+
+    def test_from_state_invalid_seed_counter_type_raises_type_error(self) -> None:
+        """from_state raises TypeError for invalid seed_counter type."""
+        state = {
+            "base_seed": 42,
+            "use_crypto": False,
+            "seed_counter": "not_an_int",
+            "master_rng_state": random.Random(42).getstate(),
+        }
+        with pytest.raises(TypeError, match="seed_counter must be an int"):
+            RNGManager.from_state(state)
+
+    def test_from_state_invalid_master_rng_state_type_raises_type_error(self) -> None:
+        """from_state raises TypeError for invalid master_rng_state type."""
+        state = {
+            "base_seed": 42,
+            "use_crypto": False,
+            "seed_counter": 0,
+            "master_rng_state": "not_a_tuple",
+        }
+        with pytest.raises(TypeError, match="master_rng_state must be a tuple"):
+            RNGManager.from_state(state)
+
+    def test_from_state_base_seed_out_of_range_raises_value_error(self) -> None:
+        """from_state raises ValueError for out-of-range base_seed."""
+        state = {
+            "base_seed": -1,
+            "use_crypto": False,
+            "seed_counter": 0,
+            "master_rng_state": random.Random(42).getstate(),
+        }
+        with pytest.raises(ValueError, match="base_seed must be between"):
+            RNGManager.from_state(state)
+
+    def test_from_state_negative_seed_counter_raises_value_error(self) -> None:
+        """from_state raises ValueError for negative seed_counter."""
+        state = {
+            "base_seed": 42,
+            "use_crypto": False,
+            "seed_counter": -1,
+            "master_rng_state": random.Random(42).getstate(),
+        }
+        with pytest.raises(ValueError, match="seed_counter must be non-negative"):
+            RNGManager.from_state(state)
+
+
+class TestWorkerRNGBoundaries:
+    """Test worker RNG with boundary values."""
+
+    def test_large_worker_id_produces_valid_rng(self) -> None:
+        """Large worker_id produces valid RNG."""
+        manager = RNGManager(base_seed=42)
+        rng = manager.create_worker_rng(worker_id=2**20)
+        assert isinstance(rng, random.Random)
+        assert 0 <= rng.random() < 1
+
+    def test_negative_worker_id_raises_value_error(self) -> None:
+        """Negative worker_id raises ValueError."""
+        manager = RNGManager(base_seed=42)
+        with pytest.raises(ValueError, match="worker_id must be non-negative"):
+            manager.create_worker_rng(worker_id=-1)
+
+    def test_zero_worker_id_works(self) -> None:
+        """Worker ID 0 works correctly."""
+        manager = RNGManager(base_seed=42)
+        rng = manager.create_worker_rng(worker_id=0)
+        assert isinstance(rng, random.Random)
+
+    def test_adjacent_worker_ids_produce_different_rngs(self) -> None:
+        """Adjacent worker_ids produce different first values."""
+        manager = RNGManager(base_seed=42)
+        rng1 = manager.create_worker_rng(worker_id=999)
+        rng2 = manager.create_worker_rng(worker_id=1000)
+        assert rng1.random() != rng2.random()
+
+
+class TestValidateRNGQualityEdgeCases:
+    """Test edge cases in RNG quality validation."""
+
+    def test_small_sample_size_passes_runs_test(self) -> None:
+        """Runs test passes with < 20 samples (insufficient data)."""
+        rng = random.Random(42)
+        result = validate_rng_quality(rng, sample_size=15)
+        # Runs test returns (0.0, True) for n < 20
+        assert result.runs_test_passed is True
+
+    def test_custom_alpha_value_0_01(self) -> None:
+        """Test with alpha=0.01 significance level."""
+        rng = random.Random(42)
+        result = validate_rng_quality(rng, sample_size=5000, alpha=0.01)
+        assert result.passed is True
+
+    def test_custom_alpha_value_0_10(self) -> None:
+        """Test with alpha=0.10 significance level."""
+        rng = random.Random(42)
+        result = validate_rng_quality(rng, sample_size=5000, alpha=0.10)
+        assert result.passed is True
+
+    def test_many_buckets(self) -> None:
+        """Test with larger number of buckets."""
+        rng = random.Random(42)
+        result = validate_rng_quality(rng, sample_size=10000, num_buckets=50)
+        assert result.passed is True
+
+
+class TestCryptoRNGBehavior:
+    """Test specific crypto mode behaviors."""
+
+    def test_crypto_mode_init_without_base_seed_uses_secrets(self) -> None:
+        """Crypto mode with no base_seed generates using secrets."""
+        # Can't directly test secrets.randbits is called, but can verify
+        # that two managers get different base seeds
+        manager1 = RNGManager(use_crypto=True)
+        manager2 = RNGManager(use_crypto=True)
+
+        # Very unlikely to be equal if using cryptographic randomness
+        assert manager1.base_seed != manager2.base_seed
+
+    def test_worker_rng_deterministic_regardless_of_crypto_mode(self) -> None:
+        """Worker RNGs are deterministic even when crypto mode is enabled."""
+        # Worker RNG derivation is based on base_seed, not crypto
+        manager1 = RNGManager(base_seed=42, use_crypto=True)
+        manager2 = RNGManager(base_seed=42, use_crypto=True)
+
+        rng1 = manager1.create_worker_rng(worker_id=5)
+        rng2 = manager2.create_worker_rng(worker_id=5)
+
+        # Worker RNGs should be identical despite crypto mode
+        assert rng1.random() == rng2.random()

@@ -76,8 +76,15 @@ class RNGManager:
         Args:
             base_seed: Base seed for deterministic behavior. If None,
                 a random seed is generated (non-reproducible).
-            use_crypto: If True, use cryptographic RNG for seed generation.
-                This provides higher quality randomness but is slower.
+            use_crypto: If True, use secrets module for seed generation.
+                This provides high-entropy seeding but is slower.
+
+        Note:
+            When use_crypto=True, seeds are generated using the secrets module,
+            but returned RNGs are still random.Random (Mersenne Twister). This
+            provides high-entropy seeding for non-reproducible simulations, NOT
+            cryptographically secure random output. For simulation purposes,
+            this is appropriate when reproducibility is not needed.
         """
         self._use_crypto = use_crypto
 
@@ -131,12 +138,21 @@ class RNGManager:
 
         Args:
             worker_id: Unique identifier for the worker (0-indexed).
+                Should be non-negative and typically < 64 for best uniqueness
+                guarantees. Larger values work but have theoretical collision risk.
 
         Returns:
             A random.Random instance for the specified worker.
+
+        Raises:
+            ValueError: If worker_id is negative.
         """
+        if worker_id < 0:
+            raise ValueError(f"worker_id must be non-negative, got {worker_id}")
+
         # Combine base_seed with worker_id to create unique seed
         # Use a separate RNG seeded with combined value to derive worker seed
+        # Note: Linear derivation is adequate for worker_id < 64
         combined_seed = (self._base_seed * 31 + worker_id) % (self._MAX_SEED + 1)
         worker_master = random.Random(combined_seed)
         worker_seed = worker_master.randint(0, self._MAX_SEED)
@@ -165,7 +181,11 @@ class RNGManager:
 
         Returns:
             Dictionary containing all state needed to restore the manager.
-            The dictionary is JSON-serializable.
+
+        Note:
+            The dictionary can be JSON-serialized, but master_rng_state contains
+            tuples that become lists when round-tripping through JSON. For exact
+            restoration, use pickle or pass the dict directly to from_state().
         """
         return {
             "base_seed": self._base_seed,
@@ -187,7 +207,36 @@ class RNGManager:
         Raises:
             KeyError: If required state keys are missing.
             TypeError: If state values have incorrect types.
+            ValueError: If state values are out of valid range.
         """
+        # Validate required keys exist
+        required_keys = {"base_seed", "use_crypto", "seed_counter", "master_rng_state"}
+        missing_keys = required_keys - state.keys()
+        if missing_keys:
+            raise KeyError(f"State missing required keys: {missing_keys}")
+
+        # Validate types
+        if not isinstance(state["base_seed"], int):
+            raise TypeError(f"base_seed must be an int, got {type(state['base_seed']).__name__}")
+        if not isinstance(state["use_crypto"], bool):
+            raise TypeError(
+                f"use_crypto must be a bool, got {type(state['use_crypto']).__name__}"
+            )
+        if not isinstance(state["seed_counter"], int):
+            raise TypeError(
+                f"seed_counter must be an int, got {type(state['seed_counter']).__name__}"
+            )
+        if not isinstance(state["master_rng_state"], tuple):
+            raise TypeError(
+                f"master_rng_state must be a tuple, got {type(state['master_rng_state']).__name__}"
+            )
+
+        # Validate ranges
+        if not (0 <= state["base_seed"] <= cls._MAX_SEED):
+            raise ValueError(f"base_seed must be between 0 and {cls._MAX_SEED}")
+        if state["seed_counter"] < 0:
+            raise ValueError("seed_counter must be non-negative")
+
         manager = cls(
             base_seed=state["base_seed"],
             use_crypto=state["use_crypto"],
