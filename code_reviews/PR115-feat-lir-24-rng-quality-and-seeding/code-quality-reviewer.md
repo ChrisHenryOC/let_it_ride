@@ -49,6 +49,7 @@ combined_seed = (self._base_seed * 31 + worker_id) % (self._MAX_SEED + 1)
 
 While this works for reasonable worker counts, very large `worker_id` values combined with certain base seeds could theoretically produce collisions. The design is adequate for the MAX_WORKERS=64 limit, but the algorithm could be more robust.
 
+**Direction:** update docstring and add a comment to MAX_WORKERS needs to stay at or below 64 (or whatever reasonable value is fine with this limitation)
 **Recommendation:** Document the worker_id limits in the docstring, or consider using a hash-based approach for stronger guarantees:
 ```python
 # Alternative approach with better distribution
