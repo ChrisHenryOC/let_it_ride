@@ -43,6 +43,7 @@ This document provides an ordered list of remaining issues to complete, sequence
 | LIR-23 | Statistical Validation Module | ✅ Complete (PR #112) |
 | LIR-25 | Core Statistics Calculator | ✅ Complete (PR #113) |
 | LIR-44 | Chair Position Analytics | ✅ Complete (PR #114) |
+| LIR-24 | RNG Quality and Seeding | ✅ Complete (PR #115) |
 
 ---
 
@@ -52,8 +53,7 @@ This document provides an ordered list of remaining issues to complete, sequence
 
 | # | LIR | Title | Dependencies | Priority |
 |---|-----|-------|--------------|----------|
-| 1 | LIR-24 | RNG Quality and Seeding | LIR-1 ✅ | Medium |
-| 2 | LIR-54 | Enhanced RNG Isolation Verification with Hand-Level Testing | LIR-53 ✅ | Medium |
+| 1 | LIR-54 | Enhanced RNG Isolation Verification with Hand-Level Testing | LIR-53 ✅ | Medium |
 
 ### Phase 5: Analytics and Reporting
 
@@ -103,9 +103,9 @@ The following sequence respects dependencies and prioritizes critical path items
     LIR-23  Statistical Validation Module ✅ (PR #112)
     LIR-25  Core Statistics Calculator ✅ (PR #113)
     LIR-44  Chair Position Analytics ✅ (PR #114)
+    LIR-24  RNG Quality and Seeding ✅ (PR #115)
     ─────────────────────────────────────────────────────────────
-1.  LIR-24  RNG Quality and Seeding
-2.  LIR-54  Enhanced RNG Isolation Verification (depends on LIR-53 ✅)
+1.  LIR-54  Enhanced RNG Isolation Verification (depends on LIR-53 ✅)
     ─────── Phase 4 Complete (Simulation Infrastructure) ───────
 3.  LIR-27  CSV Export
 4.  LIR-28  JSON Export
@@ -135,17 +135,17 @@ The following sequence respects dependencies and prioritizes critical path items
 
 | Category | Count |
 |----------|-------|
-| Completed | 33 |
+| Completed | 34 |
 | Cancelled | 2 |
-| Remaining | 19 |
+| Remaining | 18 |
 | **Total** | **54** |
 
 **Recently Completed:**
+- LIR-24: RNG Quality and Seeding ✅ (PR #115)
 - LIR-44: Chair Position Analytics ✅ (PR #114)
 - LIR-25: Core Statistics Calculator ✅ (PR #113)
 - LIR-23: Statistical Validation Module ✅ (PR #112)
 - LIR-22: Simulation Results Aggregation ✅ (PR #111)
-- LIR-21: Parallel Session Execution ✅ (PR #107)
 
 **Open Issues (from PR reviews):**
 - LIR-54: Enhanced RNG Isolation Verification with Hand-Level Testing (GitHub #106)
@@ -157,5 +157,4 @@ The following sequence respects dependencies and prioritizes critical path items
 
 **Next Up:**
 - LIR-27 (CSV Export) - critical path, LIR-22 ✅ complete
-- LIR-24 (RNG Quality and Seeding) - no blockers
-- LIR-54 (Enhanced RNG Isolation) - depends on LIR-53 ✅
+- LIR-54 (Enhanced RNG Isolation) - depends on LIR-53 ✅, LIR-24 ✅
