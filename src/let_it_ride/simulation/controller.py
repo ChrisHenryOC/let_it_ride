@@ -30,6 +30,7 @@ from let_it_ride.bankroll import (
 from let_it_ride.config.paytables import BonusPaytable, MainGamePaytable
 from let_it_ride.core.deck import Deck
 from let_it_ride.core.game_engine import GameEngine
+from let_it_ride.simulation.rng import RNGManager
 from let_it_ride.simulation.session import Session, SessionResult
 from let_it_ride.simulation.utils import (
     calculate_bonus_bet,
@@ -382,15 +383,13 @@ class SimulationController:
         def betting_system_factory() -> BettingSystem:
             return create_betting_system(self._config.bankroll)
 
-        # Create master RNG for deriving session seeds
-        if self._base_seed is not None:
-            master_rng = random.Random(self._base_seed)
-        else:
-            master_rng = random.Random()
+        # Use RNGManager for centralized seed management
+        rng_manager = RNGManager(base_seed=self._base_seed)
+        session_seeds = rng_manager.create_session_seeds(num_sessions)
 
         for session_id in range(num_sessions):
-            # Derive a session-specific seed for reproducibility
-            session_seed = master_rng.randint(0, 2**31 - 1)
+            # Use pre-generated session seed for reproducibility
+            session_seed = session_seeds[session_id]
             session_rng = random.Random(session_seed)
 
             session = self._create_session(

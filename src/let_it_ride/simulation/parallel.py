@@ -27,6 +27,7 @@ from let_it_ride.simulation.controller import (
     create_betting_system,
     create_strategy,
 )
+from let_it_ride.simulation.rng import RNGManager
 from let_it_ride.simulation.session import Session, SessionConfig, SessionResult
 from let_it_ride.simulation.utils import (
     calculate_bonus_bet,
@@ -202,6 +203,8 @@ class ParallelExecutor:
     ) -> dict[int, int]:
         """Pre-generate deterministic seeds for all sessions.
 
+        Uses RNGManager for centralized seed management.
+
         Args:
             num_sessions: Total number of sessions.
             base_seed: Base seed for the master RNG, or None for random.
@@ -209,15 +212,8 @@ class ParallelExecutor:
         Returns:
             Dictionary mapping session_id to seed.
         """
-        if base_seed is not None:
-            master_rng = random.Random(base_seed)
-        else:
-            master_rng = random.Random()
-
-        return {
-            session_id: master_rng.randint(0, 2**31 - 1)
-            for session_id in range(num_sessions)
-        }
+        rng_manager = RNGManager(base_seed=base_seed)
+        return rng_manager.create_session_seeds(num_sessions)
 
     def _create_worker_tasks(
         self,
