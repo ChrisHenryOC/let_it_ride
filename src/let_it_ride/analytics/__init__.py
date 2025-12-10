@@ -14,6 +14,12 @@ from let_it_ride.analytics.chair_position import (
     SeatStatistics,
     analyze_chair_positions,
 )
+from let_it_ride.analytics.export_csv import (
+    CSVExporter,
+    export_aggregate_csv,
+    export_hands_csv,
+    export_sessions_csv,
+)
 from let_it_ride.analytics.statistics import (
     ConfidenceInterval,
     DetailedStatistics,
@@ -36,6 +42,11 @@ __all__ = [
     "SeatStatistics",
     # Chair position functions
     "analyze_chair_positions",
+    # CSV export
+    "CSVExporter",
+    "export_aggregate_csv",
+    "export_hands_csv",
+    "export_sessions_csv",
     # Statistics types
     "ConfidenceInterval",
     "DetailedStatistics",

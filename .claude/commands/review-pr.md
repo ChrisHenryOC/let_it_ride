@@ -50,14 +50,25 @@ Instruct each agent to:
 
 ## Step 3: Consolidate and deduplicate
 
-1. Review all agent findings from `code_reviews/PR$ARGUMENTS-*/`
-2. Merge overlapping concerns (e.g., performance + code quality on same issue)
-3. Remove duplicates flagged by multiple agents
-4. Prioritize: Critical > High > Medium (skip Low unless significant)
-5. For each issue, determine:
+**IMPORTANT: This step creates the CONSOLIDATED-REVIEW.md file that /fix-review depends on.**
+
+After all agents complete:
+
+1. **Read all agent review files** from `code_reviews/PR$ARGUMENTS-{title}/`
+2. **Build an issue matrix** by extracting all Critical, High, and Medium severity issues
+3. **Merge overlapping concerns** (e.g., if performance and code-quality flagged the same issue)
+4. **Remove duplicates** flagged by multiple agents (count as `duplicate_merges` in metrics)
+5. **For each unique issue, determine:**
    - **In PR Scope?**: Is the file/code mentioned actually part of this PR's changes?
    - **Actionable?**: Can this be fixed without adding new dependencies, changing files outside the PR, or major architectural changes?
-6. Save consolidated findings to `code_reviews/PR$ARGUMENTS-{title}/CONSOLIDATED-REVIEW.md` using this format:
+
+6. **CREATE the consolidated review file** using the Write tool:
+
+```bash
+# File path: code_reviews/PR$ARGUMENTS-{title}/CONSOLIDATED-REVIEW.md
+```
+
+**Required file format:**
 
 ```markdown
 # Consolidated Code Review for PR #$ARGUMENTS
@@ -69,18 +80,24 @@ Instruct each agent to:
 
 | # | Severity | Issue Summary | File:Line | Reviewer(s) | In PR Scope? | Actionable? | Details |
 |---|----------|---------------|-----------|-------------|--------------|-------------|---------|
-| 1 | High     | Missing tests | file.py:42 | test-coverage | Yes | Yes | See test-coverage-reviewer.md#H1 |
-| 2 | Medium   | Closure issue | ctrl.py:85 | code-quality, performance | Yes | No (arch change) | See code-quality-reviewer.md#M1 |
-
-The "Details" column contains a reference to the relevant section in the agent's review file.
+| 1 | Critical | [issue] | file.py:42 | [agent] | Yes/No | Yes/No | [agent].md#C1 |
+| 2 | High     | [issue] | file.py:85 | [agent1], [agent2] | Yes/No | Yes/No | [agent1].md#H1 |
 
 ## Actionable Issues (Fix in this PR)
-List all issues from the matrix where both "In PR Scope?" and "Actionable?" are Yes.
-Include the issue number, summary, and file location for quick reference.
+
+Issues where both "In PR Scope?" AND "Actionable?" are Yes:
+
+1. **[Issue Summary]** (Severity) - `file.py:line`
+   - Reviewer(s): [agent names]
+   - Recommendation: [brief fix description]
 
 ## Deferred Issues (Require user decision)
-List all issues from the matrix where "Actionable?" is No or "In PR Scope?" is No.
-Include the reason for deferral (out of scope, needs new dependency, architectural change, etc.).
+
+Issues where "Actionable?" is No OR "In PR Scope?" is No:
+
+1. **[Issue Summary]** (Severity) - `file.py:line`
+   - Reason: [out of scope / needs new dependency / architectural change / etc.]
+   - Reviewer(s): [agent names]
 ```
 
 **Severity definitions:**
@@ -88,6 +105,11 @@ Include the reason for deferral (out of scope, needs new dependency, architectur
 - High: Performance bottlenecks >10%, missing critical tests
 - Medium: Code quality issues affecting maintainability
 - Low: Minor suggestions (usually skip)
+
+**VERIFICATION:** Before proceeding to Step 4, confirm the file exists:
+```bash
+ls -la code_reviews/PR$ARGUMENTS-*/CONSOLIDATED-REVIEW.md
+```
 
 ## Step 4: Post summary comment
 
@@ -150,12 +172,19 @@ Before presenting the final outcome, log metrics per `.claude/memories/metrics-l
 
 1. Ensure `.claude/metrics/` directory exists
 2. Construct the metrics JSON reflecting this execution (command name: "review-pr", steps_total: 6)
+   - Step 0: Resolve PR number
+   - Step 1: Setup and save diff
+   - Step 2: Launch review agents
+   - Step 3: Consolidate and create CONSOLIDATED-REVIEW.md
+   - Step 4: Post summary comment
+   - Step 5: Commit review files
 3. Include **review_metrics** object with:
    - `issues_by_severity`: {"critical": N, "high": N, "medium": N, "low": N}
-   - `actionable_count`: Number of issues marked as actionable
-   - `deferred_count`: Number of issues marked as deferred
+   - `actionable_count`: Number of issues marked as actionable (from CONSOLIDATED-REVIEW.md)
+   - `deferred_count`: Number of issues marked as deferred (from CONSOLIDATED-REVIEW.md)
    - `duplicate_merges`: Number of duplicate issues merged during consolidation
    - `agents_completed`: Array of agent names that completed successfully
+   - `consolidated_review_created`: true/false - whether CONSOLIDATED-REVIEW.md was created
 4. Append to `.claude/metrics/command_log.jsonl`
 
 Pay special attention to the `observations` fields - these drive continuous improvement.
