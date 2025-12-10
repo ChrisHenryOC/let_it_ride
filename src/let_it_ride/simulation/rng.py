@@ -217,7 +217,9 @@ class RNGManager:
 
         # Validate types
         if not isinstance(state["base_seed"], int):
-            raise TypeError(f"base_seed must be an int, got {type(state['base_seed']).__name__}")
+            raise TypeError(
+                f"base_seed must be an int, got {type(state['base_seed']).__name__}"
+            )
         if not isinstance(state["use_crypto"], bool):
             raise TypeError(
                 f"use_crypto must be a bool, got {type(state['use_crypto']).__name__}"
