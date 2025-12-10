@@ -165,6 +165,13 @@ def export_aggregate_csv(
     The aggregate statistics are exported as a single row with all metrics.
     Nested dictionaries (hand frequencies) are flattened with prefixed keys.
 
+    Note:
+        Unlike export_sessions_csv and export_hands_csv, this function does not
+        support field selection. Aggregate stats include dynamically-generated
+        column names (e.g., hand_frequencies_flush) that are determined at
+        runtime based on observed hand types. Since aggregate export produces
+        a single summary row, all columns are exported.
+
     Args:
         stats: AggregateStatistics to export.
         path: Output file path.

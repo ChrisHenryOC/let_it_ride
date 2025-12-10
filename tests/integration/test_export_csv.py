@@ -494,6 +494,53 @@ class TestExportHandsCsv:
 
         assert len(rows) == 100
 
+    def test_streaming_large_export(self, tmp_path: Path) -> None:
+        """Verify large streaming export completes without loading all into memory.
+
+        This test uses a generator to produce 50,000 records and validates the
+        output by counting lines without reading the entire CSV into memory.
+        This validates that the Iterable[HandRecord] signature enables memory-
+        efficient exports for large datasets (targeting 10M hand support).
+        """
+        expected_count = 50000
+
+        def hand_generator():
+            for i in range(expected_count):
+                yield HandRecord(
+                    hand_id=i,
+                    session_id=i // 1000,
+                    shoe_id=None,
+                    cards_player="Ah Kh Qh",
+                    cards_community="Jh Th",
+                    decision_bet1="ride",
+                    decision_bet2="ride",
+                    final_hand_rank="high_card",
+                    base_bet=5.0,
+                    bets_at_risk=5.0,
+                    main_payout=0.0,
+                    bonus_bet=0.0,
+                    bonus_hand_rank=None,
+                    bonus_payout=0.0,
+                    bankroll_after=500.0 - (i % 100),
+                )
+
+        path = tmp_path / "streaming_hands.csv"
+        export_hands_csv(hand_generator(), path)
+
+        # Validate by counting lines without reading all into memory
+        line_count = 0
+        with path.open(encoding="utf-8-sig") as f:
+            for _ in f:
+                line_count += 1
+
+        # expected_count data rows + 1 header row
+        assert line_count == expected_count + 1
+
+        # Verify file size is reasonable (each row ~70 bytes for this data)
+        file_size = path.stat().st_size
+        assert file_size > expected_count * 50  # At least 50 bytes per row
+        assert file_size < expected_count * 150  # At most 150 bytes per row
+
 
 class TestCSVExporter:
     """Tests for CSVExporter class."""
