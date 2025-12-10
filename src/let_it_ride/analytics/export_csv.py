@@ -15,6 +15,7 @@ from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
     from let_it_ride.simulation.aggregation import AggregateStatistics
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     from let_it_ride.simulation.session import SessionResult
 
 # Default fields for SessionResult export (all serializable fields)
+# NOTE: Must stay in sync with SessionResult dataclass in simulation/session.py
 SESSION_RESULT_FIELDS = [
     "outcome",
     "stop_reason",
@@ -38,6 +40,7 @@ SESSION_RESULT_FIELDS = [
 ]
 
 # Default fields for HandRecord export (all fields)
+# NOTE: Must stay in sync with HandRecord dataclass in simulation/results.py
 HAND_RECORD_FIELDS = [
     "hand_id",
     "session_id",
@@ -55,6 +58,10 @@ HAND_RECORD_FIELDS = [
     "bonus_payout",
     "bankroll_after",
 ]
+
+# Fields to exclude from AggregateStatistics export (internal fields)
+# NOTE: Must stay in sync with AggregateStatistics dataclass in simulation/aggregation.py
+EXCLUDED_AGGREGATE_FIELDS = frozenset({"session_profits"})
 
 
 def _session_result_to_dict(result: SessionResult) -> dict[str, Any]:
@@ -87,7 +94,7 @@ def _aggregate_stats_to_dict(stats: AggregateStatistics) -> dict[str, Any]:
     """Convert AggregateStatistics to dictionary for CSV export.
 
     Nested dictionaries (hand_frequencies, hand_frequency_pct) are flattened
-    with prefixed keys. The session_profits tuple is excluded as it's internal.
+    with prefixed keys. Internal fields (session_profits) are excluded.
 
     Args:
         stats: AggregateStatistics to convert.
@@ -97,9 +104,9 @@ def _aggregate_stats_to_dict(stats: AggregateStatistics) -> dict[str, Any]:
     """
     result: dict[str, Any] = {}
 
-    # Add all simple fields except session_profits (internal)
+    # Add all simple fields except internal ones (EXCLUDED_AGGREGATE_FIELDS)
     for field in fields(stats):
-        if field.name == "session_profits":
+        if field.name in EXCLUDED_AGGREGATE_FIELDS:
             continue  # Skip internal field
         value = getattr(stats, field.name)
         if isinstance(value, dict):
@@ -173,28 +180,28 @@ def export_aggregate_csv(
 
 
 def export_hands_csv(
-    hands: list[HandRecord],
+    hands: Iterable[HandRecord],
     path: Path,
     fields_to_export: list[str] | None = None,
     include_bom: bool = True,
 ) -> None:
     """Export hand records to CSV file.
 
+    Accepts an Iterable to support streaming/generator-based exports for
+    memory efficiency when handling millions of hands.
+
     Args:
-        hands: List of HandRecord objects to export.
+        hands: Iterable of HandRecord objects to export (can be generator).
         path: Output file path.
         fields_to_export: List of field names to include. None exports all fields.
         include_bom: If True, include UTF-8 BOM for Excel compatibility.
 
     Raises:
-        ValueError: If hands list is empty or invalid field names provided.
+        ValueError: If hands iterable is empty or invalid field names provided.
     """
-    if not hands:
-        raise ValueError("Cannot export empty hands list")
-
     field_names = fields_to_export or HAND_RECORD_FIELDS
 
-    # Validate field names
+    # Validate field names upfront
     invalid_fields = set(field_names) - set(HAND_RECORD_FIELDS)
     if invalid_fields:
         raise ValueError(f"Invalid field names: {invalid_fields}")
@@ -203,8 +210,14 @@ def export_hands_csv(
     with path.open("w", encoding=encoding, newline="") as f:
         writer = csv.DictWriter(f, fieldnames=field_names, extrasaction="ignore")
         writer.writeheader()
+
+        count = 0
         for hand in hands:
             writer.writerow(hand.to_dict())
+            count += 1
+
+        if count == 0:
+            raise ValueError("Cannot export empty hands iterable")
 
 
 class CSVExporter:
@@ -289,13 +302,15 @@ class CSVExporter:
 
     def export_hands(
         self,
-        hands: list[HandRecord],
+        hands: Iterable[HandRecord],
         fields_to_export: list[str] | None = None,
     ) -> Path:
         """Export hand records to CSV.
 
+        Accepts an Iterable to support streaming/generator-based exports.
+
         Args:
-            hands: List of HandRecord objects.
+            hands: Iterable of HandRecord objects (can be generator).
             fields_to_export: Fields to include. None for all fields.
 
         Returns:
@@ -310,20 +325,21 @@ class CSVExporter:
         self,
         results: SimulationResults,
         include_hands: bool = False,
-        hands: list[HandRecord] | None = None,
+        hands: Iterable[HandRecord] | None = None,
     ) -> list[Path]:
         """Export all simulation results to CSV files.
 
         Args:
             results: SimulationResults containing session results.
             include_hands: If True and hands are provided, export hand records.
-            hands: Optional list of HandRecord objects for per-hand export.
+            hands: Optional iterable of HandRecord objects for per-hand export.
 
         Returns:
             List of paths to created files.
 
         Raises:
-            ValueError: If include_hands is True but hands is None or empty.
+            ValueError: If include_hands is True but hands is None or empty,
+                or if session_results is empty (from export_sessions).
         """
         from let_it_ride.simulation.aggregation import aggregate_results
 

@@ -268,6 +268,43 @@ class TestExportAggregateCsv:
             bom = f.read(3)
         assert bom == b"\xef\xbb\xbf"
 
+    def test_bom_excluded_when_disabled(
+        self, tmp_path: Path, sample_aggregate_stats: AggregateStatistics
+    ) -> None:
+        """Verify UTF-8 BOM is excluded when disabled."""
+        path = tmp_path / "aggregate.csv"
+        export_aggregate_csv(sample_aggregate_stats, path, include_bom=False)
+
+        with path.open("rb") as f:
+            start = f.read(3)
+        assert start != b"\xef\xbb\xbf"
+
+    def test_flattens_hand_frequency_dicts(
+        self, tmp_path: Path, sample_session_results: list[SessionResult]
+    ) -> None:
+        """Verify nested hand frequency dicts are flattened with prefixed keys."""
+        from let_it_ride.simulation.aggregation import aggregate_with_hand_frequencies
+
+        # Create aggregate stats with hand frequency data
+        hand_freqs = {"royal_flush": 1, "flush": 10, "high_card": 100}
+        stats = aggregate_with_hand_frequencies(sample_session_results, hand_freqs)
+
+        path = tmp_path / "aggregate.csv"
+        export_aggregate_csv(stats, path)
+
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        # Verify flattened keys exist with correct values
+        assert rows[0]["hand_frequencies_royal_flush"] == "1"
+        assert rows[0]["hand_frequencies_flush"] == "10"
+        assert rows[0]["hand_frequencies_high_card"] == "100"
+        # Verify percentage keys also exist
+        assert "hand_frequency_pct_royal_flush" in rows[0]
+        assert "hand_frequency_pct_flush" in rows[0]
+        assert "hand_frequency_pct_high_card" in rows[0]
+
 
 class TestExportHandsCsv:
     """Tests for export_hands_csv function."""
@@ -325,9 +362,9 @@ class TestExportHandsCsv:
             export_hands_csv(sample_hand_records, path, fields_to_export=["invalid"])
 
     def test_empty_hands_raises_error(self, tmp_path: Path) -> None:
-        """Verify empty hands list raises ValueError."""
+        """Verify empty hands iterable raises ValueError."""
         path = tmp_path / "hands.csv"
-        with pytest.raises(ValueError, match="Cannot export empty hands list"):
+        with pytest.raises(ValueError, match="Cannot export empty hands iterable"):
             export_hands_csv([], path)
 
     def test_handles_none_values(
@@ -414,6 +451,49 @@ class TestExportHandsCsv:
 
         assert len(rows) == 10000
 
+    def test_bom_excluded_when_disabled(
+        self, tmp_path: Path, sample_hand_records: list[HandRecord]
+    ) -> None:
+        """Verify UTF-8 BOM is excluded when disabled."""
+        path = tmp_path / "hands.csv"
+        export_hands_csv(sample_hand_records, path, include_bom=False)
+
+        with path.open("rb") as f:
+            start = f.read(3)
+        assert start != b"\xef\xbb\xbf"
+
+    def test_accepts_generator(self, tmp_path: Path) -> None:
+        """Verify export_hands_csv accepts a generator for memory efficiency."""
+
+        def hand_generator():
+            for i in range(100):
+                yield HandRecord(
+                    hand_id=i,
+                    session_id=0,
+                    shoe_id=None,
+                    cards_player="Ah Kh Qh",
+                    cards_community="Jh Th",
+                    decision_bet1="ride",
+                    decision_bet2="ride",
+                    final_hand_rank="high_card",
+                    base_bet=5.0,
+                    bets_at_risk=5.0,
+                    main_payout=0.0,
+                    bonus_bet=0.0,
+                    bonus_hand_rank=None,
+                    bonus_payout=0.0,
+                    bankroll_after=500.0,
+                )
+
+        path = tmp_path / "generator_hands.csv"
+        export_hands_csv(hand_generator(), path)
+
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert len(rows) == 100
+
 
 class TestCSVExporter:
     """Tests for CSVExporter class."""
@@ -471,6 +551,38 @@ class TestCSVExporter:
 
         assert path == tmp_path / "test_hands.csv"
         assert path.exists()
+
+    def test_export_sessions_with_field_selection(
+        self, tmp_path: Path, sample_session_results: list[SessionResult]
+    ) -> None:
+        """Verify export_sessions respects field selection via class method."""
+        exporter = CSVExporter(tmp_path, prefix="test")
+        fields = ["outcome", "hands_played"]
+        path = exporter.export_sessions(sample_session_results, fields_to_export=fields)
+
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert set(rows[0].keys()) == set(fields)
+        assert rows[0]["outcome"] == "win"
+        assert rows[0]["hands_played"] == "25"
+
+    def test_export_hands_with_field_selection(
+        self, tmp_path: Path, sample_hand_records: list[HandRecord]
+    ) -> None:
+        """Verify export_hands respects field selection via class method."""
+        exporter = CSVExporter(tmp_path, prefix="test")
+        fields = ["hand_id", "final_hand_rank", "main_payout"]
+        path = exporter.export_hands(sample_hand_records, fields_to_export=fields)
+
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert set(rows[0].keys()) == set(fields)
+        assert rows[0]["hand_id"] == "0"
+        assert rows[0]["final_hand_rank"] == "royal_flush"
 
     def test_export_all_without_hands(
         self, tmp_path: Path, sample_session_results: list[SessionResult]
