@@ -27,7 +27,28 @@ gh api repos/{owner}/{repo}/pulls/$ARGUMENTS/comments --jq '.[] | select(.body |
 
 # GATHER FINDINGS
 
-## From Review Files
+## Check for Consolidated Review (Preferred)
+
+First, check if a consolidated review file exists:
+
+```bash
+CONSOLIDATED_FILE="$REVIEW_DIR/CONSOLIDATED-REVIEW.md"
+if [ -f "$CONSOLIDATED_FILE" ]; then
+    echo "Found consolidated review file"
+fi
+```
+
+**If `CONSOLIDATED-REVIEW.md` exists:**
+1. Read it using the Read tool
+2. Extract the Issue Matrix table directly - it already contains all issues with severity, scope, and actionability determined
+3. Skip to "## From @claude PR Comments" section to check for additional issues
+4. Skip the "# CONSOLIDATE AND DEDUPLICATE" section entirely (already done by /review-pr)
+
+**If `CONSOLIDATED-REVIEW.md` does NOT exist (legacy reviews):**
+1. Continue with the standard flow below to read all individual review files
+2. Proceed through consolidation and deduplication as normal
+
+## From Review Files (Legacy - skip if using consolidated review)
 
 Read ALL review files in the review directory. For EACH file, extract ALL issues marked as:
 1. **Critical** (must fix)
@@ -64,6 +85,10 @@ For each issue, determine:
 Mark issues as "Deferred" if they are out of scope or require significant work beyond the PR.
 
 # CONSOLIDATE AND DEDUPLICATE
+
+**Skip this section entirely if using CONSOLIDATED-REVIEW.md** (already done by /review-pr).
+
+If NOT using consolidated review (legacy mode):
 
 1. Group related issues that multiple reviewers flagged (e.g., performance + code-quality on same function)
 2. Identify duplicates (same issue, different wording)
@@ -115,24 +140,78 @@ git push
 
 # HANDLE DEFERRED ITEMS
 
-For EACH deferred item, review it with the user individually using AskUserQuestion.
+**If there are NO deferred items, skip this entire section and proceed to FINAL SUMMARY.**
 
-## Review Process
+Present ALL deferred items in batched AskUserQuestion calls with multiSelect disabled (one decision per item).
 
-For each deferred item, present the following context and options:
+## Context to Show (Before Asking)
 
-**Context to show:**
+Before presenting the batched questions, display the full context for ALL deferred items:
 - Issue summary and severity
 - Which reviewer(s) flagged it
 - Why it was marked as deferred (out of scope, needs new dependency, architectural change, etc.)
 - File/location affected
 
-**Ask:** "How should we handle this deferred item: [Issue Summary]?"
+This gives the user complete context before making decisions.
 
-**Options:**
-- **A) Fix now**: Implement the fix in this PR (add to todo list and implement immediately)
-- **B) Create issue**: Create a new GitHub issue and sequence it into implementation_todo.md
-- **C) Skip**: Defer with no action (document as "Skipped" in final summary)
+## Batch Question Format
+
+Use AskUserQuestion with up to 4 questions per call. Each question represents one deferred item.
+
+For each deferred item, create a question:
+- **header**: Severity label (e.g., "High", "Medium")
+- **question**: "[Issue Summary] - [Reason deferred]. How to handle?"
+- **multiSelect**: false
+- **options**:
+  - A) Fix now: "Implement in this PR"
+  - B) Create issue: "Create GitHub issue for later"
+  - C) Skip: "No action needed"
+
+Example with 3 deferred items:
+```
+questions: [
+  {
+    header: "High",
+    question: "Missing unit tests for HandCallback - requires new test file. How to handle?",
+    multiSelect: false,
+    options: [
+      {label: "Fix now", description: "Implement in this PR"},
+      {label: "Create issue", description: "Create GitHub issue for later"},
+      {label: "Skip", description: "No action needed"}
+    ]
+  },
+  {
+    header: "Medium",
+    question: "Parallel mode callback test - out of PR scope. How to handle?",
+    multiSelect: false,
+    options: [
+      {label: "Fix now", description: "Implement in this PR"},
+      {label: "Create issue", description: "Create GitHub issue for later"},
+      {label: "Skip", description: "No action needed"}
+    ]
+  },
+  {
+    header: "Medium",
+    question: "Bonus betting integration test - needs architecture change. How to handle?",
+    multiSelect: false,
+    options: [
+      {label: "Fix now", description: "Implement in this PR"},
+      {label: "Create issue", description: "Create GitHub issue for later"},
+      {label: "Skip", description: "No action needed"}
+    ]
+  }
+]
+```
+
+**Batching rule**: If more than 4 deferred items exist, use multiple AskUserQuestion calls in batches of 4. Process each batch's responses before moving to the next batch.
+
+## Processing Batch Responses
+
+After receiving all responses for a batch:
+1. Group items by decision (Fix now / Create issue / Skip)
+2. Process all "Fix now" items together - add to TodoWrite and implement
+3. Process all "Create issue" items together - create issues and update implementation_todo.md
+4. Document all "Skip" items together in final summary
 
 ## Processing Each Choice
 
@@ -231,7 +310,13 @@ Then display the same summary to the console for the user.
 Before presenting the final outcome, log metrics per `.claude/memories/metrics-logging-protocol.md`:
 
 1. Ensure `.claude/metrics/` directory exists
-2. Construct the metrics JSON reflecting this execution (command name: "fix-review", steps_total: 8 - SETUP/GATHER/BUILD-MATRIX/CONSOLIDATE/TODO/IMPLEMENT/VALIDATE/DEFERRED/SUMMARY)
-3. Append to `.claude/metrics/command_log.jsonl`
+2. Construct the metrics JSON reflecting this execution (command name: "fix-review", steps_total: 8)
+3. Include **fix_metrics** object with:
+   - `issues_fixed`: Number of issues fixed in this PR
+   - `issues_deferred`: Number of issues presented to user as deferred
+   - `deferred_decisions`: {"fix_now": N, "create_issue": N, "skip": N}
+   - `new_issues_created`: Array of new issue identifiers created (e.g., ["LIR-XX"])
+   - `used_consolidated_review`: true if CONSOLIDATED-REVIEW.md was used, false otherwise
+4. Append to `.claude/metrics/command_log.jsonl`
 
 Pay special attention to the `observations` fields - these drive continuous improvement.

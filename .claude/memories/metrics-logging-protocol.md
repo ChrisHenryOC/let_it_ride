@@ -50,6 +50,24 @@ ISO 8601 format: `2025-12-08T14:32:15Z`
 - `clarifications_required`: Times you asked the user for clarification
 - `duration_estimate`: One of "<1min", "1-5min", "5-15min", ">15min"
 
+### review_metrics (for /review-pr command)
+- `issues_by_severity`: Object with counts per severity level
+  - Example: `{"critical": 0, "high": 2, "medium": 3, "low": 5}`
+- `actionable_count`: Number of issues marked as actionable (can be fixed in this PR)
+- `deferred_count`: Number of issues marked as deferred (need user decision)
+- `duplicate_merges`: Number of issues identified as duplicates and merged during consolidation
+- `agents_completed`: Array of agent names that completed successfully
+  - Example: `["code-quality", "performance", "test-coverage", "docs", "security"]`
+
+### fix_metrics (for /fix-review command)
+- `issues_fixed`: Number of issues fixed in the PR
+- `issues_deferred`: Number of issues presented to user as deferred items
+- `deferred_decisions`: Object with counts of user decisions
+  - Example: `{"fix_now": 1, "create_issue": 1, "skip": 2}`
+- `new_issues_created`: Array of issue identifiers created for deferred items
+  - Example: `["LIR-55", "LIR-56"]` or `[]` if none created
+- `used_consolidated_review`: Boolean - true if CONSOLIDATED-REVIEW.md was used, false if legacy mode
+
 ### observations (most important for improvement)
 
 Reflect honestly on the execution:
@@ -87,7 +105,13 @@ After completing `/merge-pr 108`:
 After a `/review-pr` with issues:
 
 ```json
-{"timestamp":"2025-12-08T15:45:00Z","command":{"name":"review-pr","arguments":"112"},"context":{"branch":"main","repo_state":"clean","related_pr":112,"related_issue":"LIR-25"},"outcome":{"status":"partial_success","failure_reason":"security-reviewer agent timed out"},"metrics":{"steps_completed":4,"steps_total":5,"tool_calls":28,"clarifications_required":1,"duration_estimate":"5-15min"},"observations":{"clarification_types":["scope_clarification"],"edge_cases_hit":[],"errors":["Agent security-code-reviewer exceeded timeout"],"warnings":["Large diff (2000+ lines) may have impacted review quality"],"ambiguities":["Unclear whether to review test files"],"missing_instructions":["No guidance on handling agent timeouts"],"improvement_suggestions":["Add timeout handling with retry logic","Specify test file review policy"]}}
+{"timestamp":"2025-12-08T15:45:00Z","command":{"name":"review-pr","arguments":"112"},"context":{"branch":"main","repo_state":"clean","related_pr":112,"related_issue":"LIR-25"},"outcome":{"status":"partial_success","failure_reason":"security-reviewer agent timed out"},"metrics":{"steps_completed":5,"steps_total":6,"tool_calls":28,"clarifications_required":1,"duration_estimate":"5-15min"},"review_metrics":{"issues_by_severity":{"critical":0,"high":2,"medium":4,"low":3},"actionable_count":4,"deferred_count":2,"duplicate_merges":1,"agents_completed":["code-quality","performance","test-coverage","docs"]},"observations":{"clarification_types":["scope_clarification"],"edge_cases_hit":[],"errors":["Agent security-code-reviewer exceeded timeout"],"warnings":["Large diff (2000+ lines) may have impacted review quality"],"ambiguities":["Unclear whether to review test files"],"missing_instructions":["No guidance on handling agent timeouts"],"improvement_suggestions":["Add timeout handling with retry logic","Specify test file review policy"]}}
+```
+
+After a `/fix-review`:
+
+```json
+{"timestamp":"2025-12-08T16:30:00Z","command":{"name":"fix-review","arguments":"112"},"context":{"branch":"feature/lir-25","repo_state":"clean","related_pr":112,"related_issue":"LIR-25"},"outcome":{"status":"success","failure_reason":null},"metrics":{"steps_completed":8,"steps_total":8,"tool_calls":45,"clarifications_required":2,"duration_estimate":"5-15min"},"fix_metrics":{"issues_fixed":4,"issues_deferred":2,"deferred_decisions":{"fix_now":1,"create_issue":0,"skip":1},"new_issues_created":[],"used_consolidated_review":true},"observations":{"clarification_types":["deferred_item_handling"],"edge_cases_hit":[],"errors":[],"warnings":[],"ambiguities":[],"missing_instructions":[],"improvement_suggestions":[]}}
 ```
 
 ## Critical Reminders
