@@ -144,6 +144,16 @@ git push
 
 Present ALL deferred items in batched AskUserQuestion calls with multiSelect disabled (one decision per item).
 
+## Context to Show (Before Asking)
+
+Before presenting the batched questions, display the full context for ALL deferred items:
+- Issue summary and severity
+- Which reviewer(s) flagged it
+- Why it was marked as deferred (out of scope, needs new dependency, architectural change, etc.)
+- File/location affected
+
+This gives the user complete context before making decisions.
+
 ## Batch Question Format
 
 Use AskUserQuestion with up to 4 questions per call. Each question represents one deferred item.
