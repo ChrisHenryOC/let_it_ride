@@ -31,12 +31,13 @@ def create_mock_engine(results: list[float]) -> Mock:
     result_iter = iter(results)
 
     def play_hand_side_effect(
-        hand_id: int,  # noqa: ARG001
+        hand_id: int,
         base_bet: float,
         bonus_bet: float = 0.0,
         context=None,  # noqa: ARG001
     ):
         result = Mock()
+        result.hand_id = hand_id
         result.net_result = next(result_iter)
         result.bets_at_risk = base_bet * 3  # Assume all bets ride
         result.bonus_bet = bonus_bet
@@ -1177,3 +1178,100 @@ class TestSessionIntegration:
         assert captured_contexts[2].hands_played == 2
         assert captured_contexts[2].streak == -1
         assert captured_contexts[2].last_result == -25.0
+
+
+# --- Hand Callback Tests ---
+
+
+class TestHandCallback:
+    """Tests for hand callback functionality."""
+
+    def test_callback_invoked_after_each_hand(self) -> None:
+        """Verify hand callback is called with correct arguments after each hand."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            max_hands=3,
+            win_limit=10000.0,  # Won't trigger
+            loss_limit=10000.0,  # Won't trigger
+        )
+        engine = create_mock_engine([50.0, -25.0, 100.0])
+        betting = FlatBetting(25.0)
+
+        captured_calls: list[tuple[int, float]] = []
+
+        def callback(hand_id: int, result: Mock) -> None:
+            captured_calls.append((hand_id, result.net_result))
+
+        session = Session(config, engine, betting, hand_callback=callback)
+        session.run_to_completion()
+
+        assert len(captured_calls) == 3
+        assert captured_calls[0] == (0, 50.0)
+        assert captured_calls[1] == (1, -25.0)
+        assert captured_calls[2] == (2, 100.0)
+
+    def test_no_callback_when_none(self) -> None:
+        """Verify session works correctly without callback."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            max_hands=2,
+            win_limit=10000.0,
+            loss_limit=10000.0,
+        )
+        engine = create_mock_engine([50.0, -25.0])
+        betting = FlatBetting(25.0)
+
+        session = Session(config, engine, betting, hand_callback=None)
+        result = session.run_to_completion()
+
+        assert result.hands_played == 2  # Session completes without error
+
+    def test_callback_invoked_after_state_updates(self) -> None:
+        """Verify callback is called after bankroll and streak are updated."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            max_hands=2,
+            win_limit=10000.0,
+            loss_limit=10000.0,
+        )
+        engine = create_mock_engine([50.0, -25.0])
+        betting = FlatBetting(25.0)
+
+        # Capture session state at callback time
+        states_at_callback: list[tuple[float, int]] = []
+
+        def callback(hand_id: int, result: Mock) -> None:  # noqa: ARG001
+            # Access session state via closure - should reflect post-hand state
+            states_at_callback.append((session.session_profit, session.hands_played))
+
+        session = Session(config, engine, betting, hand_callback=callback)
+        session.run_to_completion()
+
+        # After first hand (won 50), profit=50, hands=1
+        assert states_at_callback[0] == (50.0, 1)
+        # After second hand (lost 25), profit=25, hands=2
+        assert states_at_callback[1] == (25.0, 2)
+
+    def test_callback_exception_propagates(self) -> None:
+        """Verify exceptions in callback propagate to caller."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            max_hands=5,
+            win_limit=10000.0,
+            loss_limit=10000.0,
+        )
+        engine = create_mock_engine([50.0, 50.0, 50.0, 50.0, 50.0])
+        betting = FlatBetting(25.0)
+
+        def failing_callback(hand_id: int, result: Mock) -> None:  # noqa: ARG001
+            if hand_id == 2:
+                raise RuntimeError("Callback failed on hand 2")
+
+        session = Session(config, engine, betting, hand_callback=failing_callback)
+
+        with pytest.raises(RuntimeError, match="Callback failed on hand 2"):
+            session.run_to_completion()
