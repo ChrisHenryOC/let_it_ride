@@ -29,7 +29,7 @@ from let_it_ride.bankroll import (
 )
 from let_it_ride.config.paytables import BonusPaytable, MainGamePaytable
 from let_it_ride.core.deck import Deck
-from let_it_ride.core.game_engine import GameEngine
+from let_it_ride.core.game_engine import GameEngine, GameHandResult
 from let_it_ride.simulation.rng import RNGManager
 from let_it_ride.simulation.session import Session, SessionResult
 from let_it_ride.simulation.utils import (
@@ -61,6 +61,11 @@ _MIN_SESSIONS_FOR_PARALLEL = 10
 
 # Type alias for progress callback
 ProgressCallback = Callable[[int, int], None]
+
+# Type alias for controller-level per-hand callback function.
+# Called with (session_id, hand_id, GameHandResult) after each hand completes.
+# This differs from session.HandCallback which doesn't include session_id.
+ControllerHandCallback = Callable[[int, int, GameHandResult], None]
 
 
 def _action_to_decision(action: str) -> Decision:
@@ -301,12 +306,13 @@ class SimulationController:
     from the overhead.
     """
 
-    __slots__ = ("_config", "_progress_callback", "_base_seed")
+    __slots__ = ("_config", "_progress_callback", "_hand_callback", "_base_seed")
 
     def __init__(
         self,
         config: FullConfig,
         progress_callback: ProgressCallback | None = None,
+        hand_callback: ControllerHandCallback | None = None,
     ) -> None:
         """Initialize the simulation controller.
 
@@ -315,9 +321,13 @@ class SimulationController:
             progress_callback: Optional callback for progress reporting.
                 Called with (completed_sessions, total_sessions) after
                 each session completes (sequential) or at completion (parallel).
+            hand_callback: Optional callback for per-hand reporting.
+                Called with (session_id, hand_id, GameHandResult) after
+                each hand completes. Only available in sequential mode.
         """
         self._config = config
         self._progress_callback = progress_callback
+        self._hand_callback = hand_callback
         self._base_seed = config.simulation.random_seed
 
     def run(self) -> SimulationResults:
@@ -393,6 +403,7 @@ class SimulationController:
             session_rng = random.Random(session_seed)
 
             session = self._create_session(
+                session_id,
                 session_rng,
                 strategy,
                 main_paytable,
@@ -419,6 +430,7 @@ class SimulationController:
 
     def _create_session(
         self,
+        session_id: int,
         rng: random.Random,
         strategy: Strategy,
         main_paytable: MainGamePaytable,
@@ -428,6 +440,7 @@ class SimulationController:
         """Create a new session with fresh state.
 
         Args:
+            session_id: The session identifier (0-indexed).
             rng: Random number generator for this session.
             strategy: Strategy instance (reused across sessions).
             main_paytable: Main game paytable (reused across sessions).
@@ -458,7 +471,18 @@ class SimulationController:
         # Betting system needs fresh state per session
         betting_system = betting_system_factory()
 
-        return Session(session_config, engine, betting_system)
+        # Create session-specific hand callback wrapper if hand callback is set
+        session_hand_callback = None
+        if self._hand_callback is not None:
+            # Capture session_id in closure for the callback
+            sid = session_id
+
+            def session_hand_callback(hand_id: int, result: GameHandResult) -> None:
+                self._hand_callback(sid, hand_id, result)  # type: ignore[misc]
+
+        return Session(
+            session_config, engine, betting_system, hand_callback=session_hand_callback
+        )
 
     def _run_session(self, session: Session) -> SessionResult:
         """Run a single session to completion.

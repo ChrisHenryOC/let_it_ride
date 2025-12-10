@@ -16,6 +16,7 @@ from let_it_ride.simulation.aggregation import (
     merge_aggregates,
 )
 from let_it_ride.simulation.controller import (
+    ControllerHandCallback,
     ProgressCallback,
     SimulationController,
     SimulationResults,
@@ -36,6 +37,7 @@ from let_it_ride.simulation.rng import (
     validate_rng_quality,
 )
 from let_it_ride.simulation.session import (
+    HandCallback,
     Session,
     SessionConfig,
     SessionOutcome,
@@ -52,6 +54,8 @@ from let_it_ride.simulation.table_session import (
 
 __all__ = [
     "AggregateStatistics",
+    "ControllerHandCallback",
+    "HandCallback",
     "HandRecord",
     "ProgressCallback",
     "RNGManager",

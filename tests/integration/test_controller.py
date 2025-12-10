@@ -21,6 +21,7 @@ from let_it_ride.config.models import (
     StopConditionsConfig,
     StrategyConfig,
 )
+from let_it_ride.core.game_engine import GameHandResult
 from let_it_ride.simulation import (
     SessionOutcome,
     SimulationController,
@@ -341,6 +342,32 @@ class TestReproducibility:
             assert r3.outcome == r5.outcome
 
 
+def _hands_are_identical(hand1: GameHandResult, hand2: GameHandResult) -> bool:
+    """Compare two GameHandResult objects for RNG-dependent equality.
+
+    Compares all attributes that depend on RNG state:
+    - Cards dealt (player and community)
+    - Strategy decisions (depend on cards)
+    - Hand rank (depends on cards)
+    - Payouts (depend on hand rank)
+
+    Args:
+        hand1: First hand result to compare.
+        hand2: Second hand result to compare.
+
+    Returns:
+        True if hands are identical in all RNG-dependent attributes.
+    """
+    return (
+        hand1.player_cards == hand2.player_cards
+        and hand1.community_cards == hand2.community_cards
+        and hand1.decision_bet1 == hand2.decision_bet1
+        and hand1.decision_bet2 == hand2.decision_bet2
+        and hand1.final_hand_rank == hand2.final_hand_rank
+        and hand1.main_payout == hand2.main_payout
+    )
+
+
 class TestRNGIsolation:
     """Tests verifying RNG isolation between sessions.
 
@@ -348,6 +375,7 @@ class TestRNGIsolation:
     - Session N+1 does not inherit RNG state from session N
     - RNG seeds are derived deterministically from master seed
     - Results are reproducible regardless of session count
+    - Individual hands are identical when same seed is used
     """
 
     def test_session_seeds_are_independent(self) -> None:
@@ -355,53 +383,115 @@ class TestRNGIsolation:
 
         If sessions shared RNG state, running session N to a different number
         of hands would affect session N+1's results. This test verifies that
-        doesn't happen.
+        doesn't happen by comparing individual hands.
+
+        This test uses hand-level callbacks to capture actual dealt cards and
+        verify that the first N hands of each session are identical between
+        runs with different hands_per_session values.
         """
         # Two configs with same base seed but different hands_per_session
         seed = 88888
+        num_sessions = 3
+        short_hands = 5
+        long_hands = 50
+
         config_short = create_test_config(
-            num_sessions=3,
-            hands_per_session=5,  # Short sessions
+            num_sessions=num_sessions,
+            hands_per_session=short_hands,
             random_seed=seed,
             win_limit=10000.0,  # Won't trigger
             loss_limit=10000.0,  # Won't trigger
         )
         config_long = create_test_config(
-            num_sessions=3,
-            hands_per_session=50,  # Longer sessions
+            num_sessions=num_sessions,
+            hands_per_session=long_hands,
             random_seed=seed,
             win_limit=10000.0,
             loss_limit=10000.0,
         )
 
-        results_short = SimulationController(config_short).run()
-        results_long = SimulationController(config_long).run()
+        # Collect hands using callbacks
+        # Key: (session_id, hand_id), Value: GameHandResult
+        short_hands_collected: dict[tuple[int, int], GameHandResult] = {}
+        long_hands_collected: dict[tuple[int, int], GameHandResult] = {}
 
-        # The first 5 hands of each session should be identical
-        # This verifies that session isolation is working correctly
-        # (sessions share the same starting state, not ending state from prior)
+        def short_callback(
+            session_id: int, hand_id: int, result: GameHandResult
+        ) -> None:
+            short_hands_collected[(session_id, hand_id)] = result
 
-        # Since we can't inspect individual hands directly, we verify
-        # that both runs complete successfully with expected session counts
-        assert len(results_short.session_results) == 3
-        assert len(results_long.session_results) == 3
+        def long_callback(
+            session_id: int, hand_id: int, result: GameHandResult
+        ) -> None:
+            long_hands_collected[(session_id, hand_id)] = result
+
+        results_short = SimulationController(
+            config_short, hand_callback=short_callback
+        ).run()
+        results_long = SimulationController(
+            config_long, hand_callback=long_callback
+        ).run()
+
+        # Verify basic session counts
+        assert len(results_short.session_results) == num_sessions
+        assert len(results_long.session_results) == num_sessions
 
         # Short sessions should have exactly max_hands hands
         for r in results_short.session_results:
-            assert r.hands_played == 5
+            assert r.hands_played == short_hands
             assert r.stop_reason == StopReason.MAX_HANDS
+
+        # Verify we collected the expected number of hands
+        assert len(short_hands_collected) == num_sessions * short_hands
+        assert len(long_hands_collected) == num_sessions * long_hands
+
+        # CRITICAL: Verify hand-level RNG isolation
+        # The first 5 hands of each session should be identical between runs
+        for session_id in range(num_sessions):
+            for hand_id in range(short_hands):
+                key = (session_id, hand_id)
+                short_hand = short_hands_collected[key]
+                long_hand = long_hands_collected[key]
+
+                assert _hands_are_identical(short_hand, long_hand), (
+                    f"Hand mismatch at session {session_id}, hand {hand_id}:\n"
+                    f"  Short run cards: {short_hand.player_cards} + "
+                    f"{short_hand.community_cards}\n"
+                    f"  Long run cards: {long_hand.player_cards} + "
+                    f"{long_hand.community_cards}\n"
+                    f"  Short hand rank: {short_hand.final_hand_rank}\n"
+                    f"  Long hand rank: {long_hand.final_hand_rank}"
+                )
 
     def test_deterministic_session_seed_derivation(self) -> None:
         """Test that session seeds are derived deterministically.
 
         Running the same simulation twice with the same base seed should
-        produce identical per-session results.
+        produce identical per-session results at the hand level.
         """
         seed = 12121
-        config = create_test_config(num_sessions=10, random_seed=seed)
+        num_sessions = 5
+        hands_per_session = 10
+        config = create_test_config(
+            num_sessions=num_sessions,
+            hands_per_session=hands_per_session,
+            random_seed=seed,
+            win_limit=10000.0,  # Won't trigger
+            loss_limit=10000.0,  # Won't trigger
+        )
 
-        results1 = SimulationController(config).run()
-        results2 = SimulationController(config).run()
+        # Collect hands from both runs
+        hands_run1: dict[tuple[int, int], GameHandResult] = {}
+        hands_run2: dict[tuple[int, int], GameHandResult] = {}
+
+        def callback1(session_id: int, hand_id: int, result: GameHandResult) -> None:
+            hands_run1[(session_id, hand_id)] = result
+
+        def callback2(session_id: int, hand_id: int, result: GameHandResult) -> None:
+            hands_run2[(session_id, hand_id)] = result
+
+        results1 = SimulationController(config, hand_callback=callback1).run()
+        results2 = SimulationController(config, hand_callback=callback2).run()
 
         # All sessions should be identical
         assert len(results1.session_results) == len(results2.session_results)
@@ -412,16 +502,56 @@ class TestRNGIsolation:
             assert r1.session_profit == r2.session_profit
             assert r1.stop_reason == r2.stop_reason
 
+        # CRITICAL: Verify hand-level reproducibility
+        # Every hand should be identical between runs
+        assert len(hands_run1) == len(hands_run2)
+        for key in hands_run1:
+            hand1 = hands_run1[key]
+            hand2 = hands_run2[key]
+            session_id, hand_id = key
+
+            assert _hands_are_identical(hand1, hand2), (
+                f"Reproducibility failure at session {session_id}, hand {hand_id}:\n"
+                f"  Run 1 cards: {hand1.player_cards} + {hand1.community_cards}\n"
+                f"  Run 2 cards: {hand2.player_cards} + {hand2.community_cards}"
+            )
+
     def test_different_base_seeds_produce_different_sessions(self) -> None:
         """Test that different base seeds produce different session results.
 
         This is a sanity check that the RNG seeding is actually being used.
+        Verifies at the hand level that different seeds produce different cards.
         """
-        config1 = create_test_config(num_sessions=5, random_seed=11111)
-        config2 = create_test_config(num_sessions=5, random_seed=22222)
+        num_sessions = 3
+        hands_per_session = 5
 
-        results1 = SimulationController(config1).run()
-        results2 = SimulationController(config2).run()
+        config1 = create_test_config(
+            num_sessions=num_sessions,
+            hands_per_session=hands_per_session,
+            random_seed=11111,
+            win_limit=10000.0,
+            loss_limit=10000.0,
+        )
+        config2 = create_test_config(
+            num_sessions=num_sessions,
+            hands_per_session=hands_per_session,
+            random_seed=22222,
+            win_limit=10000.0,
+            loss_limit=10000.0,
+        )
+
+        # Collect hands from both runs
+        hands1: dict[tuple[int, int], GameHandResult] = {}
+        hands2: dict[tuple[int, int], GameHandResult] = {}
+
+        def callback1(session_id: int, hand_id: int, result: GameHandResult) -> None:
+            hands1[(session_id, hand_id)] = result
+
+        def callback2(session_id: int, hand_id: int, result: GameHandResult) -> None:
+            hands2[(session_id, hand_id)] = result
+
+        results1 = SimulationController(config1, hand_callback=callback1).run()
+        results2 = SimulationController(config2, hand_callback=callback2).run()
 
         # Collect all profits
         profits1 = [r.session_profit for r in results1.session_results]
@@ -429,6 +559,23 @@ class TestRNGIsolation:
 
         # Results should differ (extremely unlikely to be identical by chance)
         assert profits1 != profits2
+
+        # CRITICAL: Verify at hand level that cards are different
+        # Check that at least some hands have different cards
+        different_hands = 0
+        for key in hands1:
+            h1 = hands1[key]
+            h2 = hands2[key]
+            if h1.player_cards != h2.player_cards:
+                different_hands += 1
+
+        # With different seeds, nearly all hands should be different
+        # Allow for extremely unlikely collision where a few might match
+        total_hands = num_sessions * hands_per_session
+        assert different_hands >= total_hands - 1, (
+            f"Expected most hands to differ with different seeds, "
+            f"but only {different_hands}/{total_hands} were different"
+        )
 
 
 class TestDeterministicStopConditions:

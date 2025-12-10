@@ -6,8 +6,10 @@ This module provides session lifecycle management with stop conditions:
 - SessionOutcome: Final outcome (win/loss/push)
 - SessionResult: Complete results of a completed session
 - Session: Manages complete session state and execution
+- HandCallback: Type alias for per-hand callback functions
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 
@@ -15,6 +17,10 @@ from let_it_ride.bankroll.betting_systems import BettingContext, BettingSystem
 from let_it_ride.bankroll.tracker import BankrollTracker
 from let_it_ride.core.game_engine import GameEngine, GameHandResult
 from let_it_ride.strategy.base import StrategyContext
+
+# Type alias for per-hand callback function.
+# Called with (hand_id, GameHandResult) after each hand completes.
+HandCallback = Callable[[int, GameHandResult], None]
 
 
 def calculate_new_streak(current_streak: int, result: float) -> int:
@@ -176,6 +182,7 @@ class Session:
         "_last_result",
         "_streak",
         "_stop_reason",
+        "_hand_callback",
     )
 
     def __init__(
@@ -183,6 +190,7 @@ class Session:
         config: SessionConfig,
         engine: GameEngine,
         betting_system: BettingSystem,
+        hand_callback: HandCallback | None = None,
     ) -> None:
         """Initialize a new session.
 
@@ -190,10 +198,13 @@ class Session:
             config: Session configuration.
             engine: GameEngine for playing hands.
             betting_system: BettingSystem for determining bet sizes.
+            hand_callback: Optional callback called after each hand completes.
+                Called with (hand_id, GameHandResult).
         """
         self._config = config
         self._engine = engine
         self._betting_system = betting_system
+        self._hand_callback = hand_callback
         self._bankroll = BankrollTracker(config.starting_bankroll)
         self._hands_played = 0
         self._total_wagered = 0.0
@@ -343,6 +354,10 @@ class Session:
 
         # Record result in betting system
         self._betting_system.record_result(result.net_result)
+
+        # Call hand callback if registered
+        if self._hand_callback is not None:
+            self._hand_callback(result.hand_id, result)
 
         return result
 
