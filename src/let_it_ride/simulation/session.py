@@ -6,7 +6,7 @@ This module provides session lifecycle management with stop conditions:
 - SessionOutcome: Final outcome (win/loss/push)
 - SessionResult: Complete results of a completed session
 - Session: Manages complete session state and execution
-- HandCallback: Type alias for per-hand callback functions
+- HandCallback: Type alias for per-hand callback functions (for testing/debugging RNG)
 """
 
 from collections.abc import Callable

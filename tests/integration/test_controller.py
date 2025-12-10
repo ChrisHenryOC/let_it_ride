@@ -349,7 +349,10 @@ def _hands_are_identical(hand1: GameHandResult, hand2: GameHandResult) -> bool:
     - Cards dealt (player and community)
     - Strategy decisions (depend on cards)
     - Hand rank (depends on cards)
-    - Payouts (depend on hand rank)
+    - Payouts (main and bonus, depend on hand rank)
+
+    Note: Does not compare hand_id, base_bet, bets_at_risk, or net_result
+    as these may vary due to betting system state.
 
     Args:
         hand1: First hand result to compare.
@@ -365,6 +368,7 @@ def _hands_are_identical(hand1: GameHandResult, hand2: GameHandResult) -> bool:
         and hand1.decision_bet2 == hand2.decision_bet2
         and hand1.final_hand_rank == hand2.final_hand_rank
         and hand1.main_payout == hand2.main_payout
+        and hand1.bonus_payout == hand2.bonus_payout
     )
 
 
@@ -1016,6 +1020,31 @@ class TestErrorHandling:
         )
 
         with pytest.raises(CustomCallbackError, match="Custom error with context"):
+            controller.run()
+
+    def test_hand_callback_exception_propagates(self) -> None:
+        """Test that exceptions in hand callback propagate up.
+
+        This documents the expected behavior: hand callback exceptions are NOT
+        caught by the controller. They propagate to the caller, which can
+        then decide how to handle them.
+        """
+        config = create_test_config(
+            num_sessions=1,
+            hands_per_session=5,
+            win_limit=10000.0,  # Won't trigger
+            loss_limit=10000.0,  # Won't trigger
+        )
+
+        def failing_callback(
+            session_id: int, hand_id: int, result: GameHandResult  # noqa: ARG001
+        ) -> None:
+            if hand_id == 2:
+                raise RuntimeError("Hand callback failed")
+
+        controller = SimulationController(config, hand_callback=failing_callback)
+
+        with pytest.raises(RuntimeError, match="Hand callback failed"):
             controller.run()
 
 

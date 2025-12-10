@@ -474,11 +474,15 @@ class SimulationController:
         # Create session-specific hand callback wrapper if hand callback is set
         session_hand_callback = None
         if self._hand_callback is not None:
-            # Capture session_id in closure for the callback
+            # Capture callback and session_id in local variables to avoid
+            # closure late-binding issue (otherwise all callbacks would see
+            # the final session_id value, and type checker can't prove
+            # self._hand_callback won't become None)
+            callback = self._hand_callback
             sid = session_id
 
             def session_hand_callback(hand_id: int, result: GameHandResult) -> None:
-                self._hand_callback(sid, hand_id, result)  # type: ignore[misc]
+                callback(sid, hand_id, result)
 
         return Session(
             session_config, engine, betting_system, hand_callback=session_hand_callback
