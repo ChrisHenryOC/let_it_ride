@@ -581,6 +581,86 @@ class TestRNGIsolation:
             f"but only {different_hands}/{total_hands} were different"
         )
 
+    def test_hand_callback_captures_bonus_payout(self) -> None:
+        """Test that hand callbacks correctly capture bonus payout information.
+
+        Verifies that hand-level callbacks work correctly when bonus betting
+        is enabled and that bonus_payout is correctly included in the
+        GameHandResult captured by the callback.
+        """
+        seed = 99999
+        num_sessions = 2
+        hands_per_session = 10
+
+        # Create config with bonus betting enabled (using static ratio)
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=num_sessions,
+                hands_per_session=hands_per_session,
+                random_seed=seed,
+            ),
+            bankroll=BankrollConfig(
+                starting_amount=1000.0,
+                base_bet=10.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=5000.0,  # Won't trigger
+                    loss_limit=5000.0,  # Won't trigger
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=BonusStrategyConfig(
+                enabled=True,
+                type="static",
+                static=StaticBonusConfig(amount=None, ratio=0.5),  # 5.0 bonus bet
+            ),
+        )
+
+        # Collect hands using callback
+        hands_collected: dict[tuple[int, int], GameHandResult] = {}
+
+        def callback(
+            session_id: int, hand_id: int, result: GameHandResult
+        ) -> None:
+            hands_collected[(session_id, hand_id)] = result
+
+        SimulationController(config, hand_callback=callback).run()
+
+        # Verify we collected the expected number of hands
+        assert len(hands_collected) == num_sessions * hands_per_session
+
+        # Verify bonus_payout is accessible on all collected hands
+        # (bonus_payout may be 0 for most hands, non-zero for winning bonus hands)
+        for (session_id, hand_id), hand_result in hands_collected.items():
+            # Bonus payout should be a numeric value (float)
+            assert isinstance(hand_result.bonus_payout, int | float), (
+                f"bonus_payout at session {session_id}, hand {hand_id} "
+                f"is not numeric: {type(hand_result.bonus_payout)}"
+            )
+
+        # Run again with same config to verify reproducibility including bonus
+        hands_run2: dict[tuple[int, int], GameHandResult] = {}
+
+        def callback2(
+            session_id: int, hand_id: int, result: GameHandResult
+        ) -> None:
+            hands_run2[(session_id, hand_id)] = result
+
+        SimulationController(config, hand_callback=callback2).run()
+
+        # Verify hand-level reproducibility including bonus_payout
+        for key in hands_collected:
+            h1 = hands_collected[key]
+            h2 = hands_run2[key]
+            session_id, hand_id = key
+
+            assert _hands_are_identical(h1, h2), (
+                f"Bonus bet reproducibility failure at session {session_id}, "
+                f"hand {hand_id}:\n"
+                f"  Run 1 bonus_payout: {h1.bonus_payout}\n"
+                f"  Run 2 bonus_payout: {h2.bonus_payout}"
+            )
+
 
 class TestDeterministicStopConditions:
     """Tests for stop conditions using deterministic mock GameEngine.
