@@ -619,9 +619,7 @@ class TestRNGIsolation:
         # Collect hands using callback
         hands_collected: dict[tuple[int, int], GameHandResult] = {}
 
-        def callback(
-            session_id: int, hand_id: int, result: GameHandResult
-        ) -> None:
+        def callback(session_id: int, hand_id: int, result: GameHandResult) -> None:
             hands_collected[(session_id, hand_id)] = result
 
         SimulationController(config, hand_callback=callback).run()
@@ -641,9 +639,7 @@ class TestRNGIsolation:
         # Run again with same config to verify reproducibility including bonus
         hands_run2: dict[tuple[int, int], GameHandResult] = {}
 
-        def callback2(
-            session_id: int, hand_id: int, result: GameHandResult
-        ) -> None:
+        def callback2(session_id: int, hand_id: int, result: GameHandResult) -> None:
             hands_run2[(session_id, hand_id)] = result
 
         SimulationController(config, hand_callback=callback2).run()
@@ -1117,7 +1113,9 @@ class TestErrorHandling:
         )
 
         def failing_callback(
-            session_id: int, hand_id: int, result: GameHandResult  # noqa: ARG001
+            session_id: int,
+            hand_id: int,
+            result: GameHandResult,  # noqa: ARG001
         ) -> None:
             if hand_id == 2:
                 raise RuntimeError("Hand callback failed")

@@ -48,14 +48,24 @@ poetry install --with viz
 # Show version
 poetry run let-it-ride --version
 
-# Run a simulation (not yet implemented)
-# poetry run let-it-ride run configs/basic_strategy.yaml
+# Run a simulation
+poetry run let-it-ride run configs/basic_strategy.yaml
 
-# Validate a configuration file (not yet implemented)
-# poetry run let-it-ride validate configs/sample_config.yaml
+# Run with options
+poetry run let-it-ride run configs/basic_strategy.yaml --output ./results --seed 42
+
+# Quiet mode (minimal output, no progress bar)
+poetry run let-it-ride run configs/basic_strategy.yaml --quiet
+
+# Verbose mode (include per-session details)
+poetry run let-it-ride run configs/basic_strategy.yaml --verbose
+
+# Override session count
+poetry run let-it-ride run configs/basic_strategy.yaml --sessions 1000
+
+# Validate a configuration file
+poetry run let-it-ride validate configs/sample_config.yaml
 ```
-
-> **Note**: The `run` and `validate` CLI commands are planned but not yet implemented. Use the Python API directly for simulations - see `scratchpads/poc_simulation.py` for examples.
 
 ### Using Make Commands
 
