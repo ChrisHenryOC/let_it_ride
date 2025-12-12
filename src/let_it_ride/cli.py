@@ -12,6 +12,7 @@ from rich.progress import (
     MofNCompleteColumn,
     Progress,
     SpinnerColumn,
+    TaskID,
     TextColumn,
     TimeElapsedColumn,
 )
@@ -124,7 +125,7 @@ def run(
         typer.Option(
             "--quiet",
             "-q",
-            help="Minimal output (no progress bar)",
+            help="Minimal output (no progress bar). Takes precedence over --verbose.",
         ),
     ] = False,
     verbose: Annotated[
@@ -160,7 +161,11 @@ def run(
     if output is not None:
         out_config = cfg.output
         cfg = cfg.model_copy(
-            update={"output": out_config.model_copy(update={"directory": str(output)})}
+            update={
+                "output": out_config.model_copy(
+                    update={"directory": str(output.resolve())}
+                )
+            }
         )
 
     num_sessions = cfg.simulation.num_sessions
@@ -177,10 +182,10 @@ def run(
 
     # Create progress callback for SimulationController
     progress_bar: Progress | None = None
-    task_id = None
+    task_id: TaskID | None = None
 
     def progress_callback(completed: int, total: int) -> None:
-        """Update progress bar."""
+        """Update progress bar with session completion status."""
         if progress_bar is not None and task_id is not None:
             progress_bar.update(task_id, completed=completed, total=total)
 
@@ -209,6 +214,10 @@ def run(
                 results = controller.run()
     except Exception as e:
         error_console.print(f"[red]Simulation error:[/red] {e}")
+        if verbose:
+            import traceback
+
+            error_console.print(traceback.format_exc())
         raise typer.Exit(code=1) from e
 
     # Calculate statistics
@@ -217,12 +226,18 @@ def run(
     duration_secs = duration.total_seconds()
     hands_per_sec = total_hands / duration_secs if duration_secs > 0 else 0
 
-    winning_sessions = sum(1 for r in results.session_results if r.session_profit > 0)
-    losing_sessions = sum(1 for r in results.session_results if r.session_profit < 0)
+    # Calculate statistics in a single pass for efficiency
+    winning_sessions = 0
+    losing_sessions = 0
+    total_profit = 0.0
+    for r in results.session_results:
+        total_profit += r.session_profit
+        if r.session_profit > 0:
+            winning_sessions += 1
+        elif r.session_profit < 0:
+            losing_sessions += 1
     breakeven_sessions = num_sessions - winning_sessions - losing_sessions
     win_rate = winning_sessions / num_sessions * 100 if num_sessions > 0 else 0
-
-    total_profit = sum(r.session_profit for r in results.session_results)
     avg_profit = total_profit / num_sessions if num_sessions > 0 else 0
 
     # Export results
@@ -232,6 +247,10 @@ def run(
         exported_files = exporter.export_all(results)
     except Exception as e:
         error_console.print(f"[red]Export error:[/red] {e}")
+        if verbose:
+            import traceback
+
+            error_console.print(traceback.format_exc())
         raise typer.Exit(code=1) from e
 
     # Print summary
