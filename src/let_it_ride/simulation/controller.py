@@ -27,7 +27,6 @@ from let_it_ride.bankroll import (
     ParoliBetting,
     ReverseMartingaleBetting,
 )
-from let_it_ride.config.paytables import BonusPaytable, MainGamePaytable
 from let_it_ride.core.deck import Deck
 from let_it_ride.core.game_engine import GameEngine, GameHandResult
 from let_it_ride.simulation.rng import RNGManager
@@ -55,6 +54,7 @@ if TYPE_CHECKING:
         FullConfig,
         StrategyConfig,
     )
+    from let_it_ride.config.paytables import BonusPaytable, MainGamePaytable
 
 # Minimum sessions needed to benefit from parallel overhead
 _MIN_SESSIONS_FOR_PARALLEL = 10

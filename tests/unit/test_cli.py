@@ -120,9 +120,7 @@ class TestLoadConfigWithErrors:
         """Test handling of ConfigParseError with details."""
         import typer
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("invalid: yaml: content: [unclosed")
             f.flush()
 
@@ -134,9 +132,7 @@ class TestLoadConfigWithErrors:
         """Test handling of ConfigValidationError."""
         import typer
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             # Valid YAML but invalid config (missing required fields)
             f.write("simulation:\n  num_sessions: -1")
             f.flush()
@@ -151,9 +147,7 @@ class TestSimulationErrorHandling:
 
     def test_simulation_runtime_error(self) -> None:
         """Test that simulation errors are caught and reported."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(
                 """
 simulation:
@@ -181,9 +175,7 @@ strategy:
 
     def test_export_error(self) -> None:
         """Test that export errors are caught and reported."""
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".yaml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(
                 """
 simulation:

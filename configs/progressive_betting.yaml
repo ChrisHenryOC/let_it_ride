@@ -1,0 +1,249 @@
+# =============================================================================
+# Progressive Betting Systems Configuration
+# =============================================================================
+# Demonstrates progressive betting systems for Let It Ride.
+# This file is configured for Martingale by default, with commented examples
+# for Paroli, D'Alembert, and Fibonacci systems.
+#
+# Progressive Betting Overview:
+# - Martingale: Double bet after losses, reset after wins
+# - Paroli: Double bet after wins for a set streak
+# - D'Alembert: Increase/decrease by fixed unit after loss/win
+# - Fibonacci: Follow Fibonacci sequence for progression
+#
+# WARNING: Progressive betting does NOT change the house edge!
+# These systems only change the variance profile of your sessions.
+# Long-term expected value remains negative regardless of system.
+# =============================================================================
+
+metadata:
+  name: "Progressive Betting Study"
+  description: "Martingale betting system demonstration"
+  version: "1.0"
+
+# -----------------------------------------------------------------------------
+# Simulation Parameters
+# -----------------------------------------------------------------------------
+simulation:
+  num_sessions: 100000
+  hands_per_session: 200
+  random_seed: 42
+  workers: "auto"
+  progress_interval: 10000
+
+# -----------------------------------------------------------------------------
+# Deck Configuration
+# -----------------------------------------------------------------------------
+deck:
+  shuffle_algorithm: "fisher_yates"
+
+# -----------------------------------------------------------------------------
+# Bankroll Configuration
+# -----------------------------------------------------------------------------
+# Larger starting bankroll needed for progressive systems:
+# - Progressive systems can require large bets during losing streaks
+# - $1000 bankroll with $5 base allows several progression steps
+# - Higher max_bet tolerance in betting system config
+bankroll:
+  starting_amount: 1000.00
+  base_bet: 5.00
+
+  stop_conditions:
+    win_limit: 500.00     # 50% profit target
+    loss_limit: 500.00    # 50% loss limit
+    max_hands: 200
+    stop_on_insufficient_funds: true
+
+  # =========================================================================
+  # MARTINGALE BETTING SYSTEM (Active)
+  # =========================================================================
+  # Classic negative progression: double bet after every loss
+  #
+  # Sequence example (starting at $5):
+  # Loss -> $10 -> Loss -> $20 -> Loss -> $40 -> Win -> Reset to $5
+  #
+  # Pros:
+  # - Single win recovers all previous losses plus base profit
+  # - High win rate for individual sessions
+  #
+  # Cons:
+  # - Exponential bet growth can hit table limits or bankroll limits
+  # - Rare but catastrophic losing streaks wipe out many winning sessions
+  # - Does NOT change long-term expected value (still negative)
+  betting_system:
+    type: "martingale"
+    martingale:
+      # Multiply bet by this after each loss
+      loss_multiplier: 2.0
+
+      # Reset to base bet after a win
+      reset_on_win: true
+
+      # Maximum bet cap (table limit or personal limit)
+      # After 6 losses: $5 -> $10 -> $20 -> $40 -> $80 -> $160 -> $320
+      max_bet: 500.00
+
+      # Maximum consecutive progressions before forced reset
+      # Limits exposure from extreme losing streaks
+      max_progressions: 6
+
+  # =========================================================================
+  # PAROLI BETTING SYSTEM (Commented - Swap to enable)
+  # =========================================================================
+  # Positive progression: double bet after wins for a set streak
+  #
+  # Sequence example (3-win target):
+  # Win $5 -> Bet $10 -> Win -> Bet $20 -> Win -> Reset to $5 (take profit)
+  # Loss at any point -> Reset to $5
+  #
+  # Pros:
+  # - Uses "house money" for larger bets
+  # - Limits losses to base bet during losing streaks
+  # - Captures momentum during winning streaks
+  #
+  # Cons:
+  # - Requires consecutive wins to profit from progression
+  # - Single loss resets entire progression
+  # - Does NOT change long-term expected value
+
+  # betting_system:
+  #   type: "paroli"
+  #   paroli:
+  #     # Multiply bet by this after each win
+  #     win_multiplier: 2.0
+  #
+  #     # Reset to base bet after this many consecutive wins
+  #     # 3 wins: $5 -> $10 -> $20 -> $40 (then reset, pocket profits)
+  #     wins_before_reset: 3
+  #
+  #     # Maximum bet cap
+  #     max_bet: 500.00
+
+  # =========================================================================
+  # D'ALEMBERT BETTING SYSTEM (Commented - Swap to enable)
+  # =========================================================================
+  # Linear progression: increase by unit after loss, decrease after win
+  #
+  # Sequence example (unit = $5):
+  # $5 -> Loss -> $10 -> Loss -> $15 -> Win -> $10 -> Win -> $5
+  #
+  # Pros:
+  # - Gentler progression than Martingale
+  # - Self-correcting (bets decrease during winning streaks)
+  # - Less likely to hit betting limits
+  #
+  # Cons:
+  # - Slower recovery from losing streaks
+  # - Still vulnerable to extended losses
+  # - Does NOT change long-term expected value
+
+  # betting_system:
+  #   type: "dalembert"
+  #   dalembert:
+  #     # Amount to add after each loss
+  #     unit: 5.00
+  #
+  #     # Amount to subtract after each win
+  #     decrease_unit: 5.00
+  #
+  #     # Minimum bet (won't go below this)
+  #     min_bet: 5.00
+  #
+  #     # Maximum bet cap
+  #     max_bet: 500.00
+
+  # =========================================================================
+  # FIBONACCI BETTING SYSTEM (Commented - Swap to enable)
+  # =========================================================================
+  # Progression follows Fibonacci sequence: 1, 1, 2, 3, 5, 8, 13, 21, ...
+  #
+  # Sequence example (unit = $5):
+  # $5 -> Loss -> $5 -> Loss -> $10 -> Loss -> $15 -> Loss -> $25 -> Win
+  # After win: Move back 2 positions in sequence
+  #
+  # Pros:
+  # - Slower growth than Martingale
+  # - Recovery doesn't require returning to start
+  # - Mathematically elegant
+  #
+  # Cons:
+  # - Complex tracking required
+  # - Extended losses still accumulate
+  # - Does NOT change long-term expected value
+
+  # betting_system:
+  #   type: "fibonacci"
+  #   fibonacci:
+  #     # Base unit (multiplied by Fibonacci number)
+  #     unit: 5.00
+  #
+  #     # After a win, move back this many positions in sequence
+  #     # 2 is traditional (e.g., from position 5 to position 3)
+  #     win_regression: 2
+  #
+  #     # Maximum bet cap
+  #     max_bet: 500.00
+  #
+  #     # Maximum position in Fibonacci sequence
+  #     # Position 10: 1,1,2,3,5,8,13,21,34,55 -> 55 * $5 = $275
+  #     max_position: 10
+
+# -----------------------------------------------------------------------------
+# Strategy Configuration
+# -----------------------------------------------------------------------------
+# Use basic strategy to isolate betting system impact
+strategy:
+  type: "basic"
+
+# -----------------------------------------------------------------------------
+# Bonus Strategy Configuration
+# -----------------------------------------------------------------------------
+# Bonus disabled to focus on main game betting systems
+bonus_strategy:
+  enabled: false
+  type: "never"
+
+# -----------------------------------------------------------------------------
+# Paytables
+# -----------------------------------------------------------------------------
+paytables:
+  main_game:
+    type: "standard"
+  bonus:
+    type: "paytable_b"
+
+# -----------------------------------------------------------------------------
+# Output Configuration
+# -----------------------------------------------------------------------------
+output:
+  directory: "./results/progressive_betting"
+  prefix: "progressive"
+
+  formats:
+    csv:
+      enabled: true
+      include_hands: false
+      include_sessions: true
+      include_aggregate: true
+    json:
+      enabled: true
+      pretty: true
+      include_config: true
+    html:
+      enabled: false
+
+  visualizations:
+    enabled: true
+    charts:
+      - type: "session_outcomes_histogram"
+        title: "Martingale System - Session Outcomes"
+      - type: "bankroll_trajectory"
+        title: "Martingale System - Bankroll Trajectories"
+        sample_sessions: 50
+    format: "png"
+    dpi: 150
+
+  console:
+    progress_bar: true
+    verbosity: 1
+    show_summary: true
