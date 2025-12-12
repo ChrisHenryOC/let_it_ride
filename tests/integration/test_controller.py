@@ -1113,7 +1113,7 @@ class TestErrorHandling:
         )
 
         def failing_callback(
-            session_id: int,
+            session_id: int,  # noqa: ARG001
             hand_id: int,
             result: GameHandResult,  # noqa: ARG001
         ) -> None:

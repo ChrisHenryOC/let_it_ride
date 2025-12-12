@@ -20,7 +20,6 @@ from math import ceil
 from multiprocessing import Pool
 from typing import TYPE_CHECKING, Literal
 
-from let_it_ride.config.paytables import BonusPaytable, MainGamePaytable
 from let_it_ride.core.deck import Deck
 from let_it_ride.core.game_engine import GameEngine
 from let_it_ride.simulation.controller import (
@@ -39,6 +38,7 @@ from let_it_ride.simulation.utils import (
 if TYPE_CHECKING:
     from let_it_ride.bankroll import BettingSystem
     from let_it_ride.config.models import FullConfig
+    from let_it_ride.config.paytables import BonusPaytable, MainGamePaytable
     from let_it_ride.strategy import Strategy
 
 
