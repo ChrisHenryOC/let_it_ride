@@ -1,4 +1,8 @@
-"""Tests for CLI functionality."""
+"""Unit tests for CLI functionality.
+
+Tests CLI structure, help messages, and basic command parsing.
+For full integration tests, see tests/integration/test_cli.py.
+"""
 
 from typer.testing import CliRunner
 
@@ -24,12 +28,24 @@ def test_help_flag() -> None:
     assert "validate" in result.stdout
 
 
+def test_no_args_shows_help() -> None:
+    """Test that running with no arguments shows help."""
+    result = runner.invoke(app, [])
+    assert result.exit_code == 0
+    assert "Let It Ride Strategy Simulator" in result.stdout
+
+
 def test_run_command_help() -> None:
     """Test that run command shows help."""
     result = runner.invoke(app, ["run", "--help"])
     assert result.exit_code == 0
     assert "Run a simulation" in result.stdout
     assert "CONFIG" in result.stdout
+    assert "--output" in result.stdout
+    assert "--seed" in result.stdout
+    assert "--sessions" in result.stdout
+    assert "--quiet" in result.stdout
+    assert "--verbose" in result.stdout
 
 
 def test_validate_command_help() -> None:
@@ -40,17 +56,31 @@ def test_validate_command_help() -> None:
     assert "CONFIG" in result.stdout
 
 
-def test_run_command_with_config() -> None:
-    """Test run command accepts a config path."""
-    result = runner.invoke(app, ["run", "test_config.yaml"])
-    assert result.exit_code == 0
-    assert "Running simulation with config" in result.stdout
-    assert "test_config.yaml" in result.stdout
+def test_run_missing_config_argument() -> None:
+    """Test that run command requires config argument."""
+    result = runner.invoke(app, ["run"])
+    assert result.exit_code == 2  # Typer returns 2 for missing required args
+    assert "CONFIG" in result.stdout or "Missing argument" in result.stdout
 
 
-def test_validate_command_with_config() -> None:
-    """Test validate command accepts a config path."""
-    result = runner.invoke(app, ["validate", "test_config.yaml"])
-    assert result.exit_code == 0
-    assert "Validating config" in result.stdout
-    assert "test_config.yaml" in result.stdout
+def test_validate_missing_config_argument() -> None:
+    """Test that validate command requires config argument."""
+    result = runner.invoke(app, ["validate"])
+    assert result.exit_code == 2  # Typer returns 2 for missing required args
+    assert "CONFIG" in result.stdout or "Missing argument" in result.stdout
+
+
+def test_run_nonexistent_config() -> None:
+    """Test that run command fails gracefully with nonexistent file."""
+    result = runner.invoke(app, ["run", "nonexistent_config_file.yaml"])
+    assert result.exit_code == 1
+    # Should show error about file not found
+    assert "error" in result.stdout.lower() or "not found" in result.stdout.lower()
+
+
+def test_validate_nonexistent_config() -> None:
+    """Test that validate command fails gracefully with nonexistent file."""
+    result = runner.invoke(app, ["validate", "nonexistent_config_file.yaml"])
+    assert result.exit_code == 1
+    # Should show error about file not found
+    assert "error" in result.stdout.lower() or "not found" in result.stdout.lower()
