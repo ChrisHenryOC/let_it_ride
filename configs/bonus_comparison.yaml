@@ -1,0 +1,202 @@
+# =============================================================================
+# Bonus Betting Strategy Configuration
+# =============================================================================
+# Demonstrates the Three Card Bonus side bet with conditional betting.
+# Uses bankroll-conditional strategy with profit-based scaling tiers.
+#
+# The Three Card Bonus:
+# - Side bet on the player's initial 3 cards
+# - Pays for pairs and better (see paytable below)
+# - House edge varies by paytable (~2.4% to ~7%)
+# - High variance due to rare but large payouts (Mini Royal 100:1)
+#
+# This configuration uses a smart approach:
+# - Only bet the bonus when session is profitable
+# - Scale bonus bet size based on profit level
+# - Stop bonus betting after significant drawdown
+# =============================================================================
+
+metadata:
+  name: "Bonus Comparison Study"
+  description: "Conditional bonus betting with profit-based scaling"
+  version: "1.0"
+
+# -----------------------------------------------------------------------------
+# Simulation Parameters
+# -----------------------------------------------------------------------------
+simulation:
+  num_sessions: 100000
+  hands_per_session: 200
+  random_seed: 42
+  workers: "auto"
+  progress_interval: 10000
+
+# -----------------------------------------------------------------------------
+# Deck Configuration
+# -----------------------------------------------------------------------------
+deck:
+  shuffle_algorithm: "fisher_yates"
+
+# -----------------------------------------------------------------------------
+# Bankroll Configuration
+# -----------------------------------------------------------------------------
+# Standard bankroll settings - bonus betting impact is the variable
+bankroll:
+  starting_amount: 500.00
+  base_bet: 5.00
+
+  stop_conditions:
+    win_limit: 250.00
+    loss_limit: 200.00
+    max_hands: 200
+    stop_on_insufficient_funds: true
+
+  betting_system:
+    type: "flat"
+
+# -----------------------------------------------------------------------------
+# Strategy Configuration
+# -----------------------------------------------------------------------------
+# Use basic strategy for main game to isolate bonus betting impact
+strategy:
+  type: "basic"
+
+# -----------------------------------------------------------------------------
+# Bonus Strategy Configuration
+# -----------------------------------------------------------------------------
+# Bankroll-conditional bonus betting with scaling tiers:
+#
+# Philosophy:
+# - Only bet the bonus when "playing with house money" (session profit > 0)
+# - Scale bet size based on how much profit we're protecting
+# - Stop bonus betting after 25% drawdown from session peak
+#
+# Tier structure:
+# - $0-$50 profit: $1 bonus bet (minimal exposure)
+# - $50-$100 profit: $2 bonus bet (modest increase)
+# - $100+ profit: $5 bonus bet (capitalize on strong sessions)
+#
+# This approach:
+# - Limits bonus losses when session is losing
+# - Increases bonus exposure when session can absorb variance
+# - Automatically stops bonus betting after significant drawdown
+bonus_strategy:
+  enabled: true
+
+  # Bonus paytable selection
+  # paytable_b is common in casinos with ~3.5% house edge:
+  # Mini Royal:      100:1
+  # Straight Flush:   40:1
+  # Three of a Kind:  30:1
+  # Straight:          5:1
+  # Flush:             4:1
+  # Pair:              1:1
+  paytable: "paytable_b"
+
+  # Bet limits for bonus wagers
+  limits:
+    min_bet: 1.00
+    max_bet: 25.00
+    increment: 1.00
+
+  # Conditional betting based on session state
+  type: "bankroll_conditional"
+  bankroll_conditional:
+    # Base bonus bet amount (used as starting point)
+    base_amount: 1.00
+
+    # Only bet bonus when session profit exceeds this threshold
+    # 0.0 = bet bonus even when break-even
+    min_session_profit: 0.00
+
+    # Stop bonus betting after this drawdown from session peak
+    # 0.25 = if we've lost 25% of our peak session profit, stop bonus
+    max_drawdown: 0.25
+
+    # Profit-based scaling tiers
+    scaling:
+      enabled: true
+      tiers:
+        # When session profit is $0-$50: bet $1
+        - min_profit: 0
+          max_profit: 50
+          bet_amount: 1.00
+
+        # When session profit is $50-$100: bet $2
+        - min_profit: 50
+          max_profit: 100
+          bet_amount: 2.00
+
+        # When session profit exceeds $100: bet $5
+        - min_profit: 100
+          max_profit: null  # No upper limit
+          bet_amount: 5.00
+
+# -----------------------------------------------------------------------------
+# Paytables
+# -----------------------------------------------------------------------------
+paytables:
+  main_game:
+    type: "standard"
+
+  # Bonus paytable B - moderate house edge, common in casinos
+  bonus:
+    type: "paytable_b"
+
+    # Alternative paytables for comparison:
+    #
+    # Paytable A (lower volatility, ~2.4% house edge):
+    # type: "paytable_a"
+    #   Mini Royal:      50:1
+    #   Straight Flush:  40:1
+    #   Three of a Kind: 30:1
+    #   Straight:         6:1
+    #   Flush:            3:1
+    #   Pair:             1:1
+    #
+    # Paytable C (progressive jackpot):
+    # type: "paytable_c"
+    #   Mini Royal:      progressive
+    #   Straight Flush: 200:1
+    #   Three of a Kind: 30:1
+    #   Straight:         6:1
+    #   Flush:            4:1
+    #   Pair:             1:1
+
+# -----------------------------------------------------------------------------
+# Output Configuration
+# -----------------------------------------------------------------------------
+output:
+  directory: "./results/bonus_comparison"
+  prefix: "bonus"
+
+  formats:
+    csv:
+      enabled: true
+      include_hands: false
+      include_sessions: true
+      include_aggregate: true
+    json:
+      enabled: true
+      pretty: true
+      include_config: true
+    html:
+      enabled: false
+
+  visualizations:
+    enabled: true
+    charts:
+      - type: "session_outcomes_histogram"
+        title: "Bonus Strategy - Session Outcomes"
+      - type: "bankroll_trajectory"
+        title: "Bonus Strategy - Bankroll Trajectories"
+        sample_sessions: 50
+      - type: "bonus_impact"
+        title: "Bonus Betting Impact Analysis"
+    format: "png"
+    dpi: 150
+
+  console:
+    progress_bar: true
+    verbosity: 1
+    show_summary: true

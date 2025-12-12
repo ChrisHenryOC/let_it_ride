@@ -1,0 +1,149 @@
+# =============================================================================
+# Aggressive Strategy Configuration
+# =============================================================================
+# A high-variance approach that chases big payouts by riding on drawing hands.
+# Accepts higher volatility in exchange for larger potential wins.
+#
+# Characteristics:
+# - Higher variance than basic strategy
+# - More hands with multiple bets riding (bigger swings)
+# - More frequent big wins (and big losses)
+# - Shorter average session duration due to increased volatility
+#
+# Best for:
+# - Players comfortable with high variance
+# - Studying the impact of draw-chasing on session outcomes
+# - Comparing risk/reward tradeoffs vs. conservative play
+# =============================================================================
+
+metadata:
+  name: "Aggressive Strategy"
+  description: "High-variance strategy - ride on draws for bigger potential wins"
+  version: "1.0"
+
+# -----------------------------------------------------------------------------
+# Simulation Parameters
+# -----------------------------------------------------------------------------
+simulation:
+  num_sessions: 100000
+  hands_per_session: 200
+  random_seed: 42
+  workers: "auto"
+  progress_interval: 10000
+
+# -----------------------------------------------------------------------------
+# Deck Configuration
+# -----------------------------------------------------------------------------
+deck:
+  shuffle_algorithm: "fisher_yates"
+
+# -----------------------------------------------------------------------------
+# Bankroll Configuration
+# -----------------------------------------------------------------------------
+# Wider stop conditions for aggressive play:
+# - Win limit: +$400 (80% profit) - let winners run, chase bigger sessions
+# - Loss limit: -$300 (60% loss) - accept larger drawdowns
+#
+# The wider limits allow more variance to play out, capturing both
+# bigger wins and accepting larger potential losses.
+bankroll:
+  starting_amount: 500.00
+  base_bet: 5.00
+
+  stop_conditions:
+    win_limit: 400.00     # Wider win limit - let big sessions develop
+    loss_limit: 300.00    # Wider loss limit - accept more downside
+    max_hands: 200
+    stop_on_insufficient_funds: true
+
+  betting_system:
+    type: "flat"
+
+# -----------------------------------------------------------------------------
+# Strategy Configuration
+# -----------------------------------------------------------------------------
+# Aggressive strategy rides on drawing hands in addition to made hands:
+#
+# ride_on_draws: true
+#   - Let bets ride on flush draws (4 to a flush)
+#   - Let bets ride on straight draws (4 to a straight)
+#   - Let bets ride on strong 3-card draws
+#
+# include_gutshots: true
+#   - Include inside straight draws (gutshot, e.g., 5-6-8-9)
+#   - Higher risk than open-ended draws but still playable
+#
+# include_backdoor_flush: true
+#   - Include 3-card flush draws on Bet 1 decision
+#   - Very speculative but can hit big payouts
+#
+# This strategy has LOWER expected value than basic strategy but
+# HIGHER variance, leading to more extreme session outcomes.
+strategy:
+  type: "aggressive"
+  aggressive:
+    # Ride on any reasonable draw
+    ride_on_draws: true
+
+    # Include inside straight draws (gutshots)
+    # e.g., 4-5-7-8 needing the 6
+    include_gutshots: true
+
+    # Include backdoor flush draws (3 cards to a flush on Bet 1)
+    # Very speculative but can lead to flush payouts
+    include_backdoor_flush: true
+
+# -----------------------------------------------------------------------------
+# Bonus Strategy Configuration
+# -----------------------------------------------------------------------------
+# Bonus betting disabled even for aggressive play:
+# - Keep focus on main game strategy impact
+# - Bonus betting analyzed separately in bonus_comparison.yaml
+bonus_strategy:
+  enabled: false
+  type: "never"
+
+# -----------------------------------------------------------------------------
+# Paytables
+# -----------------------------------------------------------------------------
+paytables:
+  main_game:
+    type: "standard"
+  bonus:
+    type: "paytable_b"
+
+# -----------------------------------------------------------------------------
+# Output Configuration
+# -----------------------------------------------------------------------------
+output:
+  directory: "./results/aggressive"
+  prefix: "aggressive"
+
+  formats:
+    csv:
+      enabled: true
+      include_hands: false
+      include_sessions: true
+      include_aggregate: true
+    json:
+      enabled: true
+      pretty: true
+      include_config: true
+    html:
+      enabled: false
+
+  visualizations:
+    enabled: true
+    charts:
+      - type: "session_outcomes_histogram"
+        title: "Aggressive Strategy - Session Outcomes"
+      - type: "bankroll_trajectory"
+        title: "Aggressive Strategy - Bankroll Trajectories"
+        sample_sessions: 50
+    format: "png"
+    dpi: 150
+
+  console:
+    progress_bar: true
+    verbosity: 1
+    show_summary: true

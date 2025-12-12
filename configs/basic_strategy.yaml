@@ -1,0 +1,154 @@
+# =============================================================================
+# Basic Strategy Baseline Configuration
+# =============================================================================
+# Uses mathematically optimal Let It Ride decisions with flat betting.
+# This configuration serves as the baseline for comparing alternative strategies.
+#
+# Expected behavior:
+# - Pulls Bet 1 unless holding a strong hand or good draw
+# - Pulls Bet 2 unless holding a paying hand or strong draw
+# - No bonus betting (reduces variance for cleaner comparisons)
+# - Flat betting maintains constant risk per hand
+# =============================================================================
+
+metadata:
+  name: "Basic Strategy Baseline"
+  description: "Mathematically optimal play with flat betting for baseline comparisons"
+  version: "1.0"
+
+# -----------------------------------------------------------------------------
+# Simulation Parameters
+# -----------------------------------------------------------------------------
+# 100,000 sessions provides statistically significant results while completing
+# in reasonable time. 200 hands/session approximates a 2-3 hour casino session.
+simulation:
+  num_sessions: 100000
+  hands_per_session: 200
+  random_seed: 42         # Set for reproducibility; remove for true randomness
+  workers: "auto"         # Use all available CPU cores
+  progress_interval: 10000
+
+# -----------------------------------------------------------------------------
+# Deck Configuration
+# -----------------------------------------------------------------------------
+# Fisher-Yates shuffle is cryptographically sufficient for simulation purposes
+# and significantly faster than the cryptographic option.
+deck:
+  shuffle_algorithm: "fisher_yates"
+
+# -----------------------------------------------------------------------------
+# Bankroll Configuration
+# -----------------------------------------------------------------------------
+# $500 starting bankroll with $5 base bet provides:
+# - 33 minimum hands if every hand is a complete loss (3 × $5 × 33 = $495)
+# - Realistic casino bankroll-to-bet ratio (100:1)
+#
+# Stop conditions:
+# - Win limit: +$250 (50% profit) - take the money and walk
+# - Loss limit: -$200 (40% loss) - preserve remaining bankroll
+# - Max hands: 200 - session length cap
+bankroll:
+  starting_amount: 500.00
+  base_bet: 5.00
+
+  stop_conditions:
+    win_limit: 250.00
+    loss_limit: 200.00
+    max_hands: 200
+    stop_on_insufficient_funds: true
+
+  # Flat betting: every hand uses the same base bet regardless of outcomes
+  betting_system:
+    type: "flat"
+
+# -----------------------------------------------------------------------------
+# Strategy Configuration
+# -----------------------------------------------------------------------------
+# Basic strategy uses mathematically optimal decisions for Let It Ride:
+#
+# Bet 1 (3 cards visible): Let it ride with:
+# - Paying hand (pair of 10s+, three of a kind)
+# - Three to a royal flush
+# - Three consecutive suited cards (open-ended straight flush draw)
+# - Three high cards (10+) to a straight flush
+#
+# Bet 2 (4 cards visible): Let it ride with:
+# - Paying hand (pair of 10s+, two pair, three of a kind, etc.)
+# - Four to an outside straight
+# - Four to a flush
+# - High pair (10s or better)
+strategy:
+  type: "basic"
+
+# -----------------------------------------------------------------------------
+# Bonus Strategy Configuration
+# -----------------------------------------------------------------------------
+# Bonus betting is disabled in the baseline to:
+# - Reduce variance for cleaner strategy comparisons
+# - Focus on main game outcomes
+# - Match the issue requirement for "flat betting baseline"
+bonus_strategy:
+  enabled: false
+  type: "never"
+
+# -----------------------------------------------------------------------------
+# Paytables
+# -----------------------------------------------------------------------------
+# Standard Let It Ride paytable used in most casinos:
+#
+# Hand                    Payout
+# Royal Flush            1000:1
+# Straight Flush          200:1
+# Four of a Kind           50:1
+# Full House               11:1
+# Flush                     8:1
+# Straight                  5:1
+# Three of a Kind           3:1
+# Two Pair                  2:1
+# Pair 10s or Better        1:1
+# Below Pair of 10s         0 (loss)
+paytables:
+  main_game:
+    type: "standard"
+  bonus:
+    type: "paytable_b"  # Not used since bonus is disabled
+
+# -----------------------------------------------------------------------------
+# Output Configuration
+# -----------------------------------------------------------------------------
+# Results saved to ./results/basic_strategy/ in CSV and JSON formats.
+# Visualizations help analyze session outcome distributions.
+output:
+  directory: "./results/basic_strategy"
+  prefix: "basic"
+
+  formats:
+    csv:
+      enabled: true
+      include_hands: false    # Per-hand data is large; enable if needed
+      include_sessions: true  # Per-session summaries
+      include_aggregate: true # Overall statistics
+    json:
+      enabled: true
+      pretty: true
+      include_config: true
+    html:
+      enabled: false
+
+  visualizations:
+    enabled: true
+    charts:
+      - type: "session_outcomes_histogram"
+        title: "Basic Strategy - Session Outcomes"
+      - type: "bankroll_trajectory"
+        title: "Basic Strategy - Bankroll Trajectories"
+        sample_sessions: 50
+      - type: "hand_frequency"
+        title: "Basic Strategy - Hand Distribution"
+    format: "png"
+    dpi: 150
+
+  console:
+    progress_bar: true
+    verbosity: 1
+    show_summary: true

@@ -1,0 +1,143 @@
+# =============================================================================
+# Conservative Strategy Configuration
+# =============================================================================
+# A risk-averse approach that prioritizes bankroll preservation over big wins.
+# Only lets bets ride on strong made hands, pulling on all draws.
+#
+# Characteristics:
+# - Lower variance than basic strategy
+# - More hands end with bets pulled (smaller losses)
+# - Fewer big wins (rare to have multiple bets riding on premium hands)
+# - Longer average session duration due to reduced volatility
+#
+# Best for:
+# - Risk-averse players who prioritize session longevity
+# - Bankroll preservation studies
+# - Comparing variance reduction vs. expected value tradeoffs
+# =============================================================================
+
+metadata:
+  name: "Conservative Strategy"
+  description: "Low-risk strategy - only ride on strong made hands"
+  version: "1.0"
+
+# -----------------------------------------------------------------------------
+# Simulation Parameters
+# -----------------------------------------------------------------------------
+simulation:
+  num_sessions: 100000
+  hands_per_session: 200
+  random_seed: 42
+  workers: "auto"
+  progress_interval: 10000
+
+# -----------------------------------------------------------------------------
+# Deck Configuration
+# -----------------------------------------------------------------------------
+deck:
+  shuffle_algorithm: "fisher_yates"
+
+# -----------------------------------------------------------------------------
+# Bankroll Configuration
+# -----------------------------------------------------------------------------
+# Conservative bankroll management with tighter stop conditions:
+# - Win limit: +$150 (30% profit) - take smaller profits, quit while ahead
+# - Loss limit: -$150 (30% loss) - protect more of the bankroll
+#
+# The tighter limits reduce the risk of giving back wins and limit downside.
+bankroll:
+  starting_amount: 500.00
+  base_bet: 5.00
+
+  stop_conditions:
+    win_limit: 150.00     # Tighter win limit - lock in profits earlier
+    loss_limit: 150.00    # Tighter loss limit - preserve bankroll
+    max_hands: 200
+    stop_on_insufficient_funds: true
+
+  betting_system:
+    type: "flat"
+
+# -----------------------------------------------------------------------------
+# Strategy Configuration
+# -----------------------------------------------------------------------------
+# Conservative strategy only rides on strong made hands:
+#
+# Key differences from basic strategy:
+# - Never ride on drawing hands (no flush draws, no straight draws)
+# - Higher threshold for letting bets ride
+# - min_strength_bet1: 7 = require strong hand for first decision
+# - min_strength_bet2: 5 = slightly lower bar after seeing 4th card
+#
+# This reduces variance significantly but also reduces expected value
+# compared to mathematically optimal basic strategy.
+strategy:
+  type: "conservative"
+  conservative:
+    # Only ride on made hands (no draws)
+    made_hands_only: true
+
+    # Minimum hand strength to ride on Bet 1 (3 cards visible)
+    # Scale: 1 (weakest) to 10 (strongest)
+    # 7 = require at least a high pair or better
+    min_strength_bet1: 7
+
+    # Minimum hand strength to ride on Bet 2 (4 cards visible)
+    # 5 = require at least a low paying hand
+    min_strength_bet2: 5
+
+# -----------------------------------------------------------------------------
+# Bonus Strategy Configuration
+# -----------------------------------------------------------------------------
+# Bonus betting disabled for conservative play:
+# - Bonus bets have negative expected value
+# - High variance from rare bonus wins
+# - Doesn't fit conservative risk profile
+bonus_strategy:
+  enabled: false
+  type: "never"
+
+# -----------------------------------------------------------------------------
+# Paytables
+# -----------------------------------------------------------------------------
+paytables:
+  main_game:
+    type: "standard"
+  bonus:
+    type: "paytable_b"
+
+# -----------------------------------------------------------------------------
+# Output Configuration
+# -----------------------------------------------------------------------------
+output:
+  directory: "./results/conservative"
+  prefix: "conservative"
+
+  formats:
+    csv:
+      enabled: true
+      include_hands: false
+      include_sessions: true
+      include_aggregate: true
+    json:
+      enabled: true
+      pretty: true
+      include_config: true
+    html:
+      enabled: false
+
+  visualizations:
+    enabled: true
+    charts:
+      - type: "session_outcomes_histogram"
+        title: "Conservative Strategy - Session Outcomes"
+      - type: "bankroll_trajectory"
+        title: "Conservative Strategy - Bankroll Trajectories"
+        sample_sessions: 50
+    format: "png"
+    dpi: 150
+
+  console:
+    progress_bar: true
+    verbosity: 1
+    show_summary: true
