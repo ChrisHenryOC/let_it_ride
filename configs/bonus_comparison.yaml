@@ -154,14 +154,16 @@ paytables:
     #   Flush:            3:1
     #   Pair:             1:1
     #
-    # Paytable C (progressive jackpot):
+    # Paytable C (higher Mini Royal payout):
     # type: "paytable_c"
-    #   Mini Royal:      progressive
-    #   Straight Flush: 200:1
-    #   Three of a Kind: 30:1
-    #   Straight:         6:1
-    #   Flush:            4:1
-    #   Pair:             1:1
+    #   Mini Royal:      1000:1  (fixed payout, not a true progressive)
+    #   Straight Flush:   200:1
+    #   Three of a Kind:   30:1
+    #   Straight:           6:1
+    #   Flush:              4:1
+    #   Pair:               1:1
+    # Note: This simulator uses fixed payouts; true progressive jackpots
+    # require external tracking not currently implemented.
 
 # -----------------------------------------------------------------------------
 # Output Configuration
