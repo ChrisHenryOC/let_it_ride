@@ -271,8 +271,11 @@ class CSVExporter:
         return self._include_bom
 
     def _ensure_output_dir(self) -> None:
-        """Create output directory if it doesn't exist."""
-        self._output_dir.mkdir(parents=True, exist_ok=True)
+        """Create output directory if it doesn't exist.
+
+        Creates directory with 0o755 permissions (owner rwx, group/other rx).
+        """
+        self._output_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
 
     def export_sessions(
         self,
