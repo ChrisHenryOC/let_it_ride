@@ -44,7 +44,15 @@ Example:
 
 Optional (controlled by `include_config` parameter). Contains the full simulation configuration as nested objects.
 
-See `configs/sample_config.yaml` for configuration structure.
+Top-level keys:
+- `simulation`: Core parameters (num_sessions, hands_per_session, random_seed, workers)
+- `bankroll`: Financial settings (starting_amount, base_bet, stop_conditions, betting_system)
+- `strategy`: Main game strategy configuration
+- `bonus_strategy`: Bonus betting configuration
+- `paytables`: Payout table settings
+- `output`: Output format settings
+
+See `configs/sample_config.yaml` for complete structure.
 
 ### simulation_timing
 
@@ -97,10 +105,12 @@ Example `hand_frequencies`:
   "straight": 400,
   "three_of_a_kind": 500,
   "two_pair": 1200,
-  "pair": 4500,
+  "tens_or_better": 4500,
   "high_card": 2919
 }
 ```
+
+Note: `tens_or_better` represents pairs of tens or higher (the minimum paying hand in Let It Ride). Lower pairs are counted as `high_card` since they don't pay.
 
 ### session_results
 
@@ -166,7 +176,8 @@ Includes detailed per-hand records. Use with caution for large simulations as th
 from pathlib import Path
 from let_it_ride.analytics import export_json, load_json, JSONExporter
 
-# Export with defaults (pretty, with config, no hands)
+# Export with defaults:
+#   pretty=True, include_config=True, include_hands=False
 export_json(results, Path("results.json"))
 
 # Export compact without config

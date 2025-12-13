@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import fields, is_dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -144,11 +144,11 @@ def _build_metadata() -> dict[str, Any]:
     """Build metadata section for JSON output.
 
     Returns:
-        Dictionary with schema version, timestamp, and simulator version.
+        Dictionary with schema version, timestamp (UTC), and simulator version.
     """
     return {
         "schema_version": JSON_SCHEMA_VERSION,
-        "generated_at": datetime.now().isoformat(),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
         "simulator_version": __version__,
     }
 
@@ -173,6 +173,12 @@ def export_json(
 
     Raises:
         ValueError: If include_hands is True but hands is None or empty.
+
+    Note:
+        When include_hands=True, all hand data is materialized into memory before
+        writing. For simulations with millions of hands, this may consume significant
+        memory (approximately 300 bytes per hand). For very large exports (>1M hands),
+        consider using CSV export for hand data or exporting in batches.
     """
     from let_it_ride.simulation.aggregation import aggregate_results
 
@@ -210,9 +216,9 @@ def export_json(
             raise ValueError("include_hands is True but hands iterable is empty")
         output["hands"] = hands_list
 
-    # Write to file
+    # Write to file with explicit buffering for large exports
     indent = 2 if pretty else None
-    with path.open("w", encoding="utf-8") as f:
+    with path.open("w", encoding="utf-8", buffering=65536) as f:
         json.dump(output, f, cls=ResultsEncoder, indent=indent, ensure_ascii=False)
         if pretty:
             f.write("\n")  # Trailing newline for pretty output

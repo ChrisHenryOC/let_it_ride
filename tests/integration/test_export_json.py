@@ -23,7 +23,10 @@ from let_it_ride.simulation.session import SessionOutcome, SessionResult, StopRe
 
 @pytest.fixture
 def sample_session_results() -> list[SessionResult]:
-    """Create sample session results for testing."""
+    """Create sample session results for testing.
+
+    Includes all four stop reasons: WIN_LIMIT, LOSS_LIMIT, MAX_HANDS, INSUFFICIENT_FUNDS.
+    """
     return [
         SessionResult(
             outcome=SessionOutcome.WIN,
@@ -63,6 +66,19 @@ def sample_session_results() -> list[SessionResult]:
             peak_bankroll=580.0,
             max_drawdown=80.0,
             max_drawdown_pct=0.14,
+        ),
+        SessionResult(
+            outcome=SessionOutcome.LOSS,
+            stop_reason=StopReason.INSUFFICIENT_FUNDS,
+            hands_played=5,
+            starting_bankroll=500.0,
+            final_bankroll=10.0,
+            session_profit=-490.0,
+            total_wagered=500.0,
+            total_bonus_wagered=0.0,
+            peak_bankroll=520.0,
+            max_drawdown=510.0,
+            max_drawdown_pct=0.98,
         ),
     ]
 
@@ -139,7 +155,7 @@ def sample_simulation_results(sample_session_results: list[SessionResult]):
     from let_it_ride.simulation.controller import SimulationResults
 
     config = FullConfig(
-        simulation=SimulationConfig(num_sessions=3, hands_per_session=50),
+        simulation=SimulationConfig(num_sessions=4, hands_per_session=50),
         bankroll=BankrollConfig(
             starting_amount=500.0,
             base_bet=5.0,
@@ -153,7 +169,7 @@ def sample_simulation_results(sample_session_results: list[SessionResult]):
         session_results=sample_session_results,
         start_time=datetime(2025, 1, 15, 10, 30, 0),
         end_time=datetime(2025, 1, 15, 10, 35, 0),
-        total_hands=115,
+        total_hands=120,
     )
 
 
@@ -204,6 +220,27 @@ class TestResultsEncoder:
         assert data["record"]["hand_id"] == 0
         assert data["record"]["cards_player"] == "Ah Kh Qh"
 
+    def test_encodes_dataclass_with_enum_fields(self) -> None:
+        """Verify dataclass containing enum fields is encoded correctly."""
+        session_result = SessionResult(
+            outcome=SessionOutcome.WIN,
+            stop_reason=StopReason.WIN_LIMIT,
+            hands_played=10,
+            starting_bankroll=500.0,
+            final_bankroll=600.0,
+            session_profit=100.0,
+            total_wagered=300.0,
+            total_bonus_wagered=0.0,
+            peak_bankroll=610.0,
+            max_drawdown=10.0,
+            max_drawdown_pct=0.02,
+        )
+        result = json.dumps({"result": session_result}, cls=ResultsEncoder)
+        data = json.loads(result)
+        assert data["result"]["outcome"] == "win"
+        assert data["result"]["stop_reason"] == "win_limit"
+        assert data["result"]["hands_played"] == 10
+
 
 class TestExportJson:
     """Tests for export_json function."""
@@ -246,7 +283,7 @@ class TestExportJson:
         assert "simulation_timing" in data
         assert data["simulation_timing"]["start_time"] == "2025-01-15T10:30:00"
         assert data["simulation_timing"]["end_time"] == "2025-01-15T10:35:00"
-        assert data["simulation_timing"]["total_hands"] == 115
+        assert data["simulation_timing"]["total_hands"] == 120
 
     def test_contains_aggregate_statistics(
         self, tmp_path: Path, sample_simulation_results
@@ -258,9 +295,9 @@ class TestExportJson:
 
         assert "aggregate_statistics" in data
         stats = data["aggregate_statistics"]
-        assert stats["total_sessions"] == 3
+        assert stats["total_sessions"] == 4
         assert stats["winning_sessions"] == 1
-        assert stats["losing_sessions"] == 1
+        assert stats["losing_sessions"] == 2
         assert stats["push_sessions"] == 1
 
     def test_contains_session_results(
@@ -272,10 +309,11 @@ class TestExportJson:
         data = load_json(path)
 
         assert "session_results" in data
-        assert len(data["session_results"]) == 3
+        assert len(data["session_results"]) == 4
         assert data["session_results"][0]["outcome"] == "win"
         assert data["session_results"][1]["outcome"] == "loss"
         assert data["session_results"][2]["outcome"] == "push"
+        assert data["session_results"][3]["stop_reason"] == "insufficient_funds"
 
     def test_enum_values_serialized_as_strings(
         self, tmp_path: Path, sample_simulation_results
@@ -300,7 +338,7 @@ class TestExportJson:
         data = load_json(path)
 
         assert "config" in data
-        assert data["config"]["simulation"]["num_sessions"] == 3
+        assert data["config"]["simulation"]["num_sessions"] == 4
         assert data["config"]["bankroll"]["starting_amount"] == 500.0
         assert data["config"]["strategy"]["type"] == "basic"
 
@@ -363,6 +401,24 @@ class TestExportJson:
         ):
             export_json(sample_simulation_results, path, include_hands=True, hands=[])
 
+    def test_include_hands_with_generator(
+        self,
+        tmp_path: Path,
+        sample_simulation_results,
+        sample_hand_records: list[HandRecord],
+    ) -> None:
+        """Verify hands work when passed as a generator (single-pass iterable)."""
+        path = tmp_path / "results.json"
+        hand_generator = (h for h in sample_hand_records)  # Generator, not list
+        export_json(
+            sample_simulation_results,
+            path,
+            include_hands=True,
+            hands=hand_generator,
+        )
+        data = load_json(path)
+        assert len(data["hands"]) == 3
+
     def test_pretty_print_format(
         self, tmp_path: Path, sample_simulation_results
     ) -> None:
@@ -384,6 +440,8 @@ class TestExportJson:
         content = path.read_text()
         # Compact has no indentation (no newline followed by spaces)
         assert "\n  " not in content
+        # Compact has no trailing newline
+        assert not content.endswith("\n")
 
     def test_compact_smaller_than_pretty(
         self, tmp_path: Path, sample_simulation_results
@@ -501,7 +559,7 @@ class TestRoundTrip:
         data = load_json(path)
 
         # Verify all session data is preserved
-        assert len(data["session_results"]) == 3
+        assert len(data["session_results"]) == 4
 
         session = data["session_results"][0]
         assert session["outcome"] == "win"
@@ -550,7 +608,7 @@ class TestRoundTrip:
         data = load_json(path)
 
         # Verify config structure is preserved
-        assert data["config"]["simulation"]["num_sessions"] == 3
+        assert data["config"]["simulation"]["num_sessions"] == 4
         assert data["config"]["simulation"]["hands_per_session"] == 50
         assert data["config"]["bankroll"]["starting_amount"] == 500.0
         assert data["config"]["bankroll"]["base_bet"] == 5.0
@@ -625,13 +683,20 @@ class TestJSONExporter:
     def test_include_config_option(
         self, tmp_path: Path, sample_simulation_results
     ) -> None:
-        """Verify include_config option works."""
-        exporter = JSONExporter(tmp_path)
-
+        """Verify include_config option works for both True and False."""
         # With config
-        path = exporter.export(sample_simulation_results, include_config=True)
-        data = load_json(path)
-        assert "config" in data
+        exporter_with = JSONExporter(tmp_path, prefix="with_config")
+        path_with = exporter_with.export(sample_simulation_results, include_config=True)
+        data_with = load_json(path_with)
+        assert "config" in data_with
+
+        # Without config
+        exporter_without = JSONExporter(tmp_path, prefix="without_config")
+        path_without = exporter_without.export(
+            sample_simulation_results, include_config=False
+        )
+        data_without = load_json(path_without)
+        assert "config" not in data_without
 
     def test_include_hands_option(
         self,
