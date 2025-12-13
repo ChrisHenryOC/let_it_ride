@@ -197,6 +197,21 @@ class TestColorHelper:
         result = formatter_no_color._color("test", "green")
         assert result == "test"
 
+    def test_no_color_output_has_no_ansi(
+        self, sample_stats: AggregateStatistics
+    ) -> None:
+        """Test that no-color mode produces output without ANSI escape codes."""
+        output = StringIO()
+        # Note: force_terminal=False allows no_color to take effect
+        console = Console(file=output, force_terminal=False, width=120, no_color=True)
+        formatter = OutputFormatter(verbosity=1, use_color=False, console=console)
+
+        formatter.print_statistics(sample_stats, duration_secs=10.0)
+
+        raw_output = output.getvalue()
+        # ANSI escape codes start with \x1b[
+        assert "\x1b[" not in raw_output
+
     def test_profit_color_positive(self, formatter: OutputFormatter) -> None:
         """Test profit color for positive value."""
         assert formatter._profit_color(100.0) == "green"
@@ -290,6 +305,40 @@ class TestPrintStatistics:
         # 10000 hands / 5 seconds = 2000 hands/sec
         assert "2,000 hands/sec" in output
 
+    def test_statistics_zero_sessions(self, formatter: OutputFormatter) -> None:
+        """Test statistics handles zero sessions gracefully without ZeroDivisionError."""
+        zero_stats = AggregateStatistics(
+            total_sessions=0,
+            winning_sessions=0,
+            losing_sessions=0,
+            push_sessions=0,
+            session_win_rate=0.0,
+            total_hands=0,
+            total_wagered=0.0,
+            total_won=0.0,
+            net_result=0.0,
+            expected_value_per_hand=0.0,
+            main_wagered=0.0,
+            main_won=0.0,
+            main_ev_per_hand=0.0,
+            bonus_wagered=0.0,
+            bonus_won=0.0,
+            bonus_ev_per_hand=0.0,
+            hand_frequencies={},
+            hand_frequency_pct={},
+            session_profit_mean=0.0,
+            session_profit_std=0.0,
+            session_profit_median=0.0,
+            session_profit_min=0.0,
+            session_profit_max=0.0,
+            session_profits=(),
+        )
+        # Should not raise ZeroDivisionError
+        formatter.print_statistics(zero_stats, duration_secs=1.0)
+        output = get_console_output(formatter.console)
+        # Should still produce output with 0% rates
+        assert "0.0%" in output
+
 
 class TestPrintHandFrequencies:
     """Tests for print_hand_frequencies method."""
@@ -329,6 +378,31 @@ class TestPrintHandFrequencies:
         output = get_console_output(formatter_verbose.console)
         assert output == ""
 
+    def test_frequencies_zero_total_skipped(
+        self, formatter_verbose: OutputFormatter
+    ) -> None:
+        """Test frequencies with all zero counts are skipped."""
+        frequencies = {"high_card": 0, "pair": 0, "two_pair": 0}
+        formatter_verbose.print_hand_frequencies(frequencies)
+        output = get_console_output(formatter_verbose.console)
+        assert output == ""
+
+    def test_unknown_hand_rank_displayed(
+        self, formatter_verbose: OutputFormatter
+    ) -> None:
+        """Test unknown hand ranks are handled gracefully."""
+        frequencies = {
+            "high_card": 500,
+            "unknown_custom_rank": 100,  # Not in HAND_RANK_ORDER
+        }
+        formatter_verbose.print_hand_frequencies(frequencies)
+        output = get_console_output(formatter_verbose.console)
+
+        assert "Hand Distribution" in output
+        assert "High Card" in output
+        # Unknown rank should be title-cased
+        assert "Unknown Custom Rank" in output
+
 
 class TestPrintSessionDetails:
     """Tests for print_session_details method."""
@@ -356,6 +430,15 @@ class TestPrintSessionDetails:
         formatter.print_session_details(sample_session_results)
         output = get_console_output(formatter.console)
         assert output == ""
+
+    def test_session_details_empty_list(
+        self, formatter_verbose: OutputFormatter
+    ) -> None:
+        """Test session details handles empty list gracefully."""
+        formatter_verbose.print_session_details([])
+        output = get_console_output(formatter_verbose.console)
+        # Should print table header but no data rows
+        assert "Session Details" in output
 
 
 class TestPrintCompletion:
@@ -429,6 +512,80 @@ class TestPrintMinimalCompletion:
         assert "Completed 100 sessions" in output
         assert "10,000 hands" in output
         assert "Output: /output" in output
+
+
+class TestPrintConfigSummary:
+    """Tests for print_config_summary method."""
+
+    def test_config_summary_normal_verbosity(
+        self, formatter: OutputFormatter
+    ) -> None:
+        """Test config summary is printed at normal verbosity."""
+        from unittest.mock import MagicMock
+
+        config = MagicMock()
+        config.simulation.num_sessions = 100
+        config.simulation.hands_per_session = 50
+        config.simulation.random_seed = 42
+        config.simulation.workers = 4
+        config.bankroll.starting_amount = 500.0
+        config.bankroll.base_bet = 10.0
+        config.bankroll.betting_system.type = "flat"
+        config.strategy.type = "basic"
+        config.bonus_strategy.type = "never"
+
+        formatter.print_config_summary(config)
+        output = get_console_output(formatter.console)
+
+        assert "Configuration" in output
+        assert "Sessions" in output
+        assert "100" in output
+        assert "Seed" in output
+        assert "42" in output
+        assert "Strategy" in output
+        assert "basic" in output
+
+    def test_config_summary_skipped_minimal_verbosity(
+        self, formatter_minimal: OutputFormatter
+    ) -> None:
+        """Test config summary is skipped at minimal verbosity."""
+        from unittest.mock import MagicMock
+
+        config = MagicMock()
+        config.simulation.num_sessions = 100
+        config.simulation.hands_per_session = 50
+        config.simulation.random_seed = 42
+        config.simulation.workers = 4
+        config.bankroll.starting_amount = 500.0
+        config.bankroll.base_bet = 10.0
+        config.bankroll.betting_system.type = "flat"
+        config.strategy.type = "basic"
+        config.bonus_strategy.type = "never"
+
+        formatter_minimal.print_config_summary(config)
+        output = get_console_output(formatter_minimal.console)
+        assert output == ""
+
+    def test_config_summary_without_seed(self, formatter: OutputFormatter) -> None:
+        """Test config summary when seed is None."""
+        from unittest.mock import MagicMock
+
+        config = MagicMock()
+        config.simulation.num_sessions = 100
+        config.simulation.hands_per_session = 50
+        config.simulation.random_seed = None
+        config.simulation.workers = 4
+        config.bankroll.starting_amount = 500.0
+        config.bankroll.base_bet = 10.0
+        config.bankroll.betting_system.type = "flat"
+        config.strategy.type = "basic"
+        config.bonus_strategy.type = "never"
+
+        formatter.print_config_summary(config)
+        output = get_console_output(formatter.console)
+
+        # Seed row should be omitted when None
+        assert "Seed" not in output
 
 
 class TestHandRankConstants:

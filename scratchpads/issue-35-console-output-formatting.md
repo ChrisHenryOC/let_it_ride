@@ -9,14 +9,14 @@ Implement formatted console output for results summary using Rich library. This 
 ## Acceptance Criteria
 
 - [x] Progress bar with ETA during simulation (already exists in cli.py)
-- [ ] Summary statistics table after completion
-- [ ] Colorized win/loss indicators (green/red)
-- [ ] Hand frequency table
-- [ ] Configuration summary at start
-- [ ] Elapsed time and throughput display
-- [ ] Verbosity levels (0=minimal, 1=normal, 2=detailed)
-- [ ] Plain text fallback when Rich unavailable
-- [ ] Unit tests for formatters
+- [x] Summary statistics table after completion
+- [x] Colorized win/loss indicators (green/red)
+- [x] Hand frequency table
+- [x] Configuration summary at start
+- [x] Elapsed time and throughput display
+- [x] Verbosity levels (0=minimal, 1=normal, 2=detailed)
+- [x] No-color mode via `use_color=False` (Note: Rich library is still required; true Rich-free fallback was descoped)
+- [x] Unit tests for formatters
 
 ## Files to Create
 
@@ -85,8 +85,7 @@ class OutputFormatter:
 
 - **0 (minimal):** Only essential completion message
 - **1 (normal):** Config summary, results summary, exported files
-- **2 (detailed):** Add per-session details
-- **3 (debug):** For future use
+- **2 (detailed):** Add per-session details, hand distribution, profit distribution
 
 ### 5. Color Scheme
 

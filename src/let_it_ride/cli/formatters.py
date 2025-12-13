@@ -313,11 +313,20 @@ class OutputFormatter:
         table.add_column("Frequency", justify="right")
 
         # Display in rank order
+        displayed_ranks: set[str] = set()
         for rank in HAND_RANK_ORDER:
             count = frequencies.get(rank, 0)
             if count > 0:
                 pct = count / total
                 display_name = HAND_RANK_DISPLAY.get(rank, rank)
+                table.add_row(display_name, f"{count:,}", self._format_percent(pct, 2))
+            displayed_ranks.add(rank)
+
+        # Handle any unknown ranks not in HAND_RANK_ORDER (defensive)
+        for rank, count in frequencies.items():
+            if rank not in displayed_ranks and count > 0:
+                pct = count / total
+                display_name = rank.replace("_", " ").title()
                 table.add_row(display_name, f"{count:,}", self._format_percent(pct, 2))
 
         self.console.print(table)
