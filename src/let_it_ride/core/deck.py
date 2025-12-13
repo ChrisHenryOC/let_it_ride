@@ -39,12 +39,9 @@ class Deck:
             Only shuffles cards that haven't been dealt. Dealt cards
             remain in the dealt pile until reset() is called.
         """
-        # Fisher-Yates shuffle (in-place, O(n))
-        cards = self._cards
-        n = len(cards)
-        for i in range(n - 1, 0, -1):
-            j = rng.randint(0, i)
-            cards[i], cards[j] = cards[j], cards[i]
+        # Use the built-in shuffle which uses an optimized C implementation
+        # of Fisher-Yates. This is faster than a Python loop with randint calls.
+        rng.shuffle(self._cards)
 
     def deal(self, count: int = 1) -> list[Card]:
         """Deal cards from the top of the deck.
@@ -88,8 +85,11 @@ class Deck:
         This restores the deck to a full 52-card state.
         Cards are not shuffled; call shuffle() after reset() if needed.
         """
-        self._cards = list(_CANONICAL_DECK)
-        self._dealt = []
+        # Reuse existing list memory by clearing and extending, avoiding
+        # new list allocation on the hot path
+        self._cards.clear()
+        self._cards.extend(_CANONICAL_DECK)
+        self._dealt.clear()
 
     def __len__(self) -> int:
         """Return the number of cards remaining in the deck."""
