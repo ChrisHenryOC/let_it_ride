@@ -10,22 +10,48 @@ This script demonstrates the full capabilities of the simulation system includin
 - Dealer discard configuration
 - Bankroll tracking with drawdown analysis
 
+NEW FUNCTIONALITY DEMONSTRATED:
+- YAML configuration loading (config/loader.py)
+- SimulationController for orchestrated execution (simulation/controller.py)
+- RNGManager for centralized seed management (simulation/rng.py)
+- AggregateStatistics for comprehensive statistics (simulation/aggregation.py)
+- OutputFormatter for Rich-based console output (cli/formatters.py)
+- CSVExporter for results export (analytics/export_csv.py)
+
 Run with: poetry run python3 scratchpads/poc_simulation.py
 """
 
 import random
+import tempfile
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
+# Core game components
 from let_it_ride.core.deck import Deck
 from let_it_ride.core.game_engine import GameEngine
 from let_it_ride.core.table import Table
+
+# Strategy components
 from let_it_ride.strategy.basic import BasicStrategy
 from let_it_ride.strategy.presets import conservative_strategy, aggressive_strategy
+from let_it_ride.strategy.bonus import (
+    NeverBonusStrategy,
+    AlwaysBonusStrategy,
+    StaticBonusStrategy,
+    BankrollConditionalBonusStrategy,
+)
+
+# Configuration components
 from let_it_ride.config.paytables import standard_main_paytable, bonus_paytable_b
 from let_it_ride.config.models import DealerConfig, TableConfig
-from let_it_ride.simulation.session import Session, SessionConfig, SessionOutcome
+from let_it_ride.config.loader import load_config, load_config_from_string
+
+# Session components
+from let_it_ride.simulation.session import Session, SessionConfig, SessionOutcome, SessionResult
 from let_it_ride.simulation.table_session import TableSession, TableSessionConfig
+
+# Betting systems
 from let_it_ride.bankroll.betting_systems import (
     FlatBetting,
     MartingaleBetting,
@@ -34,12 +60,21 @@ from let_it_ride.bankroll.betting_systems import (
     DAlembertBetting,
     FibonacciBetting,
 )
-from let_it_ride.strategy.bonus import (
-    NeverBonusStrategy,
-    AlwaysBonusStrategy,
-    StaticBonusStrategy,
-    BankrollConditionalBonusStrategy,
-)
+
+# NEW: Controller and orchestration
+from let_it_ride.simulation.controller import SimulationController, SimulationResults
+
+# NEW: RNG management
+from let_it_ride.simulation.rng import RNGManager, validate_rng_quality
+
+# NEW: Aggregation
+from let_it_ride.simulation.aggregation import aggregate_results, AggregateStatistics
+
+# NEW: Output formatting
+from let_it_ride.cli.formatters import OutputFormatter
+
+# NEW: CSV export
+from let_it_ride.analytics.export_csv import CSVExporter
 
 
 @dataclass
@@ -511,7 +546,404 @@ def demo_bonus_strategies():
     print("=" * 60 + "\n")
 
 
+# =============================================================================
+# NEW FUNCTIONALITY DEMONSTRATIONS
+# =============================================================================
+
+
+def demo_yaml_config_loading():
+    """Demonstrate YAML configuration loading."""
+    print("\n" + "=" * 60)
+    print("YAML CONFIGURATION LOADING DEMONSTRATION")
+    print("=" * 60)
+
+    # Demo 1: Load from YAML string
+    yaml_content = """
+simulation:
+  num_sessions: 100
+  hands_per_session: 50
+  random_seed: 42
+  workers: 1
+
+bankroll:
+  starting_amount: 500.0
+  base_bet: 5.0
+  stop_conditions:
+    win_limit: 100.0
+    loss_limit: 100.0
+    max_hands: 50
+  betting_system:
+    type: "flat"
+
+strategy:
+  type: "basic"
+
+bonus_strategy:
+  enabled: false
+  type: "never"
+"""
+    print("\nLoading configuration from YAML string...")
+    config = load_config_from_string(yaml_content)
+
+    print(f"  Sessions: {config.simulation.num_sessions}")
+    print(f"  Hands/Session: {config.simulation.hands_per_session}")
+    print(f"  Random Seed: {config.simulation.random_seed}")
+    print(f"  Workers: {config.simulation.workers}")
+    print(f"  Starting Bankroll: ${config.bankroll.starting_amount:.2f}")
+    print(f"  Base Bet: ${config.bankroll.base_bet:.2f}")
+    print(f"  Strategy Type: {config.strategy.type}")
+    print(f"  Betting System: {config.bankroll.betting_system.type}")
+
+    # Demo 2: Load from file if available
+    config_path = Path("configs/basic_strategy.yaml")
+    if config_path.exists():
+        print(f"\nLoading configuration from file: {config_path}")
+        file_config = load_config(config_path)
+        print(f"  Sessions: {file_config.simulation.num_sessions:,}")
+        print(f"  Strategy: {file_config.strategy.type}")
+        print(f"  Betting System: {file_config.bankroll.betting_system.type}")
+    else:
+        print(f"\n(Skipping file load - {config_path} not found)")
+
+    print("=" * 60 + "\n")
+    return config
+
+
+def demo_rng_manager():
+    """Demonstrate RNGManager for centralized seed management."""
+    print("\n" + "=" * 60)
+    print("RNG MANAGER DEMONSTRATION")
+    print("=" * 60)
+
+    # Create RNG manager with fixed seed for reproducibility
+    rng_manager = RNGManager(base_seed=42)
+    print(f"\nRNGManager created with base_seed: {rng_manager.base_seed}")
+
+    # Demonstrate session seed generation
+    print("\nPre-generating seeds for 5 sessions:")
+    session_seeds = rng_manager.create_session_seeds(5)
+    for session_id, seed in session_seeds.items():
+        print(f"  Session {session_id}: seed = {seed}")
+
+    # Demonstrate reproducibility - reset and regenerate
+    print("\nResetting and regenerating (should be identical):")
+    rng_manager.reset()
+    session_seeds_2 = rng_manager.create_session_seeds(5)
+    for session_id, seed in session_seeds_2.items():
+        match = "✓" if seed == session_seeds[session_id] else "✗"
+        print(f"  Session {session_id}: seed = {seed} {match}")
+
+    # Demonstrate worker RNG for parallel execution
+    print("\nWorker RNGs (for parallel execution):")
+    for worker_id in range(3):
+        worker_rng = rng_manager.create_worker_rng(worker_id)
+        first_value = worker_rng.random()
+        print(f"  Worker {worker_id}: first random value = {first_value:.6f}")
+
+    # Demonstrate RNG quality validation
+    print("\nRNG Quality Validation:")
+    test_rng = random.Random(12345)
+    quality_result = validate_rng_quality(test_rng, sample_size=10000)
+    print(f"  Overall Passed: {quality_result.passed}")
+    print(f"  Chi-Square Stat: {quality_result.chi_square_stat:.2f} (passed: {quality_result.chi_square_passed})")
+    print(f"  Runs Test Z-Score: {quality_result.runs_test_stat:.2f} (passed: {quality_result.runs_test_passed})")
+    print(f"  Sample Size: {quality_result.sample_size:,}")
+
+    # Demonstrate state serialization
+    print("\nState Serialization (for checkpointing):")
+    state = rng_manager.get_state()
+    print(f"  base_seed: {state['base_seed']}")
+    print(f"  seed_counter: {state['seed_counter']}")
+    print(f"  use_crypto: {state['use_crypto']}")
+
+    # Restore from state
+    restored_manager = RNGManager.from_state(state)
+    print(f"\n  Restored manager base_seed: {restored_manager.base_seed}")
+
+    print("=" * 60 + "\n")
+
+
+def demo_simulation_controller():
+    """Demonstrate SimulationController for orchestrated execution."""
+    print("\n" + "=" * 60)
+    print("SIMULATION CONTROLLER DEMONSTRATION")
+    print("=" * 60)
+
+    # Load a minimal configuration
+    yaml_content = """
+simulation:
+  num_sessions: 50
+  hands_per_session: 100
+  random_seed: 42
+  workers: 1
+
+bankroll:
+  starting_amount: 500.0
+  base_bet: 5.0
+  stop_conditions:
+    win_limit: 100.0
+    loss_limit: 100.0
+    max_hands: 100
+  betting_system:
+    type: "flat"
+
+strategy:
+  type: "basic"
+
+bonus_strategy:
+  enabled: false
+  type: "never"
+"""
+    config = load_config_from_string(yaml_content)
+
+    # Create progress callback
+    completed_count = [0]
+
+    def progress_callback(completed: int, total: int) -> None:
+        completed_count[0] = completed
+        if completed % 10 == 0 or completed == total:
+            print(f"  Progress: {completed}/{total} sessions")
+
+    print("\nRunning simulation via SimulationController...")
+    start_time = time.perf_counter()
+
+    # Create and run controller
+    controller = SimulationController(config, progress_callback=progress_callback)
+    results: SimulationResults = controller.run()
+
+    elapsed = time.perf_counter() - start_time
+
+    print(f"\nSimulationResults:")
+    print(f"  Total Sessions: {len(results.session_results)}")
+    print(f"  Total Hands: {results.total_hands:,}")
+    print(f"  Start Time: {results.start_time.isoformat()}")
+    print(f"  End Time: {results.end_time.isoformat()}")
+    print(f"  Duration: {elapsed:.2f}s")
+    print(f"  Throughput: {results.total_hands / elapsed:,.0f} hands/sec")
+
+    # Show first few session results
+    print("\nFirst 5 session results:")
+    for i, session_result in enumerate(results.session_results[:5]):
+        print(
+            f"  Session {i + 1}: {session_result.outcome.value} - "
+            f"Profit: ${session_result.session_profit:+.2f}, "
+            f"Hands: {session_result.hands_played}"
+        )
+
+    print("=" * 60 + "\n")
+    return results
+
+
+def demo_aggregate_statistics(results: SimulationResults | None = None):
+    """Demonstrate AggregateStatistics for comprehensive analysis."""
+    print("\n" + "=" * 60)
+    print("AGGREGATE STATISTICS DEMONSTRATION")
+    print("=" * 60)
+
+    # Use provided results or generate new ones
+    if results is None:
+        yaml_content = """
+simulation:
+  num_sessions: 100
+  hands_per_session: 100
+  random_seed: 42
+  workers: 1
+bankroll:
+  starting_amount: 500.0
+  base_bet: 5.0
+  stop_conditions:
+    win_limit: 100.0
+    loss_limit: 100.0
+    max_hands: 100
+  betting_system:
+    type: "flat"
+strategy:
+  type: "basic"
+bonus_strategy:
+  enabled: false
+  type: "never"
+"""
+        config = load_config_from_string(yaml_content)
+        controller = SimulationController(config)
+        results = controller.run()
+
+    # Aggregate results
+    stats: AggregateStatistics = aggregate_results(results.session_results)
+
+    print("\nSession Outcomes:")
+    print(f"  Total Sessions: {stats.total_sessions}")
+    print(f"  Winning: {stats.winning_sessions} ({stats.session_win_rate * 100:.1f}%)")
+    print(f"  Losing: {stats.losing_sessions}")
+    print(f"  Push: {stats.push_sessions}")
+
+    print("\nFinancial Summary:")
+    print(f"  Total Wagered: ${stats.total_wagered:,.2f}")
+    print(f"  Total Won: ${stats.total_won:,.2f}")
+    print(f"  Net Result: ${stats.net_result:+,.2f}")
+    print(f"  EV per Hand: ${stats.expected_value_per_hand:+.4f}")
+
+    print("\nMain Game Breakdown:")
+    print(f"  Main Wagered: ${stats.main_wagered:,.2f}")
+    print(f"  Main Won: ${stats.main_won:,.2f}")
+    print(f"  Main EV/Hand: ${stats.main_ev_per_hand:+.4f}")
+
+    print("\nSession Profit Distribution:")
+    print(f"  Mean: ${stats.session_profit_mean:+.2f}")
+    print(f"  Std Dev: ${stats.session_profit_std:.2f}")
+    print(f"  Median: ${stats.session_profit_median:+.2f}")
+    print(f"  Min: ${stats.session_profit_min:+.2f}")
+    print(f"  Max: ${stats.session_profit_max:+.2f}")
+
+    print("\nTotal Hands: {:,}".format(stats.total_hands))
+
+    print("=" * 60 + "\n")
+    return stats
+
+
+def demo_output_formatter(results: SimulationResults | None = None):
+    """Demonstrate Rich-based OutputFormatter for console output."""
+    print("\n" + "=" * 60)
+    print("OUTPUT FORMATTER DEMONSTRATION (Rich Console)")
+    print("=" * 60)
+
+    # Use provided results or generate new ones
+    if results is None:
+        yaml_content = """
+simulation:
+  num_sessions: 50
+  hands_per_session: 100
+  random_seed: 42
+  workers: 1
+bankroll:
+  starting_amount: 500.0
+  base_bet: 5.0
+  stop_conditions:
+    win_limit: 100.0
+    loss_limit: 100.0
+    max_hands: 100
+  betting_system:
+    type: "flat"
+strategy:
+  type: "basic"
+bonus_strategy:
+  enabled: false
+  type: "never"
+"""
+        config = load_config_from_string(yaml_content)
+        controller = SimulationController(config)
+        results = controller.run()
+
+    # Calculate statistics and duration
+    stats = aggregate_results(results.session_results)
+    duration = (results.end_time - results.start_time).total_seconds()
+
+    # Create formatter with different verbosity levels
+    print("\n--- Verbosity Level 1 (Normal) ---")
+    formatter = OutputFormatter(verbosity=1, use_color=True)
+    config = results.config
+    formatter.print_config_summary(config)
+    formatter.print_statistics(stats, duration)
+    formatter.print_completion(results.total_hands, duration)
+
+    print("\n--- Verbosity Level 2 (Detailed) ---")
+    formatter_detailed = OutputFormatter(verbosity=2, use_color=True)
+    formatter_detailed.print_statistics(stats, duration)
+    formatter_detailed.print_session_details(results.session_results[:5])
+
+    print("=" * 60 + "\n")
+
+
+def demo_csv_export(results: SimulationResults | None = None):
+    """Demonstrate CSVExporter for results export."""
+    print("\n" + "=" * 60)
+    print("CSV EXPORT DEMONSTRATION")
+    print("=" * 60)
+
+    # Use provided results or generate new ones
+    if results is None:
+        yaml_content = """
+simulation:
+  num_sessions: 20
+  hands_per_session: 50
+  random_seed: 42
+  workers: 1
+bankroll:
+  starting_amount: 500.0
+  base_bet: 5.0
+  stop_conditions:
+    win_limit: 100.0
+    loss_limit: 100.0
+    max_hands: 50
+  betting_system:
+    type: "flat"
+strategy:
+  type: "basic"
+bonus_strategy:
+  enabled: false
+  type: "never"
+"""
+        config = load_config_from_string(yaml_content)
+        controller = SimulationController(config)
+        results = controller.run()
+
+    # Create temporary directory for exports
+    with tempfile.TemporaryDirectory() as tmpdir:
+        output_dir = Path(tmpdir)
+
+        # Create exporter
+        exporter = CSVExporter(output_dir, prefix="poc_demo", include_bom=True)
+
+        print(f"\nExporting to: {output_dir}")
+
+        # Export sessions
+        sessions_path = exporter.export_sessions(results.session_results)
+        print(f"\n  Sessions CSV: {sessions_path.name}")
+
+        # Read and show first few lines
+        with sessions_path.open("r", encoding="utf-8-sig") as f:
+            lines = f.readlines()[:4]
+            for line in lines:
+                print(f"    {line.rstrip()}")
+
+        # Export aggregate statistics
+        stats = aggregate_results(results.session_results)
+        aggregate_path = exporter.export_aggregate(stats)
+        print(f"\n  Aggregate CSV: {aggregate_path.name}")
+
+        # Read and show content
+        with aggregate_path.open("r", encoding="utf-8-sig") as f:
+            lines = f.readlines()
+            # Show header and first few columns
+            header = lines[0].rstrip().split(",")[:5]
+            values = lines[1].rstrip().split(",")[:5]
+            print(f"    Columns (first 5): {header}")
+            print(f"    Values (first 5): {values}")
+
+        # Use export_all for convenience
+        print("\n  Using export_all():")
+        all_paths = exporter.export_all(results, include_hands=False)
+        for path in all_paths:
+            print(f"    Created: {path.name}")
+
+        print(f"\n  Total files exported: {len(all_paths)}")
+
+    print("\n  (Temporary files cleaned up)")
+    print("=" * 60 + "\n")
+
+
 if __name__ == "__main__":
+    print("\n" + "=" * 70)
+    print("  LET IT RIDE SIMULATION - PROOF OF CONCEPT")
+    print("  Demonstrating All Simulation System Capabilities")
+    print("=" * 70)
+
+    # =========================================================================
+    # PART 1: ORIGINAL DEMONSTRATIONS (Core Functionality)
+    # =========================================================================
+    print("\n" + "=" * 70)
+    print("  PART 1: CORE FUNCTIONALITY DEMONSTRATIONS")
+    print("=" * 70)
+
     # Demo single hand
     demo_single_hand()
 
@@ -562,3 +994,59 @@ if __name__ == "__main__":
 
     # Compare betting systems
     compare_betting_systems()
+
+    # =========================================================================
+    # PART 2: NEW FUNCTIONALITY DEMONSTRATIONS
+    # =========================================================================
+    print("\n" + "=" * 70)
+    print("  PART 2: NEW FUNCTIONALITY DEMONSTRATIONS")
+    print("=" * 70)
+
+    # Demo YAML configuration loading
+    demo_yaml_config_loading()
+
+    # Demo RNG manager
+    demo_rng_manager()
+
+    # Demo SimulationController and reuse results for subsequent demos
+    controller_results = demo_simulation_controller()
+
+    # Demo AggregateStatistics (reuse results)
+    demo_aggregate_statistics(controller_results)
+
+    # Demo OutputFormatter (reuse results)
+    demo_output_formatter(controller_results)
+
+    # Demo CSV export (reuse results)
+    demo_csv_export(controller_results)
+
+    # =========================================================================
+    # SUMMARY
+    # =========================================================================
+    print("\n" + "=" * 70)
+    print("  POC COMPLETE")
+    print("=" * 70)
+    print("""
+Demonstrated capabilities:
+
+CORE FUNCTIONALITY:
+  - Single-player hand execution with full decision tracking
+  - Dealer discard (burn card) configuration
+  - Multi-player table sessions (shared community cards)
+  - Multiple betting systems (Flat, Martingale, Paroli, D'Alembert, Fibonacci)
+  - Multiple strategies (Basic, Conservative, Aggressive)
+  - Bonus betting strategies
+
+NEW FUNCTIONALITY:
+  - YAML configuration loading (load_config, load_config_from_string)
+  - RNGManager for centralized seed management
+  - RNG quality validation (chi-square and runs tests)
+  - SimulationController for orchestrated execution
+  - AggregateStatistics for comprehensive statistical analysis
+  - OutputFormatter for Rich-based console output
+  - CSVExporter for results export to CSV files
+
+Run this POC with:
+  poetry run python3 scratchpads/poc_simulation.py
+""")
+    print("=" * 70 + "\n")
