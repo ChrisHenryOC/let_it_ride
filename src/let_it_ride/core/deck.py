@@ -1,7 +1,7 @@
 """Deck management for Let It Ride.
 
 This module provides the Deck class for managing a standard 52-card deck
-with Fisher-Yates shuffling and card tracking for statistical validation.
+with shuffling and card tracking for statistical validation.
 """
 
 import random
@@ -20,7 +20,7 @@ class DeckEmptyError(Exception):
 class Deck:
     """A standard 52-card deck with shuffle, deal, and reset operations.
 
-    The deck uses Fisher-Yates shuffling algorithm for uniform distribution
+    The deck uses Python's built-in random.shuffle() for uniform distribution
     and tracks dealt cards for statistical validation.
     """
 
@@ -30,7 +30,10 @@ class Deck:
         self._dealt: list[Card] = []
 
     def shuffle(self, rng: random.Random) -> None:
-        """Shuffle the remaining cards using Fisher-Yates algorithm.
+        """Shuffle the remaining cards using the provided RNG.
+
+        Uses Python's built-in random.shuffle() which implements Fisher-Yates
+        in C for optimal performance.
 
         Args:
             rng: Random number generator for reproducible shuffling.
@@ -39,12 +42,7 @@ class Deck:
             Only shuffles cards that haven't been dealt. Dealt cards
             remain in the dealt pile until reset() is called.
         """
-        # Fisher-Yates shuffle (in-place, O(n))
-        cards = self._cards
-        n = len(cards)
-        for i in range(n - 1, 0, -1):
-            j = rng.randint(0, i)
-            cards[i], cards[j] = cards[j], cards[i]
+        rng.shuffle(self._cards)
 
     def deal(self, count: int = 1) -> list[Card]:
         """Deal cards from the top of the deck.
@@ -88,8 +86,11 @@ class Deck:
         This restores the deck to a full 52-card state.
         Cards are not shuffled; call shuffle() after reset() if needed.
         """
-        self._cards = list(_CANONICAL_DECK)
-        self._dealt = []
+        # Reuse existing list memory by clearing and extending, avoiding
+        # new list allocation on the hot path
+        self._cards.clear()
+        self._cards.extend(_CANONICAL_DECK)
+        self._dealt.clear()
 
     def __len__(self) -> int:
         """Return the number of cards remaining in the deck."""
