@@ -49,9 +49,14 @@ This applies to ALL cases - "next", LIR identifiers, and issue numbers.
 - Must contain: GitHub issue link, planned tasks
 - If missing, create it now before proceeding
 
-- Create branch: `feature/issue-{number}-{short-description}` or `fix/issue-{number}-...`
-- Implement in small steps according to your plan
-- Commit after each logical step with descriptive messages
+1. Create branch: `feature/issue-{number}-{short-description}` or `fix/issue-{number}-...`
+2. **Stage the scratchpad immediately** after creating the branch:
+   ```bash
+   git add scratchpads/issue-{number}-{short-name}.md
+   ```
+3. Implement in small steps according to your plan
+4. Commit after each logical step with descriptive messages
+5. **Include the scratchpad in your first commit** - it documents the planning process
 
 # TEST
 
