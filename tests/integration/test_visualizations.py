@@ -284,7 +284,7 @@ class TestSaveHistogram:
     ) -> None:
         """Test saving histogram as PNG file."""
         output_path = tmp_path / "histogram.png"
-        save_histogram(sample_session_results, output_path, format="png")
+        save_histogram(sample_session_results, output_path, output_format="png")
 
         assert output_path.exists()
         assert output_path.stat().st_size > 0
@@ -298,7 +298,7 @@ class TestSaveHistogram:
     ) -> None:
         """Test saving histogram as SVG file."""
         output_path = tmp_path / "histogram.svg"
-        save_histogram(sample_session_results, output_path, format="svg")
+        save_histogram(sample_session_results, output_path, output_format="svg")
 
         assert output_path.exists()
         assert output_path.stat().st_size > 0
@@ -311,7 +311,7 @@ class TestSaveHistogram:
     ) -> None:
         """Test that correct extension is added if missing."""
         output_path = tmp_path / "histogram"
-        save_histogram(sample_session_results, output_path, format="png")
+        save_histogram(sample_session_results, output_path, output_format="png")
 
         expected_path = tmp_path / "histogram.png"
         assert expected_path.exists()
@@ -321,7 +321,7 @@ class TestSaveHistogram:
     ) -> None:
         """Test that parent directories are created if needed."""
         output_path = tmp_path / "subdir" / "nested" / "histogram.png"
-        save_histogram(sample_session_results, output_path, format="png")
+        save_histogram(sample_session_results, output_path, output_format="png")
 
         assert output_path.exists()
 
@@ -334,7 +334,7 @@ class TestSaveHistogram:
             save_histogram(
                 sample_session_results,
                 output_path,
-                format="pdf",  # type: ignore[arg-type]
+                output_format="pdf",  # type: ignore[arg-type]
             )
 
     def test_custom_dpi(
@@ -439,12 +439,12 @@ class TestHistogramIntegration:
 
         # Generate and save PNG
         png_path = tmp_path / "results.png"
-        save_histogram(large_session_results, png_path, format="png", config=config)
+        save_histogram(large_session_results, png_path, output_format="png", config=config)
         assert png_path.exists()
 
         # Generate and save SVG
         svg_path = tmp_path / "results.svg"
-        save_histogram(large_session_results, svg_path, format="svg", config=config)
+        save_histogram(large_session_results, svg_path, output_format="svg", config=config)
         assert svg_path.exists()
 
         # Verify both files have content
@@ -504,5 +504,98 @@ class TestHistogramIntegration:
         # Win rate should be 0%
         annotations = [a for a in ax.texts if "Win Rate" in a.get_text()]
         assert "0.0%" in annotations[0].get_text()
+
+        matplotlib.pyplot.close(fig)
+
+    def test_all_pushes(self) -> None:
+        """Test histogram with all push (break-even) sessions."""
+        results = [
+            SessionResult(
+                outcome=SessionOutcome.PUSH,
+                stop_reason=StopReason.MAX_HANDS,
+                hands_played=50,
+                starting_bankroll=500.0,
+                final_bankroll=500.0,
+                session_profit=0.0,
+                total_wagered=1500.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=550.0,
+                max_drawdown=50.0,
+                max_drawdown_pct=0.10,
+            )
+            for _ in range(10)
+        ]
+
+        fig = plot_session_histogram(results)
+        ax = fig.axes[0]
+
+        # Win rate should be 0%
+        annotations = [a for a in ax.texts if "Win Rate" in a.get_text()]
+        assert "0.0%" in annotations[0].get_text()
+
+        matplotlib.pyplot.close(fig)
+
+    def test_single_session_result(self) -> None:
+        """Test histogram with single session result edge case."""
+        results = [
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.WIN_LIMIT,
+                hands_played=25,
+                starting_bankroll=500.0,
+                final_bankroll=600.0,
+                session_profit=100.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=620.0,
+                max_drawdown=50.0,
+                max_drawdown_pct=0.08,
+            )
+        ]
+
+        fig = plot_session_histogram(results)
+        assert isinstance(fig, matplotlib.figure.Figure)
+
+        ax = fig.axes[0]
+        # Win rate should be 100% with 1 session
+        annotations = [a for a in ax.texts if "Win Rate" in a.get_text()]
+        assert "100.0%" in annotations[0].get_text()
+        assert "1" in annotations[0].get_text()  # Sessions count
+
+        matplotlib.pyplot.close(fig)
+
+    def test_identical_profit_values(self) -> None:
+        """Test histogram when all sessions have identical profit values."""
+        results = [
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.WIN_LIMIT,
+                hands_played=25,
+                starting_bankroll=500.0,
+                final_bankroll=550.0,
+                session_profit=50.0,  # All identical
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=560.0,
+                max_drawdown=20.0,
+                max_drawdown_pct=0.04,
+            )
+            for _ in range(10)
+        ]
+
+        fig = plot_session_histogram(results)
+        assert isinstance(fig, matplotlib.figure.Figure)
+
+        ax = fig.axes[0]
+        # Mean and median should be identical (both $50)
+        legend_texts = [t.get_text() for t in ax.get_legend().get_texts()]
+        mean_labels = [t for t in legend_texts if "Mean" in t]
+        median_labels = [t for t in legend_texts if "Median" in t]
+
+        assert len(mean_labels) == 1
+        assert len(median_labels) == 1
+        # Both should show $50.00
+        assert "$50.00" in mean_labels[0]
+        assert "$50.00" in median_labels[0]
 
         matplotlib.pyplot.close(fig)

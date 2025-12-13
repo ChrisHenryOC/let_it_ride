@@ -125,26 +125,26 @@ def plot_session_histogram(
     # Create figure and axes
     fig, ax = plt.subplots(figsize=config.figsize)
 
-    # Calculate bin edges
-    bin_edges = np.histogram_bin_edges(profits, bins=config.bins)
-
-    # Calculate histogram values for coloring
-    counts, _ = np.histogram(profits, bins=bin_edges)
+    # Calculate histogram in single pass
+    counts, bin_edges = np.histogram(profits, bins=config.bins)
 
     # Get colors for each bin
     colors = _get_bin_colors(bin_edges)
 
-    # Plot histogram bars manually for individual coloring
-    for i in range(len(counts)):
-        ax.bar(
-            x=(bin_edges[i] + bin_edges[i + 1]) / 2,
-            height=counts[i],
-            width=bin_edges[i + 1] - bin_edges[i],
-            color=colors[i],
-            edgecolor="white",
-            linewidth=0.5,
-            alpha=0.8,
-        )
+    # Plot histogram bars with vectorized call
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    bin_widths = bin_edges[1:] - bin_edges[:-1]
+    bars = ax.bar(
+        bin_centers,
+        counts,
+        width=bin_widths,
+        edgecolor="white",
+        linewidth=0.5,
+        alpha=0.8,
+    )
+    # Set individual bar colors
+    for bar, color in zip(bars, colors, strict=True):
+        bar.set_facecolor(color)
 
     # Add zero line (break-even)
     if config.show_zero_line:
@@ -213,7 +213,7 @@ def plot_session_histogram(
 def save_histogram(
     results: list[SessionResult],
     path: Path,
-    format: Literal["png", "svg"] = "png",
+    output_format: Literal["png", "svg"] = "png",
     config: HistogramConfig | None = None,
 ) -> None:
     """Generate and save a session outcome histogram to file.
@@ -221,27 +221,29 @@ def save_histogram(
     Args:
         results: List of session results to visualize.
         path: Output file path. Extension will be added if not present.
-        format: Output format, either "png" or "svg".
+        output_format: Output format, either "png" or "svg".
         config: Histogram configuration. Uses defaults if not provided.
 
     Raises:
         ValueError: If results list is empty or format is invalid.
     """
-    if format not in ("png", "svg"):
-        raise ValueError(f"Invalid format '{format}'. Must be 'png' or 'svg'.")
+    if output_format not in ("png", "svg"):
+        raise ValueError(f"Invalid format '{output_format}'. Must be 'png' or 'svg'.")
 
     if config is None:
         config = HistogramConfig()
 
     # Ensure path has correct extension
     path = Path(path)
-    if path.suffix.lower() != f".{format}":
-        path = path.with_suffix(f".{format}")
+    if path.suffix.lower() != f".{output_format}":
+        path = path.with_suffix(f".{output_format}")
 
     # Create parent directories if needed
     path.parent.mkdir(parents=True, exist_ok=True)
 
     # Generate and save figure
     fig = plot_session_histogram(results, config)
-    fig.savefig(path, format=format, dpi=config.dpi, bbox_inches="tight")
-    plt.close(fig)
+    try:
+        fig.savefig(path, format=output_format, dpi=config.dpi, bbox_inches="tight")
+    finally:
+        plt.close(fig)
