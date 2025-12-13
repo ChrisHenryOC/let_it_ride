@@ -517,9 +517,7 @@ class TestPrintMinimalCompletion:
 class TestPrintConfigSummary:
     """Tests for print_config_summary method."""
 
-    def test_config_summary_normal_verbosity(
-        self, formatter: OutputFormatter
-    ) -> None:
+    def test_config_summary_normal_verbosity(self, formatter: OutputFormatter) -> None:
         """Test config summary is printed at normal verbosity."""
         from unittest.mock import MagicMock
 

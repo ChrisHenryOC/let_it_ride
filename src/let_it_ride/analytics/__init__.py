@@ -20,6 +20,12 @@ from let_it_ride.analytics.export_csv import (
     export_hands_csv,
     export_sessions_csv,
 )
+from let_it_ride.analytics.export_json import (
+    JSONExporter,
+    ResultsEncoder,
+    export_json,
+    load_json,
+)
 from let_it_ride.analytics.statistics import (
     ConfidenceInterval,
     DetailedStatistics,
@@ -47,6 +53,11 @@ __all__ = [
     "export_aggregate_csv",
     "export_hands_csv",
     "export_sessions_csv",
+    # JSON export
+    "JSONExporter",
+    "ResultsEncoder",
+    "export_json",
+    "load_json",
     # Statistics types
     "ConfidenceInterval",
     "DetailedStatistics",
