@@ -40,11 +40,12 @@ gh pr view $ARGUMENTS --json title -q '.title'
    - Converting to lowercase
    - Replacing non-alphanumeric chars with hyphens
    - Collapsing multiple hyphens
-   - Example: "feat: LIR-28 JSON Export" becomes "feat-lir-28-json-export"
+   - **Prefixing with PR number**
+   - Example: "feat: LIR-28 JSON Export" for PR 124 becomes "PR124-feat-lir-28-json-export"
 
-3. Create the directory (use the sanitized title, NOT a shell variable):
+3. Create the directory (use the PR number prefix + sanitized title, NOT a shell variable):
 ```bash
-mkdir -p code_reviews/feat-lir-28-json-export
+mkdir -p code_reviews/PR124-feat-lir-28-json-export
 ```
 
 4. Save the diff for agent review:
@@ -65,7 +66,7 @@ Launch these subagents in parallel:
 
 Instruct each agent to:
 1. Only provide noteworthy feedback
-2. Save detailed findings to `code_reviews/PR$ARGUMENTS-{title}/{agent-name}.md`
+2. Save detailed findings to `code_reviews/PR{number}-{sanitized-title}/{agent-name}.md` (use the directory created in Step 1)
 
 ## Step 3: Consolidate and deduplicate
 
@@ -73,7 +74,7 @@ Instruct each agent to:
 
 After all agents complete:
 
-1. **Read all agent review files** from `code_reviews/PR$ARGUMENTS-{title}/`
+1. **Read all agent review files** from the directory created in Step 1 (e.g., `code_reviews/PR124-feat-lir-28-json-export/`)
 2. **Build an issue matrix** by extracting all Critical, High, and Medium severity issues
 3. **Merge overlapping concerns** (e.g., if performance and code-quality flagged the same issue)
 4. **Remove duplicates** flagged by multiple agents (count as `duplicate_merges` in metrics)
@@ -81,10 +82,11 @@ After all agents complete:
    - **In PR Scope?**: Is the file/code mentioned actually part of this PR's changes?
    - **Actionable?**: Can this be fixed without adding new dependencies, changing files outside the PR, or major architectural changes?
 
-6. **CREATE the consolidated review file** using the Write tool:
+6. **CREATE the consolidated review file** using the Write tool in the same directory:
 
 ```bash
-# File path: code_reviews/PR$ARGUMENTS-{title}/CONSOLIDATED-REVIEW.md
+# File path: code_reviews/PR{number}-{sanitized-title}/CONSOLIDATED-REVIEW.md
+# Example: code_reviews/PR124-feat-lir-28-json-export/CONSOLIDATED-REVIEW.md
 ```
 
 **Required file format:**
@@ -127,7 +129,8 @@ Issues where "Actionable?" is No OR "In PR Scope?" is No:
 
 **VERIFICATION:** Before proceeding to Step 4, confirm the file exists:
 ```bash
-ls -la code_reviews/PR$ARGUMENTS-*/CONSOLIDATED-REVIEW.md
+ls -la code_reviews/PR{number}-*/CONSOLIDATED-REVIEW.md
+# Example: ls -la code_reviews/PR124-*/CONSOLIDATED-REVIEW.md
 ```
 
 ## Step 4: Post summary comment
@@ -154,9 +157,10 @@ git fetch origin <branch-name>
 git checkout <branch-name>
 ```
 
-3. Add the review files:
+3. Add the review files (use the directory created in Step 1):
 ```bash
-git add code_reviews/<directory-name>/
+git add code_reviews/PR{number}-{sanitized-title}/
+# Example: git add code_reviews/PR124-feat-lir-28-json-export/
 ```
 
 4. Commit with a heredoc message:
@@ -197,7 +201,8 @@ This ensures review findings are:
 The PR diff has been saved to `/tmp/pr$ARGUMENTS.diff`. Each agent MUST:
 
 1. **Read the diff first** using the `Read` tool on `/tmp/pr$ARGUMENTS.diff`
-2. **Save detailed findings** to `code_reviews/PR$ARGUMENTS-{title}/{agent-name}.md`:
+2. **Save detailed findings** to `code_reviews/PR{number}-{sanitized-title}/{agent-name}.md`:
+   - Use the directory created in Step 1 (e.g., `code_reviews/PR124-feat-lir-28-json-export/`)
    - Summary (2-3 sentences)
    - Findings by severity (Critical/High/Medium/Low)
    - Specific recommendations with file:line references
