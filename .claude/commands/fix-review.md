@@ -11,14 +11,15 @@ gh pr diff $ARGUMENTS > /tmp/pr$ARGUMENTS.diff
 
 Find the review directory:
 ```bash
-REVIEW_DIR=$(ls -d code_reviews/PR$ARGUMENTS-* 2>/dev/null | head -1)
-echo "Review directory: $REVIEW_DIR"
+ls -d code_reviews/PR$ARGUMENTS-* 2>/dev/null | head -1
 ```
 
-List all review files:
+Then list all review files (use the actual directory path from above):
 ```bash
-ls "$REVIEW_DIR"
+ls code_reviews/PR$ARGUMENTS-<title>/
 ```
+
+**Note:** Due to zsh parsing issues, do NOT use `REVIEW_DIR=$(...)` variable assignment. Instead, run the `ls` command and use the returned path directly in subsequent commands.
 
 Check for @claude comments on the PR and note their IDs for replying later:
 ```bash
@@ -32,11 +33,10 @@ gh api repos/{owner}/{repo}/pulls/$ARGUMENTS/comments --jq '.[] | select(.body |
 First, check if a consolidated review file exists:
 
 ```bash
-CONSOLIDATED_FILE="$REVIEW_DIR/CONSOLIDATED-REVIEW.md"
-if [ -f "$CONSOLIDATED_FILE" ]; then
-    echo "Found consolidated review file"
-fi
+ls code_reviews/PR$ARGUMENTS-*/CONSOLIDATED-REVIEW.md 2>/dev/null
 ```
+
+If the file exists (command returns a path), use the Read tool to read it.
 
 **If `CONSOLIDATED-REVIEW.md` exists:**
 1. Read it using the Read tool
@@ -344,6 +344,15 @@ Before presenting the final outcome, log metrics per `.claude/memories/metrics-l
    - `new_issues_created`: Array of new issue identifiers created (e.g., ["LIR-XX"])
    - `existing_issues_updated`: Array of issue identifiers that had items added (e.g., ["LIR-35"])
    - `used_consolidated_review`: true if CONSOLIDATED-REVIEW.md was used, false otherwise
-4. Append to `.claude/metrics/command_log.jsonl`
+4. **CRITICAL: Include observations.errors** - Capture ALL errors encountered during execution:
+   - Bash command failures (exit code != 0)
+   - Tool errors (parse errors, permission errors, zsh issues, etc.)
+   - Test failures during validation
+   - Issues that couldn't be fixed as expected
+   - Any workarounds you had to apply
+   - Example: `"errors": ["mypy found 2 additional type errors after fix"]`
+5. Include **observations.edge_cases_hit** for unexpected scenarios
+6. Include **observations.improvement_suggestions** for command template improvements
+7. Append to `.claude/metrics/command_log.jsonl`
 
-Pay special attention to the `observations` fields - these drive continuous improvement.
+**IMPORTANT:** Even if you work around an error successfully, still log it. Error patterns drive command improvements.

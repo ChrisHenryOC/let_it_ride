@@ -49,9 +49,14 @@ This applies to ALL cases - "next", LIR identifiers, and issue numbers.
 - Must contain: GitHub issue link, planned tasks
 - If missing, create it now before proceeding
 
-- Create branch: `feature/issue-{number}-{short-description}` or `fix/issue-{number}-...`
-- Implement in small steps according to your plan
-- Commit after each logical step with descriptive messages
+1. Create branch: `feature/issue-{number}-{short-description}` or `fix/issue-{number}-...`
+2. **Stage the scratchpad immediately** after creating the branch:
+   ```bash
+   git add scratchpads/issue-{number}-{short-name}.md
+   ```
+3. Implement in small steps according to your plan
+4. Commit after each logical step with descriptive messages
+5. **Include the scratchpad in your first commit** - it documents the planning process
 
 # TEST
 
@@ -89,6 +94,14 @@ Before presenting the final outcome, log metrics per `.claude/memories/metrics-l
 
 1. Ensure `.claude/metrics/` directory exists
 2. Construct the metrics JSON reflecting this execution (command name: "issue", steps_total: 6 - IDENTIFY/PLAN/CREATE/TEST/VERIFY/PUSH)
-3. Append to `.claude/metrics/command_log.jsonl`
+3. **CRITICAL: Include observations.errors** - Capture ALL errors encountered during execution:
+   - Bash command failures (exit code != 0)
+   - Tool errors (parse errors, permission errors, zsh issues, etc.)
+   - Test failures
+   - Any workarounds you had to apply
+   - Example: `"errors": ["pytest failed with 2 errors - fixed and re-ran"]`
+4. Include **observations.edge_cases_hit** for unexpected scenarios
+5. Include **observations.improvement_suggestions** for command template improvements
+6. Append to `.claude/metrics/command_log.jsonl`
 
-Pay special attention to the `observations` fields - these drive continuous improvement.
+**IMPORTANT:** Even if you work around an error successfully, still log it. Error patterns drive command improvements.
