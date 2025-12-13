@@ -163,7 +163,7 @@ strategy:
             )
             f.flush()
 
-            with patch("let_it_ride.cli.SimulationController") as mock_controller:
+            with patch("let_it_ride.cli.app.SimulationController") as mock_controller:
                 mock_instance = MagicMock()
                 mock_instance.run.side_effect = RuntimeError("Simulation failed")
                 mock_controller.return_value = mock_instance
@@ -193,8 +193,8 @@ strategy:
 
             # Mock successful simulation but failed export
             with (
-                patch("let_it_ride.cli.SimulationController") as mock_controller,
-                patch("let_it_ride.cli.CSVExporter") as mock_exporter,
+                patch("let_it_ride.cli.app.SimulationController") as mock_controller,
+                patch("let_it_ride.cli.app.CSVExporter") as mock_exporter,
             ):
                 mock_sim_instance = MagicMock()
                 mock_results = MagicMock()
