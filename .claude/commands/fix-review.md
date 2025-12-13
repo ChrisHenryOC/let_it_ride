@@ -142,7 +142,15 @@ git push
 
 **If there are NO deferred items, skip this entire section and proceed to FINAL SUMMARY.**
 
-Present ALL deferred items in batched AskUserQuestion calls with multiSelect disabled (one decision per item).
+## Search for Related Issues First
+
+Before presenting deferred items to the user, search for existing GitHub issues that might be related:
+
+```bash
+gh issue list --state open --limit 30 --json number,title,body --jq '.[] | "\(.number): \(.title)"'
+```
+
+For each deferred item, identify keywords from the issue (e.g., "performance", "optimization", "aggregation", "test coverage") and check if any open issues cover similar work. Note any matches to present as options.
 
 ## Context to Show (Before Asking)
 
@@ -151,6 +159,7 @@ Before presenting the batched questions, display the full context for ALL deferr
 - Which reviewer(s) flagged it
 - Why it was marked as deferred (out of scope, needs new dependency, architectural change, etc.)
 - File/location affected
+- **Related existing issues** (if any were found in the search above)
 
 This gives the user complete context before making decisions.
 
@@ -162,41 +171,41 @@ For each deferred item, create a question:
 - **header**: Severity label (e.g., "High", "Medium")
 - **question**: "[Issue Summary] - [Reason deferred]. How to handle?"
 - **multiSelect**: false
-- **options**:
+- **options** (4 choices):
   - A) Fix now: "Implement in this PR"
-  - B) Create issue: "Create GitHub issue for later"
-  - C) Skip: "No action needed"
+  - B) Add to existing issue: "Add to [LIR-XX: Title]" (only if a related issue was found)
+  - C) Create new issue: "Create new GitHub issue for later"
+  - D) Skip: "No action needed"
 
-Example with 3 deferred items:
+**Note**: If no related existing issue was found, omit option B and use only 3 options.
+
+Example with related issue found:
 ```
 questions: [
   {
     header: "High",
-    question: "Missing unit tests for HandCallback - requires new test file. How to handle?",
+    question: "Redundant aggregation computation - requires architectural change. How to handle?",
     multiSelect: false,
     options: [
       {label: "Fix now", description: "Implement in this PR"},
-      {label: "Create issue", description: "Create GitHub issue for later"},
+      {label: "Add to LIR-35", description: "Add to existing Performance Optimization issue (#38)"},
+      {label: "Create new issue", description: "Create new GitHub issue for later"},
       {label: "Skip", description: "No action needed"}
     ]
-  },
+  }
+]
+```
+
+Example without related issue:
+```
+questions: [
   {
     header: "Medium",
-    question: "Parallel mode callback test - out of PR scope. How to handle?",
+    question: "Missing integration test - out of PR scope. How to handle?",
     multiSelect: false,
     options: [
       {label: "Fix now", description: "Implement in this PR"},
-      {label: "Create issue", description: "Create GitHub issue for later"},
-      {label: "Skip", description: "No action needed"}
-    ]
-  },
-  {
-    header: "Medium",
-    question: "Bonus betting integration test - needs architecture change. How to handle?",
-    multiSelect: false,
-    options: [
-      {label: "Fix now", description: "Implement in this PR"},
-      {label: "Create issue", description: "Create GitHub issue for later"},
+      {label: "Create new issue", description: "Create new GitHub issue for later"},
       {label: "Skip", description: "No action needed"}
     ]
   }
@@ -208,10 +217,11 @@ questions: [
 ## Processing Batch Responses
 
 After receiving all responses for a batch:
-1. Group items by decision (Fix now / Create issue / Skip)
+1. Group items by decision (Fix now / Add to existing / Create new / Skip)
 2. Process all "Fix now" items together - add to TodoWrite and implement
-3. Process all "Create issue" items together - create issues and update implementation_todo.md
-4. Document all "Skip" items together in final summary
+3. Process all "Add to existing issue" items together - append to existing issues
+4. Process all "Create new issue" items together - create issues and update implementation_todo.md
+5. Document all "Skip" items together in final summary
 
 ## Processing Each Choice
 
@@ -221,25 +231,38 @@ After receiving all responses for a batch:
 3. Include in the commit with other fixes
 4. Move to next deferred item
 
-### If user selects B) Create issue:
-1. Search for related existing LIR issues:
+### If user selects B) Add to existing issue:
+1. Get the current issue body:
    ```bash
-   gh issue list --state open --search "[relevant keywords]"
+   gh issue view ISSUE_NUMBER --json body -q '.body'
    ```
-2. Ask user: "Should this be added to an existing issue or create a new one?"
-   - If existing: Use `gh issue edit ISSUE_NUMBER --body "..."` to append
-   - If new: Determine next LIR number from `docs/implementation_todo.md`
-3. Create the issue if new:
+2. Append the deferred item details to the issue body using `gh issue edit`:
+   ```bash
+   gh issue edit ISSUE_NUMBER --body "[existing body]
+
+   ## Additional Item from PR #$ARGUMENTS Review
+   **Issue**: [Description from review finding]
+   **File**: [file:line]
+   **Reviewer**: [reviewer name]
+   **Recommendation**: [specific recommendation]"
+   ```
+3. Record as "Added to [LIR-XX]" in final summary
+4. Move to next deferred item
+
+### If user selects C) Create new issue:
+1. Determine next LIR number from `docs/implementation_todo.md`
+2. Create the issue:
    ```bash
    gh issue create --title "LIR-XX: [Title]" --body "[Description from review finding]"
    ```
-4. Update `docs/implementation_todo.md`:
+3. Update `docs/implementation_todo.md`:
    - Add the new LIR-XX entry to the appropriate phase
    - Update the execution order if needed
    - Update the Summary section counts
+4. Record as "Created [LIR-XX]" in final summary
 5. Move to next deferred item
 
-### If user selects C) Skip:
+### If user selects D) Skip:
 1. Document reason for skipping (optional: ask user for reason)
 2. Record as "Skipped" in final summary
 3. Move to next deferred item
@@ -268,6 +291,9 @@ Build a complete summary with:
 ## Initially Deferred Items
 | # | Severity | Issue | Decision | Outcome |
 |---|----------|-------|----------|---------|
+
+Decision values: "Fix now", "Add to existing", "Create new issue", "Skip"
+Outcome examples: "Fixed in commit abc123", "Added to LIR-35 (#38)", "Created LIR-56 (#117)", "Skipped - not needed"
 
 ## Validation
 - Tests: passed/failed
@@ -314,8 +340,9 @@ Before presenting the final outcome, log metrics per `.claude/memories/metrics-l
 3. Include **fix_metrics** object with:
    - `issues_fixed`: Number of issues fixed in this PR
    - `issues_deferred`: Number of issues presented to user as deferred
-   - `deferred_decisions`: {"fix_now": N, "create_issue": N, "skip": N}
+   - `deferred_decisions`: {"fix_now": N, "add_to_existing": N, "create_issue": N, "skip": N}
    - `new_issues_created`: Array of new issue identifiers created (e.g., ["LIR-XX"])
+   - `existing_issues_updated`: Array of issue identifiers that had items added (e.g., ["LIR-35"])
    - `used_consolidated_review`: true if CONSOLIDATED-REVIEW.md was used, false otherwise
 4. Append to `.claude/metrics/command_log.jsonl`
 

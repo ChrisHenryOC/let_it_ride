@@ -19,6 +19,7 @@ from rich.progress import (
 
 from let_it_ride import __version__
 from let_it_ride.analytics.export_csv import CSVExporter
+from let_it_ride.cli.formatters import OutputFormatter
 from let_it_ride.config.loader import (
     ConfigFileNotFoundError,
     ConfigParseError,
@@ -27,6 +28,7 @@ from let_it_ride.config.loader import (
 )
 from let_it_ride.config.models import FullConfig  # noqa: TCH001
 from let_it_ride.simulation import SimulationController
+from let_it_ride.simulation.aggregation import aggregate_results
 
 app = typer.Typer(
     name="let-it-ride",
@@ -169,16 +171,14 @@ def run(
         )
 
     num_sessions = cfg.simulation.num_sessions
-    hands_per_session = cfg.simulation.hands_per_session
+
+    # Determine verbosity level: quiet (0), normal (1), or verbose (2)
+    verbosity = 0 if quiet else (2 if verbose else 1)
+    formatter = OutputFormatter(verbosity=verbosity, console=console)
 
     if not quiet:
         console.print(f"[green]Running simulation:[/green] {config}")
-        console.print(f"  Sessions: {num_sessions}")
-        console.print(f"  Hands per session: {hands_per_session}")
-        console.print(f"  Strategy: {cfg.strategy.type}")
-        if cfg.simulation.random_seed is not None:
-            console.print(f"  Seed: {cfg.simulation.random_seed}")
-        console.print()
+        formatter.print_config_summary(cfg)
 
     # Create progress callback for SimulationController
     progress_bar: Progress | None = None
@@ -224,21 +224,6 @@ def run(
     total_hands = results.total_hands
     duration = results.end_time - results.start_time
     duration_secs = duration.total_seconds()
-    hands_per_sec = total_hands / duration_secs if duration_secs > 0 else 0
-
-    # Calculate statistics in a single pass for efficiency
-    winning_sessions = 0
-    losing_sessions = 0
-    total_profit = 0.0
-    for r in results.session_results:
-        total_profit += r.session_profit
-        if r.session_profit > 0:
-            winning_sessions += 1
-        elif r.session_profit < 0:
-            losing_sessions += 1
-    breakeven_sessions = num_sessions - winning_sessions - losing_sessions
-    win_rate = winning_sessions / num_sessions * 100 if num_sessions > 0 else 0
-    avg_profit = total_profit / num_sessions if num_sessions > 0 else 0
 
     # Export results
     output_dir = Path(cfg.output.directory)
@@ -253,47 +238,20 @@ def run(
             error_console.print(traceback.format_exc())
         raise typer.Exit(code=1) from e
 
-    # Print summary
+    # Print summary using formatter
     if not quiet:
         console.print()
-        console.print("[green]Simulation complete![/green]")
-        console.print()
-        console.print("[bold]Results Summary:[/bold]")
-        console.print(f"  Total hands: {total_hands:,}")
-        console.print(
-            f"  Duration: {duration_secs:.2f}s ({hands_per_sec:,.0f} hands/sec)"
-        )
-        console.print()
-        console.print(f"  Winning sessions: {winning_sessions} ({win_rate:.1f}%)")
-        console.print(f"  Losing sessions: {losing_sessions}")
-        console.print(f"  Breakeven sessions: {breakeven_sessions}")
-        console.print(f"  Total profit: ${total_profit:,.2f}")
-        console.print(f"  Avg profit/session: ${avg_profit:.2f}")
-        console.print()
-        console.print("[bold]Exported files:[/bold]")
-        for path in exported_files:
-            console.print(f"  {path}")
+        formatter.print_completion(total_hands, duration_secs)
 
-        if verbose:
-            console.print()
-            console.print("[bold]Session Details:[/bold]")
-            for i, r in enumerate(results.session_results):
-                outcome_color = (
-                    "green"
-                    if r.session_profit > 0
-                    else "red"
-                    if r.session_profit < 0
-                    else "yellow"
-                )
-                console.print(
-                    f"  Session {i + 1}: "
-                    f"[{outcome_color}]${r.session_profit:+.2f}[/{outcome_color}] "
-                    f"({r.hands_played} hands, {r.stop_reason.value})"
-                )
+        # Aggregate statistics for formatted display
+        stats = aggregate_results(results.session_results)
+        formatter.print_statistics(stats, duration_secs)
+        formatter.print_hand_frequencies(stats.hand_frequencies)
+        formatter.print_session_details(results.session_results)
+        formatter.print_exported_files(exported_files)
     else:
         # Quiet mode: just print essential info
-        console.print(f"Completed {num_sessions} sessions, {total_hands} hands")
-        console.print(f"Output: {output_dir}")
+        formatter.print_minimal_completion(num_sessions, total_hands, output_dir)
 
 
 @app.command()
@@ -309,34 +267,11 @@ def validate(
     """Validate a configuration file without running simulation."""
     cfg = _load_config_with_errors(config)
 
-    # Print validation success with config summary
+    # Print validation success with config summary using formatter
     console.print(f"[green]Configuration valid:[/green] {config}")
     console.print()
-    console.print("[bold]Configuration Summary:[/bold]")
-    console.print(f"  Sessions: {cfg.simulation.num_sessions}")
-    console.print(f"  Hands per session: {cfg.simulation.hands_per_session}")
-    console.print(f"  Workers: {cfg.simulation.workers}")
-    console.print()
-    console.print(f"  Starting bankroll: ${cfg.bankroll.starting_amount:.2f}")
-    console.print(f"  Base bet: ${cfg.bankroll.base_bet:.2f}")
-    console.print(f"  Betting system: {cfg.bankroll.betting_system.type}")
-    console.print()
-    console.print(f"  Strategy: {cfg.strategy.type}")
-    console.print(f"  Bonus strategy: {cfg.bonus_strategy.type}")
-    console.print()
-    console.print(f"  Output directory: {cfg.output.directory}")
-    # List enabled output formats
-    enabled_formats = []
-    if cfg.output.formats.csv.enabled:
-        enabled_formats.append("csv")
-    if cfg.output.formats.json_output.enabled:
-        enabled_formats.append("json")
-    if cfg.output.formats.html.enabled:
-        enabled_formats.append("html")
-    console.print(f"  Output formats: {', '.join(enabled_formats) or 'none'}")
-
-    if cfg.simulation.random_seed is not None:
-        console.print(f"  Random seed: {cfg.simulation.random_seed}")
+    formatter = OutputFormatter(verbosity=1, console=console)
+    formatter.print_config_summary(cfg)
 
 
 if __name__ == "__main__":
