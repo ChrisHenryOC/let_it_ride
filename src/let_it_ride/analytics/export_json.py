@@ -176,9 +176,7 @@ def export_json(
     output["aggregate_statistics"] = _aggregate_stats_to_dict(stats)
 
     # Add session results
-    output["session_results"] = [
-        r.to_dict() for r in results.session_results
-    ]
+    output["session_results"] = [r.to_dict() for r in results.session_results]
 
     # Optionally add hands
     if include_hands:

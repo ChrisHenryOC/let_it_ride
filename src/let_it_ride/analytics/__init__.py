@@ -51,8 +51,11 @@ from let_it_ride.analytics.validation import (
 )
 from let_it_ride.analytics.visualizations import (
     HistogramConfig,
+    TrajectoryConfig,
+    plot_bankroll_trajectories,
     plot_session_histogram,
     save_histogram,
+    save_trajectory_chart,
 )
 
 __all__ = [
@@ -96,7 +99,10 @@ __all__ = [
     "validate_simulation",
     # Visualization types
     "HistogramConfig",
+    "TrajectoryConfig",
     # Visualization functions
+    "plot_bankroll_trajectories",
     "plot_session_histogram",
     "save_histogram",
+    "save_trajectory_chart",
 ]
