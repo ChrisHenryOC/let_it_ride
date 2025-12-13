@@ -12,6 +12,7 @@ This module provides session lifecycle management with stop conditions:
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 from let_it_ride.bankroll.betting_systems import BettingContext, BettingSystem
 from let_it_ride.bankroll.tracker import BankrollTracker
@@ -161,6 +162,28 @@ class SessionResult:
     peak_bankroll: float
     max_drawdown: float
     max_drawdown_pct: float
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON/CSV export.
+
+        Enum values are converted to their string values.
+
+        Returns:
+            Dictionary with all fields suitable for export.
+        """
+        return {
+            "outcome": self.outcome.value,
+            "stop_reason": self.stop_reason.value,
+            "hands_played": self.hands_played,
+            "starting_bankroll": self.starting_bankroll,
+            "final_bankroll": self.final_bankroll,
+            "session_profit": self.session_profit,
+            "total_wagered": self.total_wagered,
+            "total_bonus_wagered": self.total_bonus_wagered,
+            "peak_bankroll": self.peak_bankroll,
+            "max_drawdown": self.max_drawdown,
+            "max_drawdown_pct": self.max_drawdown_pct,
+        }
 
 
 class Session:

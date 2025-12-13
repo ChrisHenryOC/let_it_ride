@@ -64,32 +64,6 @@ HAND_RECORD_FIELDS = [
 EXCLUDED_AGGREGATE_FIELDS = frozenset({"session_profits"})
 
 
-def _session_result_to_dict(result: SessionResult) -> dict[str, Any]:
-    """Convert SessionResult to dictionary for CSV export.
-
-    Enum values are converted to their string values.
-
-    Args:
-        result: SessionResult to convert.
-
-    Returns:
-        Dictionary with all fields suitable for CSV export.
-    """
-    return {
-        "outcome": result.outcome.value,
-        "stop_reason": result.stop_reason.value,
-        "hands_played": result.hands_played,
-        "starting_bankroll": result.starting_bankroll,
-        "final_bankroll": result.final_bankroll,
-        "session_profit": result.session_profit,
-        "total_wagered": result.total_wagered,
-        "total_bonus_wagered": result.total_bonus_wagered,
-        "peak_bankroll": result.peak_bankroll,
-        "max_drawdown": result.max_drawdown,
-        "max_drawdown_pct": result.max_drawdown_pct,
-    }
-
-
 def _aggregate_stats_to_dict(stats: AggregateStatistics) -> dict[str, Any]:
     """Convert AggregateStatistics to dictionary for CSV export.
 
@@ -151,7 +125,7 @@ def export_sessions_csv(
         writer = csv.DictWriter(f, fieldnames=field_names, extrasaction="ignore")
         writer.writeheader()
         for result in results:
-            row = _session_result_to_dict(result)
+            row = result.to_dict()
             writer.writerow(row)
 
 

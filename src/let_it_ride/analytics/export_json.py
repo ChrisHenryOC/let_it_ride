@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     from let_it_ride.simulation.aggregation import AggregateStatistics
     from let_it_ride.simulation.controller import SimulationResults
     from let_it_ride.simulation.results import HandRecord
-    from let_it_ride.simulation.session import SessionResult
 
 # Schema version for the JSON output format
 JSON_SCHEMA_VERSION = "1.0"
@@ -90,32 +89,6 @@ class ResultsEncoder(json.JSONEncoder):
             else:
                 result[field.name] = value
         return result
-
-
-def _session_result_to_dict(result: SessionResult) -> dict[str, Any]:
-    """Convert SessionResult to dictionary for JSON export.
-
-    Enum values are converted to their string values.
-
-    Args:
-        result: SessionResult to convert.
-
-    Returns:
-        Dictionary with all fields suitable for JSON export.
-    """
-    return {
-        "outcome": result.outcome.value,
-        "stop_reason": result.stop_reason.value,
-        "hands_played": result.hands_played,
-        "starting_bankroll": result.starting_bankroll,
-        "final_bankroll": result.final_bankroll,
-        "session_profit": result.session_profit,
-        "total_wagered": result.total_wagered,
-        "total_bonus_wagered": result.total_bonus_wagered,
-        "peak_bankroll": result.peak_bankroll,
-        "max_drawdown": result.max_drawdown,
-        "max_drawdown_pct": result.max_drawdown_pct,
-    }
 
 
 def _aggregate_stats_to_dict(stats: AggregateStatistics) -> dict[str, Any]:
@@ -204,7 +177,7 @@ def export_json(
 
     # Add session results
     output["session_results"] = [
-        _session_result_to_dict(r) for r in results.session_results
+        r.to_dict() for r in results.session_results
     ]
 
     # Optionally add hands
