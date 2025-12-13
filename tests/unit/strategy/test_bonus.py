@@ -16,6 +16,8 @@ from let_it_ride.config.models import (
     ProfitTier,
     ScalingConfig,
     StaticBonusConfig,
+    StreakActionConfig,
+    StreakBasedBonusConfig,
 )
 from let_it_ride.strategy import (
     AlwaysBonusStrategy,
@@ -24,6 +26,7 @@ from let_it_ride.strategy import (
     BonusStrategy,
     NeverBonusStrategy,
     StaticBonusStrategy,
+    StreakBasedBonusStrategy,
     create_bonus_strategy,
 )
 
@@ -614,7 +617,6 @@ class TestCreateBonusStrategy:
     def test_unimplemented_strategies_raise(self) -> None:
         """Test that unimplemented strategies raise NotImplementedError."""
         for strategy_type in [
-            "streak_based",
             "session_conditional",
             "combined",
             "custom",
@@ -1022,3 +1024,876 @@ class TestReviewFindings:
             max_bonus_bet=25.0,
         )
         assert strategy.get_bonus_bet(context) == 7.0
+
+
+class TestStreakBasedBonusStrategy:
+    """Tests for StreakBasedBonusStrategy."""
+
+    @pytest.fixture
+    def default_context(self) -> BonusContext:
+        """Create a default BonusContext for testing."""
+        return BonusContext(
+            bankroll=1000.0,
+            starting_bankroll=1000.0,
+            session_profit=0.0,
+            hands_played=0,
+            main_streak=0,
+            bonus_streak=0,
+            base_bet=10.0,
+            min_bonus_bet=1.0,
+            max_bonus_bet=50.0,
+        )
+
+    # Basic functionality tests
+    def test_returns_base_amount_before_streak(
+        self, default_context: BonusContext
+    ) -> None:
+        """Test that base amount is returned before streak triggers."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=3,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="main_win",
+        )
+        assert strategy.get_bonus_bet(default_context) == 5.0
+
+    def test_streak_counter_starts_at_zero(self) -> None:
+        """Test that streak counter starts at zero."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=3,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="main_win",
+        )
+        assert strategy.current_streak == 0
+
+    def test_current_multiplier_starts_at_one(self) -> None:
+        """Test that current multiplier starts at 1."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=3,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="main_win",
+        )
+        assert strategy.current_multiplier == 1.0
+
+    # Trigger type tests
+    def test_main_loss_trigger(self) -> None:
+        """Test main_loss trigger increments streak on main game loss."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=3,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=False, bonus_won=None)
+        assert strategy.current_streak == 1
+        strategy.record_result(main_won=True, bonus_won=None)  # Should not increment
+        assert strategy.current_streak == 1
+
+    def test_main_win_trigger(self) -> None:
+        """Test main_win trigger increments streak on main game win."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_win",
+            streak_length=3,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=True, bonus_won=None)
+        assert strategy.current_streak == 1
+        strategy.record_result(main_won=False, bonus_won=None)  # Should not increment
+        assert strategy.current_streak == 1
+
+    def test_bonus_loss_trigger(self) -> None:
+        """Test bonus_loss trigger increments streak on bonus loss."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="bonus_loss",
+            streak_length=3,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=True, bonus_won=False)
+        assert strategy.current_streak == 1
+        strategy.record_result(main_won=True, bonus_won=True)  # Should not increment
+        assert strategy.current_streak == 1
+        strategy.record_result(main_won=True, bonus_won=None)  # No bonus bet
+        assert strategy.current_streak == 1
+
+    def test_bonus_win_trigger(self) -> None:
+        """Test bonus_win trigger increments streak on bonus win."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="bonus_win",
+            streak_length=3,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=True, bonus_won=True)
+        assert strategy.current_streak == 1
+        strategy.record_result(main_won=True, bonus_won=False)  # Should not increment
+        assert strategy.current_streak == 1
+
+    def test_any_loss_trigger(self) -> None:
+        """Test any_loss trigger increments on main or bonus loss."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="any_loss",
+            streak_length=5,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=False, bonus_won=None)  # Main loss
+        assert strategy.current_streak == 1
+        strategy.record_result(main_won=True, bonus_won=False)  # Bonus loss
+        assert strategy.current_streak == 2
+        strategy.record_result(main_won=True, bonus_won=True)  # Both win
+        assert strategy.current_streak == 2
+
+    def test_any_win_trigger(self) -> None:
+        """Test any_win trigger increments on main or bonus win."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="any_win",
+            streak_length=5,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=True, bonus_won=None)  # Main win
+        assert strategy.current_streak == 1
+        strategy.record_result(main_won=False, bonus_won=True)  # Bonus win
+        assert strategy.current_streak == 2
+        strategy.record_result(main_won=False, bonus_won=False)  # Both lose
+        assert strategy.current_streak == 2
+
+    # Action type tests
+    def test_multiply_action(self, default_context: BonusContext) -> None:
+        """Test multiply action doubles bet at streak length."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=2,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+        )
+        # Build up streak
+        strategy.record_result(main_won=False, bonus_won=None)
+        strategy.record_result(main_won=False, bonus_won=None)
+        # Now at streak 2, should multiply by 2
+        assert strategy.get_bonus_bet(default_context) == 10.0
+        assert strategy.current_multiplier == 2.0
+
+    def test_multiply_action_multiple_triggers(
+        self, default_context: BonusContext
+    ) -> None:
+        """Test multiply action compounds with multiple streak triggers."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=2,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+            max_multiplier=None,
+        )
+        # Streak of 4 = 2 triggers, 2^2 = 4x
+        for _ in range(4):
+            strategy.record_result(main_won=False, bonus_won=None)
+        assert strategy.get_bonus_bet(default_context) == 20.0
+        assert strategy.current_multiplier == 4.0
+
+    def test_increase_action(self, default_context: BonusContext) -> None:
+        """Test increase action adds to bet at streak length."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=2,
+            action_type="increase",
+            action_value=3.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=False, bonus_won=None)
+        strategy.record_result(main_won=False, bonus_won=None)
+        # 5 + 3 = 8
+        assert strategy.get_bonus_bet(default_context) == 8.0
+
+    def test_decrease_action(self, default_context: BonusContext) -> None:
+        """Test decrease action subtracts from bet at streak length."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=10.0,
+            trigger="bonus_loss",
+            streak_length=2,
+            action_type="decrease",
+            action_value=3.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=True, bonus_won=False)
+        strategy.record_result(main_won=True, bonus_won=False)
+        # 10 - 3 = 7
+        assert strategy.get_bonus_bet(default_context) == 7.0
+
+    def test_decrease_action_floor_at_zero(self, default_context: BonusContext) -> None:
+        """Test decrease action doesn't go below zero."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="bonus_loss",
+            streak_length=1,
+            action_type="decrease",
+            action_value=10.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=True, bonus_won=False)
+        # 5 - 10 = 0 (floored)
+        assert strategy.get_bonus_bet(default_context) == 0.0
+
+    def test_stop_action(self, default_context: BonusContext) -> None:
+        """Test stop action stops betting when triggered."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="bonus_loss",
+            streak_length=3,
+            action_type="stop",
+            action_value=0.0,
+            reset_on="bonus_win",
+        )
+        # Initially betting
+        assert strategy.get_bonus_bet(default_context) == 5.0
+
+        # Build up streak to trigger stop
+        strategy.record_result(main_won=True, bonus_won=False)
+        strategy.record_result(main_won=True, bonus_won=False)
+        strategy.record_result(main_won=True, bonus_won=False)
+
+        # Now stopped
+        assert strategy.get_bonus_bet(default_context) == 0.0
+
+    def test_start_action(self, default_context: BonusContext) -> None:
+        """Test start action begins betting when triggered."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="bonus_win",
+            streak_length=2,
+            action_type="start",
+            action_value=0.0,
+            reset_on="bonus_loss",
+        )
+        # Initially not betting (start action)
+        assert strategy.get_bonus_bet(default_context) == 0.0
+
+        # Build up streak to trigger start
+        strategy.record_result(main_won=True, bonus_won=True)
+        strategy.record_result(main_won=True, bonus_won=True)
+
+        # Now betting
+        assert strategy.get_bonus_bet(default_context) == 5.0
+
+    # Reset behavior tests
+    def test_reset_on_main_win(self) -> None:
+        """Test streak resets on main win."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=5,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="main_win",
+        )
+        strategy.record_result(main_won=False, bonus_won=None)
+        strategy.record_result(main_won=False, bonus_won=None)
+        assert strategy.current_streak == 2
+
+        strategy.record_result(main_won=True, bonus_won=None)  # Reset!
+        assert strategy.current_streak == 0
+
+    def test_reset_on_main_loss(self) -> None:
+        """Test streak resets on main loss."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_win",
+            streak_length=5,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="main_loss",
+        )
+        strategy.record_result(main_won=True, bonus_won=None)
+        strategy.record_result(main_won=True, bonus_won=None)
+        assert strategy.current_streak == 2
+
+        strategy.record_result(main_won=False, bonus_won=None)  # Reset!
+        assert strategy.current_streak == 0
+
+    def test_reset_on_bonus_win(self) -> None:
+        """Test streak resets on bonus win."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="bonus_loss",
+            streak_length=5,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="bonus_win",
+        )
+        strategy.record_result(main_won=True, bonus_won=False)
+        strategy.record_result(main_won=True, bonus_won=False)
+        assert strategy.current_streak == 2
+
+        strategy.record_result(main_won=True, bonus_won=True)  # Reset!
+        assert strategy.current_streak == 0
+
+    def test_reset_on_bonus_loss(self) -> None:
+        """Test streak resets on bonus loss."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="bonus_win",
+            streak_length=5,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="bonus_loss",
+        )
+        strategy.record_result(main_won=True, bonus_won=True)
+        strategy.record_result(main_won=True, bonus_won=True)
+        assert strategy.current_streak == 2
+
+        strategy.record_result(main_won=True, bonus_won=False)  # Reset!
+        assert strategy.current_streak == 0
+
+    def test_reset_on_any_win(self) -> None:
+        """Test streak resets on any win."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="any_loss",
+            streak_length=5,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="any_win",
+        )
+        strategy.record_result(main_won=False, bonus_won=False)
+        assert strategy.current_streak == 1
+
+        strategy.record_result(main_won=True, bonus_won=False)  # Main win resets
+        assert strategy.current_streak == 0
+
+    def test_reset_on_any_loss(self) -> None:
+        """Test streak resets on any loss."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="any_win",
+            streak_length=5,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="any_loss",
+        )
+        strategy.record_result(main_won=True, bonus_won=True)
+        assert strategy.current_streak == 1
+
+        strategy.record_result(main_won=True, bonus_won=False)  # Bonus loss resets
+        assert strategy.current_streak == 0
+
+    def test_reset_on_never(self) -> None:
+        """Test streak never resets when reset_on='never'."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=5,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=False, bonus_won=None)
+        strategy.record_result(main_won=False, bonus_won=None)
+        assert strategy.current_streak == 2
+
+        # Main win should NOT reset
+        strategy.record_result(main_won=True, bonus_won=True)
+        assert strategy.current_streak == 2
+
+    def test_reset_method(self) -> None:
+        """Test explicit reset() method."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=3,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=False, bonus_won=None)
+        strategy.record_result(main_won=False, bonus_won=None)
+        assert strategy.current_streak == 2
+
+        strategy.reset()
+        assert strategy.current_streak == 0
+        assert strategy.current_multiplier == 1.0
+
+    def test_reset_restores_betting_for_stop_action(
+        self, default_context: BonusContext
+    ) -> None:
+        """Test that reset() restores betting state for stop action."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="bonus_loss",
+            streak_length=2,
+            action_type="stop",
+            action_value=0.0,
+            reset_on="bonus_win",
+        )
+        # Trigger stop
+        strategy.record_result(main_won=True, bonus_won=False)
+        strategy.record_result(main_won=True, bonus_won=False)
+        assert strategy.get_bonus_bet(default_context) == 0.0
+
+        strategy.reset()
+        assert strategy.get_bonus_bet(default_context) == 5.0
+
+    def test_reset_restores_not_betting_for_start_action(
+        self, default_context: BonusContext
+    ) -> None:
+        """Test that reset() restores not-betting state for start action."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="bonus_win",
+            streak_length=2,
+            action_type="start",
+            action_value=0.0,
+            reset_on="bonus_loss",
+        )
+        # Trigger start
+        strategy.record_result(main_won=True, bonus_won=True)
+        strategy.record_result(main_won=True, bonus_won=True)
+        assert strategy.get_bonus_bet(default_context) == 5.0
+
+        strategy.reset()
+        assert strategy.get_bonus_bet(default_context) == 0.0
+
+    # Max multiplier tests
+    def test_max_multiplier_caps_multiply_action(
+        self, default_context: BonusContext
+    ) -> None:
+        """Test that max_multiplier caps the multiply action."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=1,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+            max_multiplier=4.0,
+        )
+        # Each loss doubles: 2, 4, 4 (capped), 4 (capped)
+        for _ in range(4):
+            strategy.record_result(main_won=False, bonus_won=None)
+
+        # Should be capped at 4x = 20.0
+        assert strategy.get_bonus_bet(default_context) == 20.0
+        assert strategy.current_multiplier == 4.0
+
+    def test_max_multiplier_caps_increase_action(
+        self, default_context: BonusContext
+    ) -> None:
+        """Test that max_multiplier caps the increase action."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=1,
+            action_type="increase",
+            action_value=5.0,
+            reset_on="never",
+            max_multiplier=3.0,  # Max bet = 5 * 3 = 15
+        )
+        # Each loss adds 5: 10, 15, 15 (capped)
+        for _ in range(3):
+            strategy.record_result(main_won=False, bonus_won=None)
+
+        # Should be capped at 3x base = 15.0
+        assert strategy.get_bonus_bet(default_context) == 15.0
+
+    def test_no_max_multiplier(self, default_context: BonusContext) -> None:
+        """Test that None max_multiplier allows unlimited growth."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=1.0,
+            trigger="main_loss",
+            streak_length=1,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+            max_multiplier=None,
+        )
+        # Each loss doubles: 2, 4, 8, 16, 32
+        for _ in range(5):
+            strategy.record_result(main_won=False, bonus_won=None)
+
+        assert strategy.get_bonus_bet(default_context) == 32.0
+        assert strategy.current_multiplier == 32.0
+
+    # Clamping tests
+    def test_bet_clamped_to_max(self, default_context: BonusContext) -> None:
+        """Test that bet is clamped to max_bonus_bet."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=30.0,
+            trigger="main_loss",
+            streak_length=1,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="never",
+            max_multiplier=None,
+        )
+        strategy.record_result(main_won=False, bonus_won=None)
+        # 30 * 2 = 60, but max is 50
+        assert strategy.get_bonus_bet(default_context) == 50.0
+
+    def test_bet_returns_zero_below_min(self) -> None:
+        """Test that bet returns 0 if below min_bonus_bet."""
+        context = BonusContext(
+            bankroll=1000.0,
+            starting_bankroll=1000.0,
+            session_profit=0.0,
+            hands_played=0,
+            main_streak=0,
+            bonus_streak=0,
+            base_bet=10.0,
+            min_bonus_bet=5.0,
+            max_bonus_bet=50.0,
+        )
+        strategy = StreakBasedBonusStrategy(
+            base_amount=10.0,
+            trigger="main_loss",
+            streak_length=1,
+            action_type="decrease",
+            action_value=8.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=False, bonus_won=None)
+        # 10 - 8 = 2, but min is 5, so returns 0
+        assert strategy.get_bonus_bet(context) == 0.0
+
+    # Validation tests
+    def test_negative_base_amount_raises(self) -> None:
+        """Test that negative base_amount raises ValueError."""
+        with pytest.raises(ValueError, match="base_amount must be non-negative"):
+            StreakBasedBonusStrategy(
+                base_amount=-5.0,
+                trigger="main_loss",
+                streak_length=3,
+                action_type="multiply",
+                action_value=2.0,
+                reset_on="main_win",
+            )
+
+    def test_zero_streak_length_raises(self) -> None:
+        """Test that streak_length < 1 raises ValueError."""
+        with pytest.raises(ValueError, match="streak_length must be at least 1"):
+            StreakBasedBonusStrategy(
+                base_amount=5.0,
+                trigger="main_loss",
+                streak_length=0,
+                action_type="multiply",
+                action_value=2.0,
+                reset_on="main_win",
+            )
+
+    def test_max_multiplier_below_one_raises(self) -> None:
+        """Test that max_multiplier < 1 raises ValueError."""
+        with pytest.raises(ValueError, match="max_multiplier must be at least 1"):
+            StreakBasedBonusStrategy(
+                base_amount=5.0,
+                trigger="main_loss",
+                streak_length=3,
+                action_type="multiply",
+                action_value=2.0,
+                reset_on="main_win",
+                max_multiplier=0.5,
+            )
+
+    # Reset via record_result tests
+    def test_stop_action_resumes_after_reset_event(
+        self, default_context: BonusContext
+    ) -> None:
+        """Test that stop action resumes betting after reset event."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="bonus_loss",
+            streak_length=2,
+            action_type="stop",
+            action_value=0.0,
+            reset_on="bonus_win",
+        )
+        # Trigger stop
+        strategy.record_result(main_won=True, bonus_won=False)
+        strategy.record_result(main_won=True, bonus_won=False)
+        assert strategy.get_bonus_bet(default_context) == 0.0
+
+        # Reset event should resume betting
+        strategy.record_result(main_won=True, bonus_won=True)
+        assert strategy.get_bonus_bet(default_context) == 5.0
+        assert strategy.current_streak == 0
+
+    def test_start_action_stops_after_reset_event(
+        self, default_context: BonusContext
+    ) -> None:
+        """Test that start action stops betting after reset event."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="bonus_win",
+            streak_length=2,
+            action_type="start",
+            action_value=0.0,
+            reset_on="bonus_loss",
+        )
+        # Trigger start
+        strategy.record_result(main_won=True, bonus_won=True)
+        strategy.record_result(main_won=True, bonus_won=True)
+        assert strategy.get_bonus_bet(default_context) == 5.0
+
+        # Reset event should stop betting
+        strategy.record_result(main_won=True, bonus_won=False)
+        assert strategy.get_bonus_bet(default_context) == 0.0
+        assert strategy.current_streak == 0
+
+
+class TestStreakBasedBonusStrategyFactory:
+    """Tests for streak_based strategy factory creation."""
+
+    @pytest.fixture
+    def default_context(self) -> BonusContext:
+        """Create a default BonusContext for testing."""
+        return BonusContext(
+            bankroll=1000.0,
+            starting_bankroll=1000.0,
+            session_profit=0.0,
+            hands_played=0,
+            main_streak=0,
+            bonus_streak=0,
+            base_bet=10.0,
+            min_bonus_bet=1.0,
+            max_bonus_bet=50.0,
+        )
+
+    def test_create_streak_based_strategy(self, default_context: BonusContext) -> None:
+        """Test creating StreakBasedBonusStrategy via factory."""
+        config = BonusStrategyConfig(
+            type="streak_based",
+            streak_based=StreakBasedBonusConfig(
+                base_amount=5.0,
+                trigger="bonus_loss",
+                streak_length=3,
+                action=StreakActionConfig(type="multiply", value=2.0),
+                reset_on="bonus_win",
+                max_multiplier=5.0,
+            ),
+        )
+        strategy = create_bonus_strategy(config)
+        assert isinstance(strategy, StreakBasedBonusStrategy)
+        assert strategy.get_bonus_bet(default_context) == 5.0
+
+    def test_streak_based_missing_config_raises(self) -> None:
+        """Test that missing streak_based config raises ValueError."""
+        config = BonusStrategyConfig(type="never")
+        object.__setattr__(config, "type", "streak_based")
+        with pytest.raises(ValueError, match="'streak_based' bonus strategy requires"):
+            create_bonus_strategy(config)
+
+    def test_factory_creates_functional_streak_strategy(
+        self, default_context: BonusContext
+    ) -> None:
+        """Test that factory-created strategy works correctly."""
+        config = BonusStrategyConfig(
+            type="streak_based",
+            streak_based=StreakBasedBonusConfig(
+                base_amount=5.0,
+                trigger="main_loss",
+                streak_length=2,
+                action=StreakActionConfig(type="multiply", value=2.0),
+                reset_on="main_win",
+                max_multiplier=5.0,
+            ),
+        )
+        strategy = create_bonus_strategy(config)
+
+        # Initial bet
+        assert strategy.get_bonus_bet(default_context) == 5.0
+
+        # Build streak
+        assert isinstance(strategy, StreakBasedBonusStrategy)
+        strategy.record_result(main_won=False, bonus_won=None)
+        strategy.record_result(main_won=False, bonus_won=None)
+
+        # Streak triggered, bet should be doubled
+        assert strategy.get_bonus_bet(default_context) == 10.0
+
+
+class TestStreakBasedBonusStrategyProtocolConformance:
+    """Test that StreakBasedBonusStrategy conforms to BonusStrategy protocol."""
+
+    @pytest.fixture
+    def default_context(self) -> BonusContext:
+        """Create a default BonusContext for testing."""
+        return BonusContext(
+            bankroll=1000.0,
+            starting_bankroll=1000.0,
+            session_profit=0.0,
+            hands_played=0,
+            main_streak=0,
+            bonus_streak=0,
+            base_bet=10.0,
+            min_bonus_bet=1.0,
+            max_bonus_bet=50.0,
+        )
+
+    def test_has_get_bonus_bet(self) -> None:
+        """Test that strategy has get_bonus_bet method."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=3,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="main_win",
+        )
+        assert hasattr(strategy, "get_bonus_bet")
+        assert callable(strategy.get_bonus_bet)
+
+    def test_returns_float(self, default_context: BonusContext) -> None:
+        """Test that get_bonus_bet returns float."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=3,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="main_win",
+        )
+        result = strategy.get_bonus_bet(default_context)
+        assert isinstance(result, float)
+
+    def test_respects_max_limit(self, default_context: BonusContext) -> None:
+        """Test that strategy respects max_bonus_bet."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=100.0,
+            trigger="main_loss",
+            streak_length=1,
+            action_type="multiply",
+            action_value=10.0,
+            reset_on="never",
+            max_multiplier=None,
+        )
+        strategy.record_result(main_won=False, bonus_won=None)
+        result = strategy.get_bonus_bet(default_context)
+        assert result <= default_context.max_bonus_bet
+
+    def test_returns_non_negative(self, default_context: BonusContext) -> None:
+        """Test that strategy returns non-negative values."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=3,
+            action_type="multiply",
+            action_value=2.0,
+            reset_on="main_win",
+        )
+        result = strategy.get_bonus_bet(default_context)
+        assert result >= 0.0
+
+
+class TestStreakBasedBonusStrategyMultiplierCalculations:
+    """Test current_multiplier property calculations."""
+
+    def test_multiplier_for_multiply_action(self) -> None:
+        """Test multiplier calculation for multiply action."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=5.0,
+            trigger="main_loss",
+            streak_length=2,
+            action_type="multiply",
+            action_value=3.0,
+            reset_on="never",
+            max_multiplier=None,  # No cap
+        )
+        # Before trigger
+        assert strategy.current_multiplier == 1.0
+
+        # At streak 2 (1 trigger): 3^1 = 3
+        strategy.record_result(main_won=False, bonus_won=None)
+        strategy.record_result(main_won=False, bonus_won=None)
+        assert strategy.current_multiplier == 3.0
+
+        # At streak 4 (2 triggers): 3^2 = 9
+        strategy.record_result(main_won=False, bonus_won=None)
+        strategy.record_result(main_won=False, bonus_won=None)
+        assert strategy.current_multiplier == 9.0
+
+    def test_multiplier_for_increase_action(self) -> None:
+        """Test multiplier calculation for increase action."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=10.0,
+            trigger="main_loss",
+            streak_length=2,
+            action_type="increase",
+            action_value=5.0,
+            reset_on="never",
+        )
+        # Before trigger
+        assert strategy.current_multiplier == 1.0
+
+        # At streak 2: 10 + 5 = 15, multiplier = 1.5
+        strategy.record_result(main_won=False, bonus_won=None)
+        strategy.record_result(main_won=False, bonus_won=None)
+        assert strategy.current_multiplier == 1.5
+
+    def test_multiplier_for_decrease_action(self) -> None:
+        """Test multiplier calculation for decrease action."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=10.0,
+            trigger="main_loss",
+            streak_length=2,
+            action_type="decrease",
+            action_value=5.0,
+            reset_on="never",
+        )
+        # At streak 2: 10 - 5 = 5, multiplier = 0.5
+        strategy.record_result(main_won=False, bonus_won=None)
+        strategy.record_result(main_won=False, bonus_won=None)
+        assert strategy.current_multiplier == 0.5
+
+    def test_multiplier_for_decrease_at_zero_base(self) -> None:
+        """Test multiplier calculation when base_amount is 0."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=0.0,
+            trigger="main_loss",
+            streak_length=2,
+            action_type="decrease",
+            action_value=5.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=False, bonus_won=None)
+        strategy.record_result(main_won=False, bonus_won=None)
+        # Should return 0.0 when base is 0
+        assert strategy.current_multiplier == 0.0
+
+    def test_multiplier_for_increase_at_zero_base(self) -> None:
+        """Test multiplier calculation when base_amount is 0 (increase action)."""
+        strategy = StreakBasedBonusStrategy(
+            base_amount=0.0,
+            trigger="main_loss",
+            streak_length=2,
+            action_type="increase",
+            action_value=5.0,
+            reset_on="never",
+        )
+        strategy.record_result(main_won=False, bonus_won=None)
+        strategy.record_result(main_won=False, bonus_won=None)
+        # Should return 1.0 when base is 0
+        assert strategy.current_multiplier == 1.0

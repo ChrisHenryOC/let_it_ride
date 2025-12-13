@@ -311,6 +311,226 @@ class BankrollConditionalBonusStrategy:
         return _clamp_bonus_bet(bet, context)
 
 
+class StreakBasedBonusStrategy:
+    """Strategy that adjusts bonus bets based on win/loss streaks.
+
+    This strategy tracks consecutive wins or losses and adjusts the bonus
+    bet amount when a streak reaches a configurable length. It supports
+    various trigger types (main game, bonus, or any win/loss) and actions
+    (increase, decrease, multiply, stop, start).
+    """
+
+    __slots__ = (
+        "_base_amount",
+        "_trigger",
+        "_streak_length",
+        "_action_type",
+        "_action_value",
+        "_reset_on",
+        "_max_multiplier",
+        "_current_streak",
+        "_is_betting",
+    )
+
+    def __init__(
+        self,
+        base_amount: float,
+        trigger: str,
+        streak_length: int,
+        action_type: str,
+        action_value: float,
+        reset_on: str,
+        max_multiplier: float | None = 5.0,
+    ) -> None:
+        """Initialize the streak-based bonus strategy.
+
+        Args:
+            base_amount: Base bonus bet amount.
+            trigger: Event type that increments streak counter.
+                One of: main_loss, main_win, bonus_loss, bonus_win,
+                any_loss, any_win.
+            streak_length: Number of consecutive events to trigger action.
+            action_type: Action to take when streak triggers.
+                One of: increase, decrease, multiply, stop, start.
+            action_value: Value for the action (amount to add/subtract/multiply).
+            reset_on: Event that resets the streak counter.
+                One of: main_loss, main_win, bonus_loss, bonus_win,
+                any_loss, any_win, never.
+            max_multiplier: Maximum multiplier cap for the bet. None means no cap.
+
+        Raises:
+            ValueError: If base_amount is negative or streak_length < 1.
+        """
+        if base_amount < 0:
+            raise ValueError("base_amount must be non-negative")
+        if streak_length < 1:
+            raise ValueError("streak_length must be at least 1")
+        if max_multiplier is not None and max_multiplier < 1:
+            raise ValueError("max_multiplier must be at least 1")
+
+        self._base_amount = base_amount
+        self._trigger = trigger
+        self._streak_length = streak_length
+        self._action_type = action_type
+        self._action_value = action_value
+        self._reset_on = reset_on
+        self._max_multiplier = max_multiplier
+        self._current_streak = 0
+        # For "start" action, we begin not betting
+        self._is_betting = action_type != "start"
+
+    def get_bonus_bet(self, context: BonusContext) -> float:
+        """Calculate the bonus bet based on current streak state.
+
+        Args:
+            context: Current session context with limits.
+
+        Returns:
+            The calculated bonus bet amount, clamped to table limits.
+        """
+        # If we're in "stopped" state, return 0
+        if not self._is_betting:
+            return 0.0
+
+        # Calculate bet based on action type and streak
+        bet = self._calculate_bet()
+        return _clamp_bonus_bet(bet, context)
+
+    def _calculate_bet(self) -> float:
+        """Calculate the bet amount based on current streak and action."""
+        # Check if streak has triggered
+        if self._current_streak < self._streak_length:
+            return self._base_amount
+
+        # Calculate how many times the streak has triggered
+        triggers = self._current_streak // self._streak_length
+
+        if self._action_type == "multiply":
+            multiplier = self._action_value**triggers
+            if self._max_multiplier is not None:
+                multiplier = min(multiplier, self._max_multiplier)
+            return self._base_amount * multiplier
+
+        if self._action_type == "increase":
+            bet = self._base_amount + (self._action_value * triggers)
+            if self._max_multiplier is not None:
+                max_bet = self._base_amount * self._max_multiplier
+                bet = min(bet, max_bet)
+            return bet
+
+        if self._action_type == "decrease":
+            bet = self._base_amount - (self._action_value * triggers)
+            return max(0.0, bet)
+
+        # "stop" and "start" are handled in get_bonus_bet via _is_betting flag
+        return self._base_amount
+
+    def record_result(self, main_won: bool, bonus_won: bool | None) -> None:
+        """Record the result of a hand and update streak state.
+
+        Args:
+            main_won: Whether the main game paid out (True) or not (False).
+            bonus_won: Whether the bonus bet paid out. None if no bonus bet placed.
+        """
+        # Check for reset condition first
+        if self._should_reset(main_won, bonus_won):
+            self._current_streak = 0
+            # Reset betting state based on action type
+            if self._action_type == "stop":
+                self._is_betting = True
+            elif self._action_type == "start":
+                self._is_betting = False
+            return
+
+        # Check if this result matches our trigger
+        if self._matches_trigger(main_won, bonus_won):
+            self._current_streak += 1
+
+            # Check if streak triggers an action
+            if self._current_streak >= self._streak_length:
+                if self._action_type == "stop":
+                    self._is_betting = False
+                elif self._action_type == "start":
+                    self._is_betting = True
+
+    def _matches_trigger(self, main_won: bool, bonus_won: bool | None) -> bool:
+        """Check if the result matches our trigger type."""
+        if self._trigger == "main_win":
+            return main_won
+        if self._trigger == "main_loss":
+            return not main_won
+        if self._trigger == "bonus_win":
+            return bonus_won is True
+        if self._trigger == "bonus_loss":
+            return bonus_won is False
+        if self._trigger == "any_win":
+            return main_won or bonus_won is True
+        if self._trigger == "any_loss":
+            return not main_won or bonus_won is False
+        return False
+
+    def _should_reset(self, main_won: bool, bonus_won: bool | None) -> bool:
+        """Check if the result should reset the streak counter."""
+        if self._reset_on == "never":
+            return False
+        if self._reset_on == "main_win":
+            return main_won
+        if self._reset_on == "main_loss":
+            return not main_won
+        if self._reset_on == "bonus_win":
+            return bonus_won is True
+        if self._reset_on == "bonus_loss":
+            return bonus_won is False
+        if self._reset_on == "any_win":
+            return main_won or bonus_won is True
+        if self._reset_on == "any_loss":
+            return not main_won or bonus_won is False
+        return False
+
+    def reset(self) -> None:
+        """Reset the strategy to initial state."""
+        self._current_streak = 0
+        self._is_betting = self._action_type != "start"
+
+    @property
+    def current_streak(self) -> int:
+        """Get the current streak count."""
+        return self._current_streak
+
+    @property
+    def current_multiplier(self) -> float:
+        """Get the current effective multiplier.
+
+        Returns the multiplier that would be applied to base_amount
+        given the current streak. For non-multiply actions, this
+        calculates the equivalent multiplier.
+        """
+        if self._current_streak < self._streak_length:
+            return 1.0
+
+        triggers = self._current_streak // self._streak_length
+
+        if self._action_type == "multiply":
+            multiplier = self._action_value**triggers
+            if self._max_multiplier is not None:
+                multiplier = min(multiplier, self._max_multiplier)
+            return multiplier
+
+        if self._action_type == "increase":
+            bet = self._base_amount + (self._action_value * triggers)
+            if self._max_multiplier is not None:
+                max_bet = self._base_amount * self._max_multiplier
+                bet = min(bet, max_bet)
+            return bet / self._base_amount if self._base_amount > 0 else 1.0
+
+        if self._action_type == "decrease":
+            bet = self._base_amount - (self._action_value * triggers)
+            bet = max(0.0, bet)
+            return bet / self._base_amount if self._base_amount > 0 else 0.0
+
+        return 1.0
+
+
 def create_bonus_strategy(config: BonusStrategyConfig) -> BonusStrategy:
     """Factory function to create a bonus strategy from configuration.
 
@@ -364,9 +584,24 @@ def create_bonus_strategy(config: BonusStrategyConfig) -> BonusStrategy:
             scaling_tiers=scaling_tiers,
         )
 
+    if strategy_type == "streak_based":
+        if config.streak_based is None:
+            raise ValueError(
+                "'streak_based' bonus strategy requires 'streak_based' config section"
+            )
+        sb = config.streak_based
+        return StreakBasedBonusStrategy(
+            base_amount=sb.base_amount,
+            trigger=sb.trigger,
+            streak_length=sb.streak_length,
+            action_type=sb.action.type,
+            action_value=sb.action.value,
+            reset_on=sb.reset_on,
+            max_multiplier=sb.max_multiplier,
+        )
+
     # Strategies not yet implemented (can be added later)
     if strategy_type in (
-        "streak_based",
         "session_conditional",
         "combined",
         "custom",
