@@ -95,7 +95,6 @@ Results are stored in frozen dataclasses which:
 Mutable session state classes use `__slots__` to reduce per-instance memory:
 - `Session`
 - `TableSession._SeatState`
-- `Table`
 
 ### List Reuse
 Deck operations reuse list memory rather than creating new lists each hand:

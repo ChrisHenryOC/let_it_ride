@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """Profiling tools for identifying simulation hotspots.
 
-This module uses cProfile and line_profiler to identify performance
-bottlenecks in the simulation code.
+This module uses cProfile to identify performance bottlenecks in the
+simulation code.
 
 Usage:
     poetry run python benchmarks/profile_hotspots.py
-
-For detailed line-by-line profiling (requires line_profiler):
-    poetry run python benchmarks/profile_hotspots.py --line-profile
+    poetry run python benchmarks/profile_hotspots.py --summary
+    poetry run python benchmarks/profile_hotspots.py --output profile.prof
 """
 
 from __future__ import annotations
