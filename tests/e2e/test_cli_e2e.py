@@ -27,7 +27,19 @@ runner = CliRunner()
 
 @pytest.fixture
 def e2e_config_file() -> Generator[Path, None, None]:
-    """Create a configuration file for E2E CLI testing."""
+    """Create a configuration file for E2E CLI testing.
+
+    Configuration settings:
+    - 100 sessions, 50 hands per session, seed 42
+    - Starting bankroll: $500, base bet: $5
+    - Stop conditions: win $200, lose $150
+    - Strategy: basic, betting system: flat
+    - Output: CSV and JSON enabled
+
+    Yields:
+        Path to the temporary config file. The file and its directory
+        are automatically cleaned up after the test completes.
+    """
     config_content = """
 metadata:
   name: "E2E CLI Test"
@@ -72,7 +84,19 @@ output:
 
 @pytest.fixture
 def large_e2e_config_file() -> Generator[Path, None, None]:
-    """Create a configuration file for large-scale E2E CLI testing."""
+    """Create a configuration file for large-scale E2E CLI testing.
+
+    Configuration settings:
+    - 1000 sessions, 100 hands per session, seed 12345
+    - 4 parallel workers
+    - Starting bankroll: $500, base bet: $5
+    - Stop conditions: win $250, lose $200
+    - Strategy: basic, betting system: flat
+
+    Yields:
+        Path to the temporary config file. The file and its directory
+        are automatically cleaned up after the test completes.
+    """
     config_content = """
 metadata:
   name: "Large E2E CLI Test"
@@ -324,7 +348,7 @@ class TestCLIErrorHandling:
         result = runner.invoke(app, ["run", "nonexistent_config.yaml"])
 
         assert result.exit_code == 1
-        assert "Error" in result.stdout or "error" in result.stdout.lower()
+        assert "error" in result.stdout.lower()
 
     def test_run_invalid_yaml(self) -> None:
         """Verify run handles invalid YAML syntax."""

@@ -7,9 +7,9 @@ These tests validate:
 
 from __future__ import annotations
 
+import gc
 import time
 import tracemalloc
-from typing import Literal
 
 import pytest
 
@@ -23,43 +23,7 @@ from let_it_ride.config.models import (
 )
 from let_it_ride.simulation import SimulationController
 
-
-def create_performance_config(
-    num_sessions: int,
-    hands_per_session: int,
-    workers: int | Literal["auto"] = 4,
-    random_seed: int = 42,
-) -> FullConfig:
-    """Create configuration for performance testing.
-
-    Args:
-        num_sessions: Number of sessions.
-        hands_per_session: Maximum hands per session.
-        workers: Number of parallel workers.
-        random_seed: Seed for reproducibility.
-
-    Returns:
-        FullConfig instance.
-    """
-    return FullConfig(
-        simulation=SimulationConfig(
-            num_sessions=num_sessions,
-            hands_per_session=hands_per_session,
-            random_seed=random_seed,
-            workers=workers,
-        ),
-        bankroll=BankrollConfig(
-            starting_amount=500.0,
-            base_bet=5.0,
-            stop_conditions=StopConditionsConfig(
-                win_limit=250.0,
-                loss_limit=200.0,
-                stop_on_insufficient_funds=True,
-            ),
-            betting_system=BettingSystemConfig(type="flat"),
-        ),
-        strategy=StrategyConfig(type="basic"),
-    )
+from .conftest import create_performance_config
 
 
 class TestPerformanceThreshold:
@@ -158,11 +122,7 @@ class TestPerformanceThreshold:
         SimulationController(config_par).run()
         time_par = time.perf_counter() - start_par
 
-        # Parallel should be at least 1.5x faster (accounting for overhead)
-        # Note: Actual speedup depends on CPU count and workload
-        # speedup = time_seq / time_par if time_par > 0 else float("inf")
-
-        # At minimum, parallel should not be slower
+        # At minimum, parallel should not be slower (with small tolerance for overhead)
         assert (
             time_par <= time_seq * 1.2
         ), f"Parallel ({time_par:.2f}s) slower than sequential ({time_seq:.2f}s)"
@@ -182,6 +142,9 @@ class TestMemoryUsage:
             hands_per_session=50,
             workers=4,
         )
+
+        # Force garbage collection before measurement for accurate baseline
+        gc.collect()
 
         # Start memory tracking
         tracemalloc.start()
@@ -203,6 +166,9 @@ class TestMemoryUsage:
 
         Memory for session results should be manageable.
         """
+        # Force garbage collection before measurements for accurate comparisons
+        gc.collect()
+
         # Run with 100 sessions
         config_small = create_performance_config(
             num_sessions=100,
@@ -213,6 +179,9 @@ class TestMemoryUsage:
         SimulationController(config_small).run()
         _, peak_small = tracemalloc.get_traced_memory()
         tracemalloc.stop()
+
+        # Force GC between runs to ensure clean measurement
+        gc.collect()
 
         # Run with 1000 sessions (10x)
         config_large = create_performance_config(
@@ -290,7 +259,8 @@ class TestPerformanceWithDifferentConfigs:
         """Verify different strategies have similar performance."""
         from typing import Literal
 
-        strategies: list[Literal["basic", "always_ride", "always_pull"]] = [
+        StrategyType = Literal["basic", "always_ride", "always_pull"]
+        strategies: list[StrategyType] = [
             "basic",
             "always_ride",
             "always_pull",

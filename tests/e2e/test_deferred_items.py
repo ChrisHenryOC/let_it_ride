@@ -145,6 +145,63 @@ class TestDeckEmptyErrorEdgeCases:
         deck.reset()
         assert deck.cards_remaining() == 52
 
+    def test_high_discard_boundary_value(self) -> None:
+        """Verify simulation works with maximum allowed discard value (10 cards).
+
+        The DealerConfig allows discard_cards from 1 to 10. This test verifies
+        that the maximum value of 10 works correctly with simulation.
+        """
+        # Test discard of 10 cards (maximum allowed by config validation)
+        config_max_valid = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=5,
+                hands_per_session=5,
+                random_seed=42,
+            ),
+            dealer=DealerConfig(discard_enabled=True, discard_cards=10),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+
+        # Should complete without error
+        results = SimulationController(config_max_valid).run()
+        assert len(results.session_results) == 5
+
+    def test_minimum_discard_boundary_value(self) -> None:
+        """Verify simulation works with minimum allowed discard value (1 card)."""
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=5,
+                hands_per_session=10,
+                random_seed=42,
+            ),
+            dealer=DealerConfig(discard_enabled=True, discard_cards=1),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+
+        # Should complete without error
+        results = SimulationController(config).run()
+        assert len(results.session_results) == 5
+
 
 class TestDealerConfigYAMLLoading:
     """Tests for YAML loader with dealer section.

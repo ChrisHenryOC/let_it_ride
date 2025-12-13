@@ -10,65 +10,23 @@ These tests validate:
 
 from __future__ import annotations
 
-from typing import Literal
-
 from let_it_ride.analytics.validation import (
     calculate_chi_square,
     calculate_wilson_confidence_interval,
     validate_simulation,
 )
-from let_it_ride.config.models import (
-    BankrollConfig,
-    BettingSystemConfig,
-    FullConfig,
-    SimulationConfig,
-    StopConditionsConfig,
-    StrategyConfig,
-)
-from let_it_ride.core.game_engine import GameHandResult
 from let_it_ride.simulation import SimulationController
 from let_it_ride.simulation.aggregation import (
     aggregate_results,
     aggregate_with_hand_frequencies,
 )
 
-
-def create_e2e_config(
-    num_sessions: int = 1000,
-    hands_per_session: int = 100,
-    random_seed: int | None = 42,
-    workers: int | Literal["auto"] = 1,
-) -> FullConfig:
-    """Create a configuration for E2E testing.
-
-    Args:
-        num_sessions: Number of sessions to run.
-        hands_per_session: Maximum hands per session.
-        random_seed: Optional seed for reproducibility.
-        workers: Number of workers or "auto".
-
-    Returns:
-        A FullConfig instance ready for simulation.
-    """
-    return FullConfig(
-        simulation=SimulationConfig(
-            num_sessions=num_sessions,
-            hands_per_session=hands_per_session,
-            random_seed=random_seed,
-            workers=workers,
-        ),
-        bankroll=BankrollConfig(
-            starting_amount=500.0,
-            base_bet=5.0,
-            stop_conditions=StopConditionsConfig(
-                win_limit=250.0,
-                loss_limit=200.0,
-                stop_on_insufficient_funds=True,
-            ),
-            betting_system=BettingSystemConfig(type="flat"),
-        ),
-        strategy=StrategyConfig(type="basic"),
-    )
+from .conftest import (
+    MAX_SESSION_WIN_RATE,
+    MIN_SESSION_WIN_RATE,
+    create_e2e_config,
+    create_hand_frequency_tracker,
+)
 
 
 class TestLargeScaleSimulation:
@@ -132,11 +90,10 @@ class TestLargeScaleSimulation:
             confidence_level=0.99,
         )
 
-        # Win rate should be between 20% and 60% (very wide bounds for stability)
-        # Actual rate depends heavily on stop conditions
+        # Win rate should be within expected bounds (see conftest.py for rationale)
         assert (
-            0.20 <= win_rate <= 0.60
-        ), f"Win rate {win_rate:.2%} outside expected range"
+            MIN_SESSION_WIN_RATE <= win_rate <= MAX_SESSION_WIN_RATE
+        ), f"Win rate {win_rate:.2%} outside expected range [{MIN_SESSION_WIN_RATE:.0%}, {MAX_SESSION_WIN_RATE:.0%}]"
 
         # Confidence interval should be reasonably narrow with 10K samples
         ci_width = ci_upper - ci_lower
@@ -163,17 +120,8 @@ class TestStatisticalValidity:
             workers=1,  # Required for hand_callback
         )
 
-        # Track hand frequencies manually via hand callback
-        hand_frequencies: dict[str, int] = {}
-
-        def track_hands(
-            session_id: int,  # noqa: ARG001
-            hand_id: int,  # noqa: ARG001
-            result: GameHandResult,
-        ) -> None:
-            # Convert enum to lowercase string (e.g., FiveCardHandRank.ROYAL_FLUSH -> "royal_flush")
-            hand_rank = result.final_hand_rank.name.lower()
-            hand_frequencies[hand_rank] = hand_frequencies.get(hand_rank, 0) + 1
+        # Track hand frequencies using shared callback factory
+        hand_frequencies, track_hands = create_hand_frequency_tracker()
 
         controller = SimulationController(config, hand_callback=track_hands)
         controller.run()
@@ -193,6 +141,41 @@ class TestStatisticalValidity:
         assert chi_result.is_valid, (
             f"Chi-square test failed: statistic={chi_result.statistic:.2f}, "
             f"p_value={chi_result.p_value:.6f}"
+        )
+
+    def test_chi_square_rejects_biased_distribution(self) -> None:
+        """Verify chi-square test correctly rejects a significantly biased distribution.
+
+        This test ensures the statistical validation actually catches problems
+        by providing an intentionally skewed frequency distribution.
+        """
+        # Create a heavily biased distribution where all hands are "high_card"
+        # This should definitely fail chi-square against theoretical probabilities
+        biased_frequencies = {
+            "royal_flush": 0,
+            "straight_flush": 0,
+            "four_of_a_kind": 0,
+            "full_house": 0,
+            "flush": 0,
+            "straight": 0,
+            "three_of_a_kind": 0,
+            "two_pair": 0,
+            "pair": 0,  # Normalized pair category
+            "high_card": 100_000,  # All hands are high card - obviously biased
+        }
+
+        # Chi-square should reject this biased distribution
+        chi_result = calculate_chi_square(biased_frequencies, significance_level=0.01)
+
+        # This heavily biased distribution should NOT pass
+        assert not chi_result.is_valid, (
+            f"Chi-square should have rejected biased distribution: "
+            f"statistic={chi_result.statistic:.2f}, p_value={chi_result.p_value:.6f}"
+        )
+
+        # The p-value should be extremely small for such a biased distribution
+        assert chi_result.p_value < 0.001, (
+            f"P-value {chi_result.p_value:.6f} unexpectedly high for biased distribution"
         )
 
     def test_aggregate_results_integration(self) -> None:
@@ -250,16 +233,7 @@ class TestStatisticalValidity:
             workers=1,  # Required for hand_callback
         )
 
-        hand_frequencies: dict[str, int] = {}
-
-        def track_hands(
-            session_id: int,  # noqa: ARG001
-            hand_id: int,  # noqa: ARG001
-            result: GameHandResult,
-        ) -> None:
-            # Convert enum to lowercase string
-            hand_rank = result.final_hand_rank.name.lower()
-            hand_frequencies[hand_rank] = hand_frequencies.get(hand_rank, 0) + 1
+        hand_frequencies, track_hands = create_hand_frequency_tracker()
 
         controller = SimulationController(config, hand_callback=track_hands)
         sim_results = controller.run()
@@ -340,13 +314,18 @@ class TestParallelSequentialEquivalence:
         )
         results_par4 = SimulationController(config_par4).run()
 
-        # All should have identical profits
-        profits_seq = [r.session_profit for r in results_seq.session_results]
-        profits_par2 = [r.session_profit for r in results_par2.session_results]
-        profits_par4 = [r.session_profit for r in results_par4.session_results]
-
-        assert profits_seq == profits_par2
-        assert profits_seq == profits_par4
+        # All should have identical results across multiple fields
+        for seq, par2, par4 in zip(
+            results_seq.session_results,
+            results_par2.session_results,
+            results_par4.session_results,
+            strict=True,
+        ):
+            # Compare key result fields
+            assert seq.session_profit == par2.session_profit == par4.session_profit
+            assert seq.hands_played == par2.hands_played == par4.hands_played
+            assert seq.final_bankroll == par2.final_bankroll == par4.final_bankroll
+            assert seq.stop_reason == par2.stop_reason == par4.stop_reason
 
     def test_parallel_equivalence_large_scale(self) -> None:
         """Test parallel/sequential equivalence at larger scale."""
@@ -366,7 +345,16 @@ class TestParallelSequentialEquivalence:
         # Compare totals
         assert results_seq.total_hands == results_par.total_hands
 
-        # Compare aggregates
+        # Compare all session results in detail
+        for seq, par in zip(
+            results_seq.session_results, results_par.session_results, strict=True
+        ):
+            assert seq.session_profit == par.session_profit
+            assert seq.hands_played == par.hands_played
+            assert seq.final_bankroll == par.final_bankroll
+            assert seq.stop_reason == par.stop_reason
+
+        # Also verify aggregate counts
         seq_winning = sum(
             1 for r in results_seq.session_results if r.session_profit > 0
         )
@@ -391,16 +379,7 @@ class TestValidationIntegration:
             workers=1,  # Required for hand_callback
         )
 
-        hand_frequencies: dict[str, int] = {}
-
-        def track_hands(
-            session_id: int,  # noqa: ARG001
-            hand_id: int,  # noqa: ARG001
-            result: GameHandResult,
-        ) -> None:
-            # Convert enum to lowercase string
-            hand_rank = result.final_hand_rank.name.lower()
-            hand_frequencies[hand_rank] = hand_frequencies.get(hand_rank, 0) + 1
+        hand_frequencies, track_hands = create_hand_frequency_tracker()
 
         controller = SimulationController(config, hand_callback=track_hands)
         sim_results = controller.run()
@@ -425,7 +404,17 @@ def _normalize_frequencies(frequencies: dict[str, int]) -> dict[str, int]:
     """Normalize hand frequencies by combining pair types.
 
     The simulator distinguishes pair_tens_or_better and pair_below_tens,
-    but theoretical probabilities use a single 'pair' category.
+    but theoretical probabilities use a single 'pair' category. This function
+    combines the two pair types to enable comparison with theoretical values.
+
+    Args:
+        frequencies: Dictionary mapping hand rank names (lowercase) to counts.
+            Expected keys include standard poker ranks like 'royal_flush',
+            'straight_flush', etc., plus the simulator's split pair categories.
+
+    Returns:
+        A new dictionary with pair_tens_or_better and pair_below_tens combined
+        into a single 'pair' key. Other entries are copied unchanged.
     """
     normalized = dict(frequencies)
 

@@ -10,60 +10,18 @@ from __future__ import annotations
 
 import csv
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from let_it_ride.analytics.export_csv import CSVExporter
 from let_it_ride.analytics.export_json import JSONExporter, load_json
-from let_it_ride.config.models import (
-    BankrollConfig,
-    BettingSystemConfig,
-    FullConfig,
-    SimulationConfig,
-    StopConditionsConfig,
-    StrategyConfig,
-)
-from let_it_ride.core.game_engine import GameHandResult
 from let_it_ride.simulation import SimulationController
 from let_it_ride.simulation.aggregation import aggregate_results
 from let_it_ride.simulation.results import HandRecord
 
-
-def create_output_test_config(
-    num_sessions: int = 100,
-    hands_per_session: int = 50,
-    random_seed: int = 42,
-    workers: int = 1,
-) -> FullConfig:
-    """Create a configuration for output format testing.
-
-    Args:
-        num_sessions: Number of sessions to run.
-        hands_per_session: Maximum hands per session.
-        random_seed: Seed for reproducibility.
-        workers: Number of workers.
-
-    Returns:
-        A FullConfig instance ready for simulation.
-    """
-    return FullConfig(
-        simulation=SimulationConfig(
-            num_sessions=num_sessions,
-            hands_per_session=hands_per_session,
-            random_seed=random_seed,
-            workers=workers,
-        ),
-        bankroll=BankrollConfig(
-            starting_amount=500.0,
-            base_bet=5.0,
-            stop_conditions=StopConditionsConfig(
-                win_limit=200.0,
-                loss_limit=150.0,
-                stop_on_insufficient_funds=True,
-            ),
-            betting_system=BettingSystemConfig(type="flat"),
-        ),
-        strategy=StrategyConfig(type="basic"),
-    )
+from .conftest import create_hand_record_collector, create_output_test_config
 
 
 class TestCSVOutputGeneration:
@@ -121,6 +79,25 @@ class TestCSVOutputGeneration:
             reader = csv.DictReader(f)
             rows = list(reader)
 
+        # Verify expected columns are present (all fields from SESSION_RESULT_FIELDS)
+        expected_columns = {
+            "outcome",
+            "stop_reason",
+            "hands_played",
+            "starting_bankroll",
+            "final_bankroll",
+            "session_profit",
+            "total_wagered",
+            "total_bonus_wagered",
+            "peak_bankroll",
+            "max_drawdown",
+            "max_drawdown_pct",
+        }
+        actual_columns = set(rows[0].keys())
+        assert expected_columns.issubset(
+            actual_columns
+        ), f"Missing columns: {expected_columns - actual_columns}"
+
         # Verify each row matches corresponding result
         for row, session in zip(rows, results.session_results, strict=True):
             assert row["outcome"] == session.outcome.value
@@ -129,6 +106,9 @@ class TestCSVOutputGeneration:
             assert float(row["starting_bankroll"]) == session.starting_bankroll
             assert float(row["final_bankroll"]) == session.final_bankroll
             assert float(row["session_profit"]) == session.session_profit
+            assert float(row["total_wagered"]) == session.total_wagered
+            assert float(row["total_bonus_wagered"]) == session.total_bonus_wagered
+            assert float(row["peak_bankroll"]) == session.peak_bankroll
 
     def test_csv_aggregate_statistics_valid(self, tmp_path: Path) -> None:
         """Verify aggregate CSV contains valid statistics."""
@@ -179,48 +159,33 @@ class TestCSVOutputGeneration:
         config = create_output_test_config(num_sessions=10, hands_per_session=20)
         config.simulation.workers = 1  # Required for hand_callback
 
-        # Collect hand records
-        hand_records: list[HandRecord] = []
-
-        def collect_hands(
-            session_id: int,
-            hand_id: int,  # noqa: ARG001
-            result: GameHandResult,
-        ) -> None:
-            # Convert cards to string representation
-            player_cards = " ".join(str(c) for c in result.player_cards)
-            community_cards = " ".join(str(c) for c in result.community_cards)
-
-            # Convert enums to strings for HandRecord
-            final_rank = result.final_hand_rank.name.lower()
-            bonus_rank = (
-                result.bonus_hand_rank.name.lower()
-                if result.bonus_hand_rank is not None
-                else None
-            )
-
-            hand_records.append(
-                HandRecord(
-                    hand_id=len(hand_records),
-                    session_id=session_id,
-                    shoe_id=None,
-                    cards_player=player_cards,
-                    cards_community=community_cards,
-                    decision_bet1=result.decision_bet1.value,
-                    decision_bet2=result.decision_bet2.value,
-                    final_hand_rank=final_rank,
-                    base_bet=result.base_bet,
-                    bets_at_risk=result.bets_at_risk,
-                    main_payout=result.main_payout,
-                    bonus_bet=result.bonus_bet,
-                    bonus_hand_rank=bonus_rank,
-                    bonus_payout=result.bonus_payout,
-                    bankroll_after=0.0,  # Not available from GameHandResult
-                )
-            )
+        # Collect hand records using shared collector and convert to HandRecord
+        raw_records, collect_hands = create_hand_record_collector()
 
         controller = SimulationController(config, hand_callback=collect_hands)
         sim_results = controller.run()
+
+        # Convert collected dicts to HandRecord objects for CSV export
+        hand_records = [
+            HandRecord(
+                hand_id=r["hand_id"],
+                session_id=r["session_id"],
+                shoe_id=None,
+                cards_player=r["cards_player"],
+                cards_community=r["cards_community"],
+                decision_bet1=r["decision_bet1"],
+                decision_bet2=r["decision_bet2"],
+                final_hand_rank=r["final_hand_rank"],
+                base_bet=r["base_bet"],
+                bets_at_risk=r["bets_at_risk"],
+                main_payout=r["main_payout"],
+                bonus_bet=r["bonus_bet"],
+                bonus_hand_rank=r["bonus_hand_rank"],
+                bonus_payout=r["bonus_payout"],
+                bankroll_after=0.0,  # Not available from GameHandResult
+            )
+            for r in raw_records
+        ]
 
         # Export with hands
         exporter = CSVExporter(tmp_path, prefix="test")
@@ -363,47 +328,33 @@ class TestJSONOutputGeneration:
         config = create_output_test_config(num_sessions=10, hands_per_session=20)
         config.simulation.workers = 1  # Required for hand_callback
 
-        # Collect hand records
-        hand_records: list[HandRecord] = []
-
-        def collect_hands(
-            session_id: int,
-            hand_id: int,  # noqa: ARG001
-            result: GameHandResult,
-        ) -> None:
-            player_cards = " ".join(str(c) for c in result.player_cards)
-            community_cards = " ".join(str(c) for c in result.community_cards)
-
-            # Convert enums to strings for HandRecord
-            final_rank = result.final_hand_rank.name.lower()
-            bonus_rank = (
-                result.bonus_hand_rank.name.lower()
-                if result.bonus_hand_rank is not None
-                else None
-            )
-
-            hand_records.append(
-                HandRecord(
-                    hand_id=len(hand_records),
-                    session_id=session_id,
-                    shoe_id=None,
-                    cards_player=player_cards,
-                    cards_community=community_cards,
-                    decision_bet1=result.decision_bet1.value,
-                    decision_bet2=result.decision_bet2.value,
-                    final_hand_rank=final_rank,
-                    base_bet=result.base_bet,
-                    bets_at_risk=result.bets_at_risk,
-                    main_payout=result.main_payout,
-                    bonus_bet=result.bonus_bet,
-                    bonus_hand_rank=bonus_rank,
-                    bonus_payout=result.bonus_payout,
-                    bankroll_after=0.0,
-                )
-            )
+        # Collect hand records using shared collector and convert to HandRecord
+        raw_records, collect_hands = create_hand_record_collector()
 
         controller = SimulationController(config, hand_callback=collect_hands)
         sim_results = controller.run()
+
+        # Convert collected dicts to HandRecord objects for JSON export
+        hand_records = [
+            HandRecord(
+                hand_id=r["hand_id"],
+                session_id=r["session_id"],
+                shoe_id=None,
+                cards_player=r["cards_player"],
+                cards_community=r["cards_community"],
+                decision_bet1=r["decision_bet1"],
+                decision_bet2=r["decision_bet2"],
+                final_hand_rank=r["final_hand_rank"],
+                base_bet=r["base_bet"],
+                bets_at_risk=r["bets_at_risk"],
+                main_payout=r["main_payout"],
+                bonus_bet=r["bonus_bet"],
+                bonus_hand_rank=r["bonus_hand_rank"],
+                bonus_payout=r["bonus_payout"],
+                bankroll_after=0.0,
+            )
+            for r in raw_records
+        ]
 
         exporter = JSONExporter(tmp_path, prefix="test")
         path = exporter.export(sim_results, include_hands=True, hands=hand_records)

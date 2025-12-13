@@ -16,6 +16,8 @@ from let_it_ride.config.loader import load_config
 from let_it_ride.simulation import SimulationController
 from let_it_ride.simulation.aggregation import aggregate_results
 
+from .conftest import MAX_AGGREGATE_WIN_RATE, MIN_AGGREGATE_WIN_RATE
+
 # Path to configs directory
 CONFIGS_DIR = Path(__file__).parent.parent.parent / "configs"
 
@@ -39,6 +41,9 @@ class TestSampleConfigsExecution:
         config_path = CONFIGS_DIR / config_file
         config = load_config(config_path)
 
+        # Create a deep copy to avoid mutating the original config
+        config = config.model_copy(deep=True)
+
         # Override for reasonable test execution time
         config.simulation.num_sessions = 100
         config.simulation.hands_per_session = 50
@@ -56,6 +61,9 @@ class TestSampleConfigsExecution:
         """Verify each sample config produces valid session results."""
         config_path = CONFIGS_DIR / config_file
         config = load_config(config_path)
+
+        # Create a deep copy to avoid mutating the original config
+        config = config.model_copy(deep=True)
 
         # Override for test
         config.simulation.num_sessions = 50
@@ -78,6 +86,9 @@ class TestSampleConfigsExecution:
         """Verify each sample config produces valid aggregate statistics."""
         config_path = CONFIGS_DIR / config_file
         config = load_config(config_path)
+
+        # Create a deep copy to avoid mutating the original config
+        config = config.model_copy(deep=True)
 
         config.simulation.num_sessions = 100
         config.simulation.hands_per_session = 50
@@ -262,6 +273,9 @@ class TestSampleConfigsLargeScale:
         """Verify basic_strategy handles 1000 sessions."""
         config = load_config(CONFIGS_DIR / "basic_strategy.yaml")
 
+        # Create a deep copy to avoid mutating the original config
+        config = config.model_copy(deep=True)
+
         config.simulation.num_sessions = 1000
         config.simulation.hands_per_session = 50
         config.simulation.random_seed = 42
@@ -274,13 +288,16 @@ class TestSampleConfigsLargeScale:
         # Verify aggregate statistics are reasonable
         aggregate = aggregate_results(results.session_results)
         assert aggregate.total_sessions == 1000
-        # Win rate should be somewhere reasonable (20-60%)
-        assert 0.15 <= aggregate.session_win_rate <= 0.65
+        # Win rate should be within expected bounds (see conftest.py for rationale)
+        assert MIN_AGGREGATE_WIN_RATE <= aggregate.session_win_rate <= MAX_AGGREGATE_WIN_RATE
 
     def test_all_configs_handle_hundred_sessions(self) -> None:
         """Verify all configs handle 100 sessions efficiently."""
         for config_file in SAMPLE_CONFIG_FILES:
             config = load_config(CONFIGS_DIR / config_file)
+
+            # Create a deep copy to avoid mutating the original config
+            config = config.model_copy(deep=True)
 
             config.simulation.num_sessions = 100
             config.simulation.hands_per_session = 50
