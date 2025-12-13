@@ -18,7 +18,6 @@ from let_it_ride.simulation.session import SessionOutcome, SessionResult
 PROFIT_COLOR = "#2ecc71"  # Green for winning sessions
 LOSS_COLOR = "#e74c3c"  # Red for losing sessions
 BREAKEVEN_COLOR = "#95a5a6"  # Gray for push sessions
-LIMIT_COLOR = "#3498db"  # Blue for reference lines
 BASELINE_COLOR = "#2c3e50"  # Dark blue-gray for starting bankroll
 
 
@@ -86,10 +85,9 @@ def _sample_sessions(
     if len(results) <= n_samples:
         return results, histories
 
-    if random_seed is not None:
-        random.seed(random_seed)
-
-    indices = random.sample(range(len(results)), n_samples)
+    # Use local Random instance to avoid mutating global state
+    rng = random.Random(random_seed)
+    indices = rng.sample(range(len(results)), n_samples)
     sampled_results = [results[i] for i in indices]
     sampled_histories = [histories[i] for i in indices]
     return sampled_results, sampled_histories
@@ -110,11 +108,18 @@ def plot_bankroll_trajectories(
     - Starting bankroll baseline
     - Legend with outcome counts
 
+    Note:
+        All sessions are assumed to have the same starting bankroll.
+        The first session's starting_bankroll value is used for the baseline
+        and limit reference lines. If sessions have different starting bankrolls,
+        the reference lines may be misleading for non-first sessions.
+
     Args:
         results: List of session results to visualize.
         bankroll_histories: List of bankroll history lists, one per session.
-            Each history should contain the bankroll value after each hand.
-            Must be the same length as results.
+            Each history should contain the bankroll value after each hand
+            (excluding the initial starting bankroll, which is prepended
+            automatically). Must be the same length as results.
         config: Trajectory configuration. Uses defaults if not provided.
         win_limit: Win limit amount (profit target). If provided and show_limits
             is True, a horizontal line will be drawn at starting_bankroll + win_limit.
@@ -126,8 +131,8 @@ def plot_bankroll_trajectories(
         Matplotlib Figure object containing the trajectory chart.
 
     Raises:
-        ValueError: If results list is empty or if results and histories
-            have different lengths.
+        ValueError: If results list is empty, if results and histories
+            have different lengths, or if any history list is empty.
     """
     if not results:
         raise ValueError("Cannot create trajectory chart from empty results list")
@@ -136,6 +141,12 @@ def plot_bankroll_trajectories(
         raise ValueError(
             f"Results and histories must have same length. "
             f"Got {len(results)} results and {len(bankroll_histories)} histories."
+        )
+
+    if any(len(h) == 0 for h in bankroll_histories):
+        raise ValueError(
+            "Bankroll histories cannot contain empty lists. "
+            "Each history must have at least one bankroll value."
         )
 
     if config is None:

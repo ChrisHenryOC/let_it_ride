@@ -924,6 +924,71 @@ class TestPlotBankrollTrajectories:
 
         matplotlib.pyplot.close(fig)
 
+    def test_limits_suppressed_when_show_limits_false(
+        self, sample_trajectories: tuple[list[SessionResult], list[list[float]]]
+    ) -> None:
+        """Test that limit lines are hidden when show_limits=False even with limits provided."""
+        results, histories = sample_trajectories
+        config = TrajectoryConfig(show_limits=False)
+        fig = plot_bankroll_trajectories(
+            results, histories, config=config, win_limit=100.0, loss_limit=100.0
+        )
+        ax = fig.axes[0]
+
+        legend_texts = [t.get_text() for t in ax.get_legend().get_texts()]
+        # Win and Loss limit lines should NOT appear
+        assert not any("Win Limit" in t for t in legend_texts)
+        assert not any("Loss Limit" in t for t in legend_texts)
+
+        matplotlib.pyplot.close(fig)
+
+    def test_different_starting_bankrolls(self) -> None:
+        """Test behavior when sessions have different starting bankrolls.
+
+        The implementation uses the first session's starting_bankroll for
+        reference lines. This test documents that behavior.
+        """
+        results = [
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.WIN_LIMIT,
+                hands_played=3,
+                starting_bankroll=500.0,  # First session
+                final_bankroll=600.0,
+                session_profit=100.0,
+                total_wagered=90.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=600.0,
+                max_drawdown=0.0,
+                max_drawdown_pct=0.0,
+            ),
+            SessionResult(
+                outcome=SessionOutcome.LOSS,
+                stop_reason=StopReason.LOSS_LIMIT,
+                hands_played=3,
+                starting_bankroll=1000.0,  # Different starting bankroll
+                final_bankroll=900.0,
+                session_profit=-100.0,
+                total_wagered=90.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=1000.0,
+                max_drawdown=100.0,
+                max_drawdown_pct=0.1,
+            ),
+        ]
+        histories = [[520.0, 560.0, 600.0], [980.0, 950.0, 900.0]]
+
+        # Should use first session's starting_bankroll (500) for baseline
+        fig = plot_bankroll_trajectories(results, histories)
+        ax = fig.axes[0]
+
+        legend_texts = [t.get_text() for t in ax.get_legend().get_texts()]
+        start_label = [t for t in legend_texts if "Start" in t]
+        assert len(start_label) == 1
+        assert "500" in start_label[0]  # Uses first session's starting bankroll
+
+        matplotlib.pyplot.close(fig)
+
 
 class TestSaveTrajectoryChart:
     """Tests for save_trajectory_chart function."""
@@ -1221,3 +1286,25 @@ class TestTrajectoryIntegration:
         assert isinstance(fig, matplotlib.figure.Figure)
 
         matplotlib.pyplot.close(fig)
+
+    def test_truly_empty_history_raises_error(self) -> None:
+        """Test that truly empty history list raises ValueError."""
+        results = [
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.WIN_LIMIT,
+                hands_played=0,
+                starting_bankroll=500.0,
+                final_bankroll=500.0,
+                session_profit=0.0,
+                total_wagered=0.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=500.0,
+                max_drawdown=0.0,
+                max_drawdown_pct=0.0,
+            )
+        ]
+        histories = [[]]  # Truly empty history
+
+        with pytest.raises(ValueError, match="empty.*history"):
+            plot_bankroll_trajectories(results, histories)
