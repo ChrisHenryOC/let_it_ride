@@ -49,6 +49,11 @@ from let_it_ride.analytics.validation import (
     calculate_wilson_confidence_interval,
     validate_simulation,
 )
+from let_it_ride.analytics.visualizations import (
+    HistogramConfig,
+    plot_session_histogram,
+    save_histogram,
+)
 
 __all__ = [
     # Chair position types
@@ -89,4 +94,9 @@ __all__ = [
     "calculate_chi_square",
     "calculate_wilson_confidence_interval",
     "validate_simulation",
+    # Visualization types
+    "HistogramConfig",
+    # Visualization functions
+    "plot_session_histogram",
+    "save_histogram",
 ]

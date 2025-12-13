@@ -142,6 +142,21 @@ git push
 
 **If there are NO deferred items, skip this entire section and proceed to FINAL SUMMARY.**
 
+## Separate Deferred Items by Severity
+
+From the deferred items list, separate into two categories:
+
+1. **Requires User Decision** (Critical/High/Medium severity):
+   - These are significant enough to warrant user input
+   - Continue with the "Search for Related Issues" flow below
+
+2. **Auto-Skip** (Low severity):
+   - These are minor and should NOT prompt the user
+   - Automatically mark as "Skipped (Low priority)" in the final summary
+   - Do NOT include in AskUserQuestion batches
+
+**If ALL deferred items are Low severity, skip the entire user interaction flow and proceed to FINAL SUMMARY.**
+
 ## Search for Related Issues First
 
 Before presenting deferred items to the user, search for existing GitHub issues that might be related:
@@ -292,8 +307,10 @@ Build a complete summary with:
 | # | Severity | Issue | Decision | Outcome |
 |---|----------|-------|----------|---------|
 
-Decision values: "Fix now", "Add to existing", "Create new issue", "Skip"
-Outcome examples: "Fixed in commit abc123", "Added to LIR-35 (#38)", "Created LIR-56 (#117)", "Skipped - not needed"
+Decision values: "Fix now", "Add to existing", "Create new issue", "Skip", "Auto-skipped"
+Outcome examples: "Fixed in commit abc123", "Added to LIR-35 (#38)", "Created LIR-56 (#117)", "Skipped - not needed", "Auto-skipped (Low priority)"
+
+**Note:** Low severity deferred items are automatically skipped without user prompting.
 
 ## Validation
 - Tests: passed/failed
@@ -339,7 +356,8 @@ Before presenting the final outcome, log metrics per `.claude/memories/metrics-l
 2. Construct the metrics JSON reflecting this execution (command name: "fix-review", steps_total: 8)
 3. Include **fix_metrics** object with:
    - `issues_fixed`: Number of issues fixed in this PR
-   - `issues_deferred`: Number of issues presented to user as deferred
+   - `issues_deferred`: Number of issues presented to user as deferred (excludes auto-skipped)
+   - `issues_auto_skipped`: Number of Low severity deferred items automatically skipped
    - `deferred_decisions`: {"fix_now": N, "add_to_existing": N, "create_issue": N, "skip": N}
    - `new_issues_created`: Array of new issue identifiers created (e.g., ["LIR-XX"])
    - `existing_issues_updated`: Array of issue identifiers that had items added (e.g., ["LIR-35"])
