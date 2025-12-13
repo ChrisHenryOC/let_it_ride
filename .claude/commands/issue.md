@@ -89,6 +89,14 @@ Before presenting the final outcome, log metrics per `.claude/memories/metrics-l
 
 1. Ensure `.claude/metrics/` directory exists
 2. Construct the metrics JSON reflecting this execution (command name: "issue", steps_total: 6 - IDENTIFY/PLAN/CREATE/TEST/VERIFY/PUSH)
-3. Append to `.claude/metrics/command_log.jsonl`
+3. **CRITICAL: Include observations.errors** - Capture ALL errors encountered during execution:
+   - Bash command failures (exit code != 0)
+   - Tool errors (parse errors, permission errors, zsh issues, etc.)
+   - Test failures
+   - Any workarounds you had to apply
+   - Example: `"errors": ["pytest failed with 2 errors - fixed and re-ran"]`
+4. Include **observations.edge_cases_hit** for unexpected scenarios
+5. Include **observations.improvement_suggestions** for command template improvements
+6. Append to `.claude/metrics/command_log.jsonl`
 
-Pay special attention to the `observations` fields - these drive continuous improvement.
+**IMPORTANT:** Even if you work around an error successfully, still log it. Error patterns drive command improvements.

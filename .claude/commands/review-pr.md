@@ -7,33 +7,52 @@ Perform a comprehensive code review of PR $ARGUMENTS.
 
 ## Step 0: Resolve PR Number
 
-If $ARGUMENTS is empty or not provided:
+If $ARGUMENTS is empty or not provided, auto-detect the PR for the current branch.
 
+**IMPORTANT:** Due to zsh parsing issues, execute these as SEPARATE Bash calls:
+
+1. Get the current branch:
 ```bash
-# Try to find PR for current branch
-CURRENT_BRANCH=$(git branch --show-current)
-PR_NUMBER=$(gh pr list --head "$CURRENT_BRANCH" --json number -q '.[0].number')
-if [ -n "$PR_NUMBER" ]; then
-    echo "Auto-detected PR #$PR_NUMBER for branch $CURRENT_BRANCH"
-    # Use PR_NUMBER as the PR to review
-fi
+git branch --show-current
 ```
 
-If no PR is found for the current branch, ask the user to provide a PR number.
+2. Find PR for the branch (use the actual branch name from step 1):
+```bash
+gh pr list --head "<branch-name>" --json number -q '.[0].number'
+```
+
+If a PR number is returned, use it for the rest of the review. If no PR is found, ask the user to provide a PR number.
 
 Once resolved, use the PR number for all subsequent steps (replacing $ARGUMENTS if it was empty).
 
 ## Step 1: Setup and save the PR diff
 
-BEFORE launching any review agents, set up the output directory and save the diff:
-```bash
-# Create output directory with sanitized PR title
-PR_TITLE=$(gh pr view $ARGUMENTS --json title -q '.title' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')
-mkdir -p code_reviews/PR$ARGUMENTS-$PR_TITLE
+BEFORE launching any review agents, set up the output directory and save the diff.
 
-# Save the diff for agent review
+**IMPORTANT:** Due to zsh parsing issues with complex command substitution, execute these as SEPARATE Bash calls:
+
+1. First, get and sanitize the PR title:
+```bash
+gh pr view $ARGUMENTS --json title -q '.title'
+```
+
+2. Then, using the title from step 1, create a sanitized directory name by:
+   - Converting to lowercase
+   - Replacing non-alphanumeric chars with hyphens
+   - Collapsing multiple hyphens
+   - Example: "feat: LIR-28 JSON Export" becomes "feat-lir-28-json-export"
+
+3. Create the directory (use the sanitized title, NOT a shell variable):
+```bash
+mkdir -p code_reviews/feat-lir-28-json-export
+```
+
+4. Save the diff for agent review:
+```bash
 gh pr diff $ARGUMENTS > /tmp/pr$ARGUMENTS.diff
 ```
+
+**Do NOT use complex `$(...)` command substitution with pipes in a single Bash call - it causes zsh parse errors.**
 
 ## Step 2: Launch review agents
 
@@ -120,17 +139,30 @@ gh pr comment $ARGUMENTS --body "[summary of key findings by severity]"
 
 ## Step 5: Commit review files to PR
 
-After completing the review, commit the detailed review files to the PR branch:
+After completing the review, commit the detailed review files to the PR branch.
 
+**IMPORTANT:** Due to zsh parsing issues, execute these as SEPARATE Bash calls:
+
+1. First, get the PR branch name:
 ```bash
-# Get the PR branch name and check it out
-PR_BRANCH=$(gh pr view $ARGUMENTS --json headRefName -q '.headRefName')
-git fetch origin $PR_BRANCH
-git checkout $PR_BRANCH
+gh pr view $ARGUMENTS --json headRefName -q '.headRefName'
+```
 
-# Add and commit the review files
-git add code_reviews/PR$ARGUMENTS-*/
-git commit -m "docs: Add code review findings for PR #$ARGUMENTS
+2. Fetch and checkout the branch (use the actual branch name from step 1):
+```bash
+git fetch origin <branch-name>
+git checkout <branch-name>
+```
+
+3. Add the review files:
+```bash
+git add code_reviews/<directory-name>/
+```
+
+4. Commit with a heredoc message:
+```bash
+git commit -m "$(cat <<'EOF'
+docs: Add code review findings for PR #$ARGUMENTS
 
 Review conducted by automated agents:
 - code-quality-reviewer
@@ -141,11 +173,17 @@ Review conducted by automated agents:
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
-Co-Authored-By: Claude <noreply@anthropic.com>"
-
-# Push to the PR branch
-git push origin $PR_BRANCH
+Co-Authored-By: Claude <noreply@anthropic.com>
+EOF
+)"
 ```
+
+5. Push to the PR branch:
+```bash
+git push origin <branch-name>
+```
+
+**Do NOT use `$(...)` command substitution to set shell variables - it causes zsh parse errors.**
 
 This ensures review findings are:
 - Preserved with the PR for future reference
@@ -185,6 +223,14 @@ Before presenting the final outcome, log metrics per `.claude/memories/metrics-l
    - `duplicate_merges`: Number of duplicate issues merged during consolidation
    - `agents_completed`: Array of agent names that completed successfully
    - `consolidated_review_created`: true/false - whether CONSOLIDATED-REVIEW.md was created
-4. Append to `.claude/metrics/command_log.jsonl`
+4. **CRITICAL: Include observations.errors** - Capture ALL errors encountered during execution:
+   - Bash command failures (exit code != 0)
+   - Tool errors (parse errors, permission errors, etc.)
+   - Agent failures or timeouts
+   - Any workarounds you had to apply
+   - Example: `"errors": ["Bash parse error near '(' - worked around with separate commands"]`
+5. Include **observations.edge_cases_hit** for any unexpected scenarios
+6. Include **observations.improvement_suggestions** for command template improvements
+7. Append to `.claude/metrics/command_log.jsonl`
 
-Pay special attention to the `observations` fields - these drive continuous improvement.
+**IMPORTANT:** Even if you work around an error successfully, still log it. Error patterns drive command improvements.
