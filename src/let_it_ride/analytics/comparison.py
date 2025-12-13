@@ -20,6 +20,14 @@ from scipy import stats
 if TYPE_CHECKING:
     from let_it_ride.simulation.session import SessionResult
 
+# Cohen's d effect size thresholds (per Cohen, 1988)
+COHENS_D_SMALL_THRESHOLD = 0.2
+COHENS_D_MEDIUM_THRESHOLD = 0.5
+COHENS_D_LARGE_THRESHOLD = 0.8
+
+# Report formatting constants
+REPORT_SEPARATOR_WIDTH = 60
+
 
 @dataclass(frozen=True, slots=True)
 class SignificanceTest:
@@ -67,7 +75,8 @@ class StrategyComparison:
         ev_a: Expected value per hand for strategy A.
         ev_b: Expected value per hand for strategy B.
         ev_diff: Difference in EV (A - B).
-        ev_pct_diff: Percentage difference in EV relative to B.
+        ev_pct_diff: Percentage difference in EV relative to B ((ev_diff / |ev_b|) * 100).
+            None if ev_b is zero (percentage undefined).
         profit_mean_a: Mean session profit for strategy A.
         profit_mean_b: Mean session profit for strategy B.
         profit_std_a: Std deviation of session profit for strategy A.
@@ -104,6 +113,12 @@ class StrategyComparison:
 def _interpret_cohens_d(d: float) -> str:
     """Interpret Cohen's d effect size using standard thresholds.
 
+    Uses thresholds defined by Cohen (1988):
+    - |d| < 0.2: negligible
+    - 0.2 <= |d| < 0.5: small
+    - 0.5 <= |d| < 0.8: medium
+    - |d| >= 0.8: large
+
     Args:
         d: Cohen's d value (can be negative).
 
@@ -111,11 +126,11 @@ def _interpret_cohens_d(d: float) -> str:
         Interpretation string: "negligible", "small", "medium", or "large".
     """
     abs_d = abs(d)
-    if abs_d < 0.2:
+    if abs_d < COHENS_D_SMALL_THRESHOLD:
         return "negligible"
-    elif abs_d < 0.5:
+    elif abs_d < COHENS_D_MEDIUM_THRESHOLD:
         return "small"
-    elif abs_d < 0.8:
+    elif abs_d < COHENS_D_LARGE_THRESHOLD:
         return "medium"
     else:
         return "large"
@@ -225,8 +240,12 @@ def _perform_mannwhitney(
             is_significant=False,
         )
 
-    # Handle case where all values are identical
-    if len(set(data_a)) == 1 and len(set(data_b)) == 1 and data_a[0] == data_b[0]:
+    # Handle case where all values are identical (short-circuit to avoid set creation)
+    if (
+        all(x == data_a[0] for x in data_a)
+        and all(x == data_b[0] for x in data_b)
+        and data_a[0] == data_b[0]
+    ):
         return SignificanceTest(
             test_name="mann-whitney",
             statistic=0.0,
@@ -251,6 +270,16 @@ def _determine_confidence(
     effect_size: EffectSize,
 ) -> str:
     """Determine confidence level in the comparison result.
+
+    Confidence levels are determined by combining statistical significance
+    (p-values) with practical significance (effect size):
+
+    - "high": Both parametric and non-parametric tests agree at high
+      significance (p < 0.001), OR both are significant with at least
+      medium effect size (Cohen's d >= 0.5)
+    - "medium": At least one test is significant with practical effect
+      size (small or larger), OR both tests are significant (p < 0.05)
+    - "low": Insufficient statistical evidence for a reliable recommendation
 
     Args:
         ttest: T-test results.
@@ -295,6 +324,32 @@ def _determine_confidence(
     return "low"
 
 
+def _extract_metrics(
+    results: list[SessionResult],
+) -> tuple[tuple[float, ...], int, float, int]:
+    """Extract all needed metrics from session results in a single pass.
+
+    Args:
+        results: List of SessionResult to extract metrics from.
+
+    Returns:
+        Tuple of (profits, winning_count, total_profit, total_hands).
+    """
+    profits: list[float] = []
+    winning_count = 0
+    total_profit = 0.0
+    total_hands = 0
+
+    for r in results:
+        profits.append(r.session_profit)
+        if r.session_profit > 0:
+            winning_count += 1
+        total_profit += r.session_profit
+        total_hands += r.hands_played
+
+    return tuple(profits), winning_count, total_profit, total_hands
+
+
 def compare_strategies(
     results_a: list[SessionResult],
     results_b: list[SessionResult],
@@ -333,32 +388,28 @@ def compare_strategies(
             f"significance_level must be between 0 and 1, got {significance_level}"
         )
 
-    # Extract session profits
-    profits_a = tuple(r.session_profit for r in results_a)
-    profits_b = tuple(r.session_profit for r in results_b)
+    # Extract all metrics in single pass per results list
+    profits_a, winning_a, total_profit_a, total_hands_a = _extract_metrics(results_a)
+    profits_b, winning_b, total_profit_b, total_hands_b = _extract_metrics(results_b)
 
     # Calculate basic metrics
     n_a = len(results_a)
     n_b = len(results_b)
-
-    winning_a = sum(1 for r in results_a if r.session_profit > 0)
-    winning_b = sum(1 for r in results_b if r.session_profit > 0)
 
     win_rate_a = winning_a / n_a
     win_rate_b = winning_b / n_b
     win_rate_diff = win_rate_a - win_rate_b
 
     # Calculate EV per hand
-    total_profit_a = sum(r.session_profit for r in results_a)
-    total_hands_a = sum(r.hands_played for r in results_a)
     ev_a = total_profit_a / total_hands_a if total_hands_a > 0 else 0.0
-
-    total_profit_b = sum(r.session_profit for r in results_b)
-    total_hands_b = sum(r.hands_played for r in results_b)
     ev_b = total_profit_b / total_hands_b if total_hands_b > 0 else 0.0
 
     ev_diff = ev_a - ev_b
-    ev_pct_diff = (ev_diff / abs(ev_b) * 100) if ev_b != 0 else None
+    ev_pct_diff = (
+        (ev_diff / abs(ev_b) * 100)
+        if not math.isclose(ev_b, 0.0, abs_tol=1e-10)
+        else None
+    )
 
     # Calculate profit statistics
     profit_mean_a = mean(profits_a)
@@ -457,7 +508,7 @@ def format_comparison_report(comparison: StrategyComparison) -> str:
     """
     lines = [
         f"Strategy Comparison: {comparison.strategy_a_name} vs {comparison.strategy_b_name}",
-        "=" * 60,
+        "=" * REPORT_SEPARATOR_WIDTH,
         "",
         "Sample Sizes:",
         f"  {comparison.strategy_a_name}: {comparison.sessions_a} sessions",

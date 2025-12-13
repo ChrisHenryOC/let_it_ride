@@ -393,6 +393,16 @@ class TestDetermineConfidence:
         # even without a meaningful effect size
         assert _determine_confidence(ttest, mw, es) == "medium"
 
+    def test_high_confidence_very_low_p_value_negligible_effect(self) -> None:
+        """Both tests highly significant (p < 0.001) -> high confidence regardless of effect."""
+        ttest = SignificanceTest("t-test", 5.0, 0.0001, True)
+        mw = SignificanceTest("mann-whitney", 2500.0, 0.0001, True)
+        es = EffectSize(0.1, "negligible")
+
+        # Very low p-values trigger high confidence even with negligible effect size
+        # This handles edge cases where variance is near zero but means clearly differ
+        assert _determine_confidence(ttest, mw, es) == "high"
+
 
 class TestCompareStrategies:
     """Tests for main compare_strategies function."""
@@ -433,6 +443,22 @@ class TestCompareStrategies:
         assert comp.better_strategy == "winner"
         assert comp.confidence == "high"
 
+    def test_compare_strategies_b_is_better(self) -> None:
+        """Should correctly identify when strategy B is better."""
+        # Strategy A: mostly losing
+        profits_a = [-50.0, -40.0, -30.0, -20.0, 10.0] * 20
+        # Strategy B: mostly winning
+        profits_b = [50.0, 40.0, 30.0, 20.0, -10.0] * 20
+
+        results_a = create_results_with_profits(profits_a)
+        results_b = create_results_with_profits(profits_b)
+
+        comp = compare_strategies(results_a, results_b, "loser", "winner")
+
+        assert comp.profit_mean_a < comp.profit_mean_b
+        assert comp.better_strategy == "winner"
+        assert comp.confidence == "high"
+
     def test_empty_results_raises_error(self) -> None:
         """Empty results should raise ValueError."""
         results = create_results_with_profits([10.0, -5.0])
@@ -452,6 +478,9 @@ class TestCompareStrategies:
 
         with pytest.raises(ValueError, match="significance_level must be between"):
             compare_strategies(results, results, "a", "b", significance_level=1.0)
+
+        with pytest.raises(ValueError, match="significance_level must be between"):
+            compare_strategies(results, results, "a", "b", significance_level=-0.1)
 
     def test_ev_calculation(self) -> None:
         """Should correctly calculate EV per hand."""
@@ -660,3 +689,66 @@ class TestEdgeCases:
 
         assert comp.sessions_a == 30
         assert comp.sessions_b == 100
+
+    def test_zero_hands_edge_case(self) -> None:
+        """Should handle sessions with zero hands played gracefully."""
+        # Create results with 0 hands played
+        results_a = [
+            create_session_result(session_profit=10.0, hands_played=0),
+            create_session_result(session_profit=-5.0, hands_played=0),
+        ]
+        results_b = [
+            create_session_result(session_profit=5.0, hands_played=100),
+            create_session_result(session_profit=-2.0, hands_played=100),
+        ]
+
+        comp = compare_strategies(results_a, results_b, "zero_hands", "normal")
+
+        # EV for zero hands should be 0.0
+        assert comp.ev_a == 0.0
+        assert comp.ev_b != 0.0
+        # Comparison should still work
+        assert comp.sessions_a == 2
+        assert comp.sessions_b == 2
+
+
+class TestNumericalStability:
+    """Tests for numerical stability with extreme values."""
+
+    def test_very_large_profits_no_nan(self) -> None:
+        """Should handle very large profit values without producing NaN."""
+        profits = [1e15, 2e15, 1.5e15] * 10
+        results_a = create_results_with_profits(profits)
+        results_b = create_results_with_profits([p * 0.9 for p in profits])
+
+        comp = compare_strategies(results_a, results_b, "a", "b")
+
+        assert not math.isnan(comp.effect_size.cohens_d)
+        assert not math.isnan(comp.ttest.statistic)
+        assert not math.isnan(comp.profit_mean_a)
+        assert not math.isnan(comp.profit_mean_b)
+
+    def test_very_small_profits_no_nan(self) -> None:
+        """Should handle very small profit values without producing NaN."""
+        profits = [1e-15, 2e-15, 1.5e-15] * 10
+        results_a = create_results_with_profits(profits)
+        results_b = create_results_with_profits([p * 0.9 for p in profits])
+
+        comp = compare_strategies(results_a, results_b, "a", "b")
+
+        assert not math.isnan(comp.effect_size.cohens_d)
+        assert not math.isnan(comp.profit_mean_a)
+        assert not math.isnan(comp.profit_mean_b)
+
+    def test_mixed_extreme_values(self) -> None:
+        """Should handle mixed large positive and negative values."""
+        profits_a = [1e10, -1e10, 1e10, -1e10] * 5
+        profits_b = [1e9, -1e9, 1e9, -1e9] * 5
+
+        results_a = create_results_with_profits(profits_a)
+        results_b = create_results_with_profits(profits_b)
+
+        comp = compare_strategies(results_a, results_b, "a", "b")
+
+        assert not math.isnan(comp.effect_size.cohens_d)
+        assert not math.isnan(comp.ttest.statistic)
