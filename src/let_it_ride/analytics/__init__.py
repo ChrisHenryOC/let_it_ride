@@ -14,6 +14,14 @@ from let_it_ride.analytics.chair_position import (
     SeatStatistics,
     analyze_chair_positions,
 )
+from let_it_ride.analytics.comparison import (
+    EffectSize,
+    SignificanceTest,
+    StrategyComparison,
+    compare_multiple_strategies,
+    compare_strategies,
+    format_comparison_report,
+)
 from let_it_ride.analytics.export_csv import (
     CSVExporter,
     export_aggregate_csv,
@@ -48,6 +56,14 @@ __all__ = [
     "SeatStatistics",
     # Chair position functions
     "analyze_chair_positions",
+    # Comparison types
+    "EffectSize",
+    "SignificanceTest",
+    "StrategyComparison",
+    # Comparison functions
+    "compare_multiple_strategies",
+    "compare_strategies",
+    "format_comparison_report",
     # CSV export
     "CSVExporter",
     "export_aggregate_csv",
