@@ -28,6 +28,12 @@ from let_it_ride.analytics.export_csv import (
     export_hands_csv,
     export_sessions_csv,
 )
+from let_it_ride.analytics.export_html import (
+    HTMLExporter,
+    HTMLReportConfig,
+    HTMLReportGenerator,
+    generate_html_report,
+)
 from let_it_ride.analytics.export_json import (
     JSONExporter,
     ResultsEncoder,
@@ -86,6 +92,11 @@ __all__ = [
     "export_aggregate_csv",
     "export_hands_csv",
     "export_sessions_csv",
+    # HTML export
+    "HTMLExporter",
+    "HTMLReportConfig",
+    "HTMLReportGenerator",
+    "generate_html_report",
     # JSON export
     "JSONExporter",
     "ResultsEncoder",
