@@ -11,8 +11,19 @@ from typing import Literal
 import matplotlib.figure
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import FuncFormatter
 
 from let_it_ride.analytics.risk_of_ruin import RiskOfRuinReport
+
+# Color palette for risk curves
+COLORS = {
+    "quarter_loss": "#ffd93d",
+    "half_loss": "#ff9f43",
+    "ruin": "#e74c3c",
+    "analytical": "#3498db",
+    "threshold_1pct": "#2ecc71",
+    "threshold_5pct": "#f39c12",
+}
 
 
 @dataclass(slots=True)
@@ -70,13 +81,23 @@ def plot_risk_curves(
     if config is None:
         config = RiskCurveConfig()
 
-    # Extract data from report
-    bankroll_units = np.array([r.bankroll_units for r in report.results])
-    ruin_probs = np.array([r.ruin_probability for r in report.results])
-    half_risks = np.array([r.half_bankroll_risk for r in report.results])
-    quarter_risks = np.array([r.quarter_bankroll_risk for r in report.results])
-    ci_lowers = np.array([r.confidence_interval.lower for r in report.results])
-    ci_uppers = np.array([r.confidence_interval.upper for r in report.results])
+    # Extract data from report in a single pass
+    n_results = len(report.results)
+    bankroll_units = np.empty(n_results, dtype=np.int64)
+    ruin_probs = np.empty(n_results)
+    half_risks = np.empty(n_results)
+    quarter_risks = np.empty(n_results)
+    ci_lowers = np.empty(n_results)
+    ci_uppers = np.empty(n_results)
+    confidence_level = report.results[0].confidence_interval.level
+
+    for i, r in enumerate(report.results):
+        bankroll_units[i] = r.bankroll_units
+        ruin_probs[i] = r.ruin_probability
+        half_risks[i] = r.half_bankroll_risk
+        quarter_risks[i] = r.quarter_bankroll_risk
+        ci_lowers[i] = r.confidence_interval.lower
+        ci_uppers[i] = r.confidence_interval.upper
 
     # Create figure and axes
     fig, ax = plt.subplots(figsize=config.figsize)
@@ -85,7 +106,7 @@ def plot_risk_curves(
     ax.plot(
         bankroll_units,
         quarter_risks,
-        color="#ffd93d",
+        color=COLORS["quarter_loss"],
         linewidth=2,
         marker="s",
         markersize=6,
@@ -97,7 +118,7 @@ def plot_risk_curves(
     ax.plot(
         bankroll_units,
         half_risks,
-        color="#ff9f43",
+        color=COLORS["half_loss"],
         linewidth=2,
         marker="^",
         markersize=6,
@@ -109,7 +130,7 @@ def plot_risk_curves(
     ax.plot(
         bankroll_units,
         ruin_probs,
-        color="#e74c3c",
+        color=COLORS["ruin"],
         linewidth=2.5,
         marker="o",
         markersize=7,
@@ -119,13 +140,14 @@ def plot_risk_curves(
 
     # Add confidence bands
     if config.show_confidence_bands:
+        ci_level_pct = int(confidence_level * 100)
         ax.fill_between(
             bankroll_units,
             ci_lowers,
             ci_uppers,
-            color="#e74c3c",
+            color=COLORS["ruin"],
             alpha=0.2,
-            label="95% Confidence Band",
+            label=f"{ci_level_pct}% Confidence Band",
             zorder=2,
         )
 
@@ -138,7 +160,7 @@ def plot_risk_curves(
             ax.plot(
                 bankroll_units[valid_mask],
                 analytical[valid_mask],
-                color="#3498db",
+                color=COLORS["analytical"],
                 linewidth=2,
                 linestyle="--",
                 marker="x",
@@ -151,7 +173,7 @@ def plot_risk_curves(
     if config.show_thresholds:
         ax.axhline(
             y=0.01,
-            color="#2ecc71",
+            color=COLORS["threshold_1pct"],
             linestyle=":",
             linewidth=1,
             alpha=0.7,
@@ -160,7 +182,7 @@ def plot_risk_curves(
         )
         ax.axhline(
             y=0.05,
-            color="#f39c12",
+            color=COLORS["threshold_5pct"],
             linestyle=":",
             linewidth=1,
             alpha=0.7,
@@ -169,7 +191,7 @@ def plot_risk_curves(
         )
         ax.axhline(
             y=0.10,
-            color="#e74c3c",
+            color=COLORS["ruin"],
             linestyle=":",
             linewidth=1,
             alpha=0.7,
@@ -188,8 +210,6 @@ def plot_risk_curves(
     ax.set_ylim(top=min(max_prob * 1.1, 1.0))
 
     # Format y-axis as percentages
-    from matplotlib.ticker import FuncFormatter
-
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:.0%}"))
 
     # Add grid

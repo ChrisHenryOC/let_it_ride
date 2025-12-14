@@ -872,3 +872,150 @@ class TestNumericalStability:
 
         # Constant loss should mean certain ruin
         assert report.results[0].ruin_probability == 1.0
+
+
+class TestEdgeCases:
+    """Tests for edge cases identified in code review."""
+
+    def test_zero_base_bet_inference_fallback(self) -> None:
+        """Should default to base_bet=1.0 when hands_played is zero."""
+        # Create session results with zero hands played
+        results = [
+            create_session_result(
+                hands_played=0,
+                total_wagered=0.0,
+                session_profit=0.0,
+            )
+            for _ in range(20)
+        ]
+
+        report = calculate_risk_of_ruin(
+            session_results=results,
+            bankroll_units=[10],
+            simulations_per_level=100,
+            random_seed=42,
+        )
+
+        # Should use default base_bet of 1.0
+        assert report.base_bet == 1.0
+
+    def test_nan_analytical_estimate_omitted_from_format(self) -> None:
+        """Should omit NaN analytical estimates from formatted output."""
+        # Create a report with NaN analytical estimates
+        ci = ConfidenceInterval(lower=0.05, upper=0.15, level=0.95)
+        result = RiskOfRuinResult(
+            bankroll_units=100,
+            ruin_probability=0.10,
+            confidence_interval=ci,
+            half_bankroll_risk=0.25,
+            quarter_bankroll_risk=0.40,
+            sessions_simulated=10000,
+        )
+        report = RiskOfRuinReport(
+            base_bet=10.0,
+            starting_bankroll=1000.0,
+            results=(result,),
+            mean_session_profit=0.0,
+            session_profit_std=100.0,
+            analytical_estimates=(float("nan"),),
+        )
+
+        formatted = format_risk_of_ruin_report(report)
+
+        # Should not contain "Analytical Estimate" when NaN
+        assert "Analytical Estimate" not in formatted
+
+    def test_unsorted_bankroll_units_produces_sorted_output(self) -> None:
+        """Should produce sorted results regardless of input order."""
+        profits = [50.0, -30.0, 20.0, -10.0, 40.0] * 4
+        results = create_session_results(profits=profits)
+
+        # Pass unsorted bankroll units
+        report = calculate_risk_of_ruin(
+            session_results=results,
+            bankroll_units=[60, 20, 40],  # Unsorted
+            simulations_per_level=100,
+            random_seed=42,
+        )
+
+        # Results should be sorted by bankroll_units
+        assert [r.bankroll_units for r in report.results] == [20, 40, 60]
+
+    def test_zero_mean_zero_std_analytical(self) -> None:
+        """Should handle zero mean AND zero std in analytical calculation."""
+        # This edge case: all sessions have exactly zero profit
+        result = _calculate_analytical_ruin_probability(
+            mean_profit=0.0,
+            std_profit=0.0,
+            bankroll=1000.0,
+        )
+
+        # With zero mean and zero std, should return 1.0 (eventual ruin)
+        assert result == 1.0
+
+    def test_boundary_confidence_level_low(self) -> None:
+        """Should handle very low confidence levels."""
+        _validate_confidence_level(0.001)  # Should not raise
+
+    def test_boundary_confidence_level_high(self) -> None:
+        """Should handle very high confidence levels."""
+        _validate_confidence_level(0.999)  # Should not raise
+
+    def test_single_simulation_count(self) -> None:
+        """Should work with minimum simulation count of 1."""
+        profits = [50.0, -30.0, 20.0, -10.0, 40.0] * 4
+        results = create_session_results(profits=profits)
+
+        report = calculate_risk_of_ruin(
+            session_results=results,
+            bankroll_units=[50],
+            simulations_per_level=1,
+            random_seed=42,
+        )
+
+        # Should produce valid results (though imprecise)
+        assert 0.0 <= report.results[0].ruin_probability <= 1.0
+        assert report.results[0].sessions_simulated == 1
+
+
+class TestValidationLimits:
+    """Tests for new validation limits."""
+
+    def test_simulations_per_level_zero_raises(self) -> None:
+        """Should raise ValueError for zero simulations."""
+        profits = [50.0] * 20
+        results = create_session_results(profits=profits)
+
+        with pytest.raises(ValueError, match="simulations_per_level must be a positive"):
+            calculate_risk_of_ruin(
+                session_results=results,
+                bankroll_units=[50],
+                simulations_per_level=0,
+            )
+
+    def test_simulations_per_level_negative_raises(self) -> None:
+        """Should raise ValueError for negative simulations."""
+        profits = [50.0] * 20
+        results = create_session_results(profits=profits)
+
+        with pytest.raises(ValueError, match="simulations_per_level must be a positive"):
+            calculate_risk_of_ruin(
+                session_results=results,
+                bankroll_units=[50],
+                simulations_per_level=-100,
+            )
+
+    def test_bankroll_units_exceeds_max_raises(self) -> None:
+        """Should raise ValueError when bankroll_units exceeds maximum."""
+        profits = [50.0] * 20
+        results = create_session_results(profits=profits)
+
+        # Create list with 101 bankroll levels (exceeds MAX_BANKROLL_LEVELS=100)
+        too_many_levels = list(range(1, 102))
+
+        with pytest.raises(ValueError, match="bankroll_units exceeds maximum"):
+            calculate_risk_of_ruin(
+                session_results=results,
+                bankroll_units=too_many_levels,
+                simulations_per_level=100,
+            )

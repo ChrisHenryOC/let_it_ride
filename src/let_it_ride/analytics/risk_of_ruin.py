@@ -11,11 +11,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from statistics import mean
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from numpy.typing import NDArray
 
 from let_it_ride.analytics.statistics import ConfidenceInterval
 from let_it_ride.analytics.validation import calculate_wilson_confidence_interval
@@ -23,7 +21,16 @@ from let_it_ride.analytics.validation import calculate_wilson_confidence_interva
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from numpy.typing import NDArray
+
     from let_it_ride.simulation.session import SessionResult
+
+# Module-level constants
+DEFAULT_MAX_SESSIONS_PER_SIM: int = 10_000
+DEFAULT_SIMULATIONS_PER_LEVEL: int = 10_000
+DEFAULT_BANKROLL_UNITS: tuple[int, ...] = (20, 40, 60, 80, 100)
+MAX_SIMULATIONS_PER_LEVEL: int = 1_000_000
+MAX_BANKROLL_LEVELS: int = 100
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,8 +41,9 @@ class RiskOfRuinResult:
         bankroll_units: Bankroll as multiple of base bet.
         ruin_probability: Probability of losing entire bankroll.
         confidence_interval: Confidence interval for ruin probability.
-        half_bankroll_risk: Probability of losing 50% of bankroll.
-        quarter_bankroll_risk: Probability of losing 25% of bankroll.
+        half_bankroll_risk: Probability of bankroll dropping to 50% of starting value.
+        quarter_bankroll_risk: Probability of bankroll dropping to 75% of starting value
+            (i.e., 25% cumulative loss).
         sessions_simulated: Number of Monte Carlo simulations run.
     """
 
@@ -75,10 +83,14 @@ def _validate_bankroll_units(bankroll_units: Sequence[int]) -> None:
         bankroll_units: Sequence of bankroll levels to validate.
 
     Raises:
-        ValueError: If bankroll_units is empty or contains non-positive values.
+        ValueError: If bankroll_units is empty, too long, or contains non-positive values.
     """
     if not bankroll_units:
         raise ValueError("bankroll_units must not be empty")
+    if len(bankroll_units) > MAX_BANKROLL_LEVELS:
+        raise ValueError(
+            f"bankroll_units exceeds maximum of {MAX_BANKROLL_LEVELS} levels"
+        )
     if any(units <= 0 for units in bankroll_units):
         raise ValueError("All bankroll units must be positive integers")
 
@@ -121,7 +133,7 @@ def _calculate_analytical_ruin_probability(
     mean_profit: float,
     std_profit: float,
     bankroll: float,
-) -> float | None:
+) -> float:
     """Calculate analytical ruin probability using normal approximation.
 
     Uses the gambler's ruin formula with normal distribution approximation.
@@ -138,7 +150,7 @@ def _calculate_analytical_ruin_probability(
         bankroll: Starting bankroll.
 
     Returns:
-        Analytical ruin probability, or None if calculation not applicable.
+        Analytical ruin probability as a float between 0 and 1.
     """
     if std_profit == 0:
         # No variance means deterministic outcome
@@ -164,12 +176,13 @@ def _run_monte_carlo_ruin_simulation(
     bankroll: float,
     simulations: int,
     rng: np.random.Generator,
-    max_sessions_per_sim: int = 10000,
+    max_sessions_per_sim: int = DEFAULT_MAX_SESSIONS_PER_SIM,
 ) -> tuple[int, int, int, int]:
     """Run Monte Carlo simulation to estimate ruin probability.
 
     Simulates bankroll trajectories by sampling session profits and
-    tracks how many hit various loss thresholds.
+    tracks how many hit various loss thresholds. Uses vectorized NumPy
+    operations for performance.
 
     Args:
         session_profits: Array of session profit values to sample from.
@@ -181,37 +194,27 @@ def _run_monte_carlo_ruin_simulation(
     Returns:
         Tuple of (ruin_count, half_loss_count, quarter_loss_count, total_sims).
     """
-    ruin_count = 0
-    half_loss_count = 0
-    quarter_loss_count = 0
+    # Threshold values: 50% remaining (50% loss), 75% remaining (25% loss)
+    loss_50pct_threshold = bankroll * 0.5
+    loss_25pct_threshold = bankroll * 0.75
 
-    half_threshold = bankroll * 0.5
-    quarter_threshold = bankroll * 0.75
+    # Vectorized sampling: shape (simulations, max_sessions_per_sim)
+    all_samples = rng.choice(
+        session_profits, size=(simulations, max_sessions_per_sim), replace=True
+    )
 
-    for _ in range(simulations):
-        current_bankroll = bankroll
-        hit_half = False
-        hit_quarter = False
+    # Compute cumulative bankroll trajectories for all simulations
+    trajectories = bankroll + np.cumsum(all_samples, axis=1)
 
-        # Sample session outcomes
-        sampled_profits = rng.choice(session_profits, size=max_sessions_per_sim)
+    # Find threshold crossings using vectorized operations
+    # For each simulation, check if any point crosses the threshold
+    ruin_mask = np.any(trajectories <= 0, axis=1)
+    half_loss_mask = np.any(trajectories <= loss_50pct_threshold, axis=1)
+    quarter_loss_mask = np.any(trajectories <= loss_25pct_threshold, axis=1)
 
-        for profit in sampled_profits:
-            current_bankroll += profit
-
-            # Track threshold crossings
-            if not hit_quarter and current_bankroll <= quarter_threshold:
-                hit_quarter = True
-                quarter_loss_count += 1
-
-            if not hit_half and current_bankroll <= half_threshold:
-                hit_half = True
-                half_loss_count += 1
-
-            # Check for ruin
-            if current_bankroll <= 0:
-                ruin_count += 1
-                break
+    ruin_count = int(np.sum(ruin_mask))
+    half_loss_count = int(np.sum(half_loss_mask))
+    quarter_loss_count = int(np.sum(quarter_loss_mask))
 
     return ruin_count, half_loss_count, quarter_loss_count, simulations
 
@@ -273,11 +276,28 @@ def _calculate_ruin_for_bankroll_level(
     )
 
 
+def _validate_simulations_per_level(simulations_per_level: int) -> None:
+    """Validate simulations_per_level parameter.
+
+    Args:
+        simulations_per_level: Number of simulations to validate.
+
+    Raises:
+        ValueError: If simulations_per_level is not positive or exceeds maximum.
+    """
+    if simulations_per_level <= 0:
+        raise ValueError("simulations_per_level must be a positive integer")
+    if simulations_per_level > MAX_SIMULATIONS_PER_LEVEL:
+        raise ValueError(
+            f"simulations_per_level exceeds maximum of {MAX_SIMULATIONS_PER_LEVEL:,}"
+        )
+
+
 def calculate_risk_of_ruin(
     session_results: Sequence[SessionResult],
     bankroll_units: Sequence[int] | None = None,
     base_bet: float | None = None,
-    simulations_per_level: int = 10000,
+    simulations_per_level: int = DEFAULT_SIMULATIONS_PER_LEVEL,
     confidence_level: float = 0.95,
     random_seed: int | None = None,
     include_analytical: bool = True,
@@ -293,8 +313,10 @@ def calculate_risk_of_ruin(
         bankroll_units: Bankroll levels as multiples of base bet.
             Defaults to [20, 40, 60, 80, 100] if not specified.
         base_bet: Base bet amount. If not provided, infers from session data
-            by dividing starting bankroll by a typical multiple.
+            by calculating total_wagered / (total_hands * 3), since each hand
+            involves 3 base bets (bet1, bet2, bet3).
         simulations_per_level: Number of Monte Carlo simulations per level.
+            Must be positive and not exceed MAX_SIMULATIONS_PER_LEVEL.
         confidence_level: Confidence level for intervals (default 0.95).
         random_seed: Optional seed for reproducibility.
         include_analytical: Whether to include analytical estimates.
@@ -308,10 +330,11 @@ def calculate_risk_of_ruin(
     # Validate inputs
     _validate_session_results(session_results)
     _validate_confidence_level(confidence_level)
+    _validate_simulations_per_level(simulations_per_level)
 
     # Set default bankroll units
     if bankroll_units is None:
-        bankroll_units = [20, 40, 60, 80, 100]
+        bankroll_units = list(DEFAULT_BANKROLL_UNITS)
     _validate_bankroll_units(bankroll_units)
 
     # Extract session data
@@ -330,8 +353,8 @@ def calculate_risk_of_ruin(
     if base_bet <= 0:
         raise ValueError("base_bet must be positive")
 
-    # Calculate statistics
-    mean_profit = float(mean(session_profits))
+    # Calculate statistics using NumPy for consistency
+    mean_profit = float(np.mean(session_profits))
     std_profit = (
         float(np.std(session_profits, ddof=1)) if len(session_profits) > 1 else 0.0
     )
@@ -362,9 +385,7 @@ def calculate_risk_of_ruin(
                 std_profit=std_profit,
                 bankroll=bankroll,
             )
-            analytical_estimates.append(
-                analytical if analytical is not None else float("nan")
-            )
+            analytical_estimates.append(analytical)
 
     return RiskOfRuinReport(
         base_bet=base_bet,
@@ -402,9 +423,10 @@ def format_risk_of_ruin_report(report: RiskOfRuinReport) -> str:
     for i, result in enumerate(report.results):
         bankroll = report.base_bet * result.bankroll_units
         lines.append(f"\nBankroll: {result.bankroll_units} units (${bankroll:.2f})")
+        ci_level_pct = int(result.confidence_interval.level * 100)
         lines.append(
             f"  Ruin Probability: {result.ruin_probability:.2%} "
-            f"(95% CI: {result.confidence_interval.lower:.2%} - "
+            f"({ci_level_pct}% CI: {result.confidence_interval.lower:.2%} - "
             f"{result.confidence_interval.upper:.2%})"
         )
         lines.append(f"  50% Loss Risk: {result.half_bankroll_risk:.2%}")

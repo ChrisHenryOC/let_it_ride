@@ -1308,3 +1308,257 @@ class TestTrajectoryIntegration:
 
         with pytest.raises(ValueError, match="empty.*history"):
             plot_bankroll_trajectories(results, histories)
+
+
+# =============================================================================
+# Risk Curves Visualization Tests
+# =============================================================================
+
+
+class TestRiskCurvesPlot:
+    """Tests for risk curves visualization."""
+
+    @pytest.fixture
+    def sample_risk_report(self):
+        """Create a sample risk of ruin report for testing."""
+        from let_it_ride.analytics.risk_of_ruin import (
+            RiskOfRuinReport,
+            RiskOfRuinResult,
+        )
+        from let_it_ride.analytics.statistics import ConfidenceInterval
+
+        results = []
+        for units in [20, 40, 60, 80, 100]:
+            ci = ConfidenceInterval(lower=0.05, upper=0.15, level=0.95)
+            results.append(
+                RiskOfRuinResult(
+                    bankroll_units=units,
+                    ruin_probability=0.10 / (units / 20),
+                    confidence_interval=ci,
+                    half_bankroll_risk=0.25 / (units / 20),
+                    quarter_bankroll_risk=0.40 / (units / 20),
+                    sessions_simulated=10000,
+                )
+            )
+
+        return RiskOfRuinReport(
+            base_bet=10.0,
+            starting_bankroll=1000.0,
+            results=tuple(results),
+            mean_session_profit=5.0,
+            session_profit_std=50.0,
+            analytical_estimates=(0.12, 0.08, 0.05, 0.03, 0.02),
+        )
+
+    def test_plot_risk_curves_returns_figure(self, sample_risk_report) -> None:
+        """Should return a matplotlib Figure object."""
+        from let_it_ride.analytics.visualizations import plot_risk_curves
+
+        fig = plot_risk_curves(sample_risk_report)
+
+        assert isinstance(fig, matplotlib.figure.Figure)
+        matplotlib.pyplot.close(fig)
+
+    def test_plot_risk_curves_empty_results_raises(self) -> None:
+        """Should raise ValueError for report with no results."""
+        from let_it_ride.analytics.risk_of_ruin import RiskOfRuinReport
+        from let_it_ride.analytics.visualizations import plot_risk_curves
+
+        empty_report = RiskOfRuinReport(
+            base_bet=10.0,
+            starting_bankroll=1000.0,
+            results=(),
+            mean_session_profit=0.0,
+            session_profit_std=0.0,
+            analytical_estimates=None,
+        )
+
+        with pytest.raises(ValueError, match="Cannot create plot.*no results"):
+            plot_risk_curves(empty_report)
+
+    def test_plot_risk_curves_custom_config(self, sample_risk_report) -> None:
+        """Should accept custom configuration."""
+        from let_it_ride.analytics.visualizations import (
+            RiskCurveConfig,
+            plot_risk_curves,
+        )
+
+        config = RiskCurveConfig(
+            figsize=(10, 6),
+            dpi=100,
+            show_confidence_bands=False,
+            show_analytical=False,
+            show_thresholds=False,
+            title="Custom Title",
+        )
+
+        fig = plot_risk_curves(sample_risk_report, config)
+
+        assert isinstance(fig, matplotlib.figure.Figure)
+        matplotlib.pyplot.close(fig)
+
+    def test_plot_risk_curves_without_analytical(self) -> None:
+        """Should work when analytical estimates are None."""
+        from let_it_ride.analytics.risk_of_ruin import (
+            RiskOfRuinReport,
+            RiskOfRuinResult,
+        )
+        from let_it_ride.analytics.statistics import ConfidenceInterval
+        from let_it_ride.analytics.visualizations import plot_risk_curves
+
+        ci = ConfidenceInterval(lower=0.05, upper=0.15, level=0.95)
+        result = RiskOfRuinResult(
+            bankroll_units=50,
+            ruin_probability=0.10,
+            confidence_interval=ci,
+            half_bankroll_risk=0.25,
+            quarter_bankroll_risk=0.40,
+            sessions_simulated=10000,
+        )
+        report = RiskOfRuinReport(
+            base_bet=10.0,
+            starting_bankroll=1000.0,
+            results=(result,),
+            mean_session_profit=5.0,
+            session_profit_std=50.0,
+            analytical_estimates=None,
+        )
+
+        fig = plot_risk_curves(report)
+        assert isinstance(fig, matplotlib.figure.Figure)
+        matplotlib.pyplot.close(fig)
+
+
+class TestRiskCurvesSave:
+    """Tests for risk curves file saving."""
+
+    @pytest.fixture
+    def sample_risk_report(self):
+        """Create a sample risk of ruin report for testing."""
+        from let_it_ride.analytics.risk_of_ruin import (
+            RiskOfRuinReport,
+            RiskOfRuinResult,
+        )
+        from let_it_ride.analytics.statistics import ConfidenceInterval
+
+        ci = ConfidenceInterval(lower=0.05, upper=0.15, level=0.95)
+        result = RiskOfRuinResult(
+            bankroll_units=50,
+            ruin_probability=0.10,
+            confidence_interval=ci,
+            half_bankroll_risk=0.25,
+            quarter_bankroll_risk=0.40,
+            sessions_simulated=10000,
+        )
+        return RiskOfRuinReport(
+            base_bet=10.0,
+            starting_bankroll=1000.0,
+            results=(result,),
+            mean_session_profit=5.0,
+            session_profit_std=50.0,
+            analytical_estimates=(0.12,),
+        )
+
+    def test_save_risk_curves_png(self, sample_risk_report, tmp_path: Path) -> None:
+        """Should save PNG file successfully."""
+        from let_it_ride.analytics.visualizations import save_risk_curves
+
+        output_path = tmp_path / "risk_curves.png"
+        save_risk_curves(sample_risk_report, output_path, output_format="png")
+
+        assert output_path.exists()
+        assert output_path.stat().st_size > 0
+
+    def test_save_risk_curves_svg(self, sample_risk_report, tmp_path: Path) -> None:
+        """Should save SVG file successfully."""
+        from let_it_ride.analytics.visualizations import save_risk_curves
+
+        output_path = tmp_path / "risk_curves.svg"
+        save_risk_curves(sample_risk_report, output_path, output_format="svg")
+
+        assert output_path.exists()
+        assert output_path.stat().st_size > 0
+
+    def test_save_risk_curves_adds_extension(
+        self, sample_risk_report, tmp_path: Path
+    ) -> None:
+        """Should add extension if not present."""
+        from let_it_ride.analytics.visualizations import save_risk_curves
+
+        output_path = tmp_path / "risk_curves"
+        save_risk_curves(sample_risk_report, output_path, output_format="png")
+
+        expected_path = tmp_path / "risk_curves.png"
+        assert expected_path.exists()
+
+    def test_save_risk_curves_invalid_format_raises(
+        self, sample_risk_report, tmp_path: Path
+    ) -> None:
+        """Should raise ValueError for invalid format."""
+        from let_it_ride.analytics.visualizations import save_risk_curves
+
+        output_path = tmp_path / "risk_curves.jpg"
+
+        with pytest.raises(ValueError, match="Invalid format"):
+            save_risk_curves(
+                sample_risk_report, output_path, output_format="jpg"  # type: ignore
+            )
+
+    def test_save_risk_curves_creates_parent_dirs(
+        self, sample_risk_report, tmp_path: Path
+    ) -> None:
+        """Should create parent directories if needed."""
+        from let_it_ride.analytics.visualizations import save_risk_curves
+
+        output_path = tmp_path / "subdir" / "another" / "risk_curves.png"
+        save_risk_curves(sample_risk_report, output_path, output_format="png")
+
+        assert output_path.exists()
+
+    def test_save_risk_curves_custom_dpi(self, sample_risk_report, tmp_path: Path) -> None:
+        """Should respect custom DPI setting."""
+        from let_it_ride.analytics.visualizations import (
+            RiskCurveConfig,
+            save_risk_curves,
+        )
+
+        config = RiskCurveConfig(dpi=300)
+        output_path = tmp_path / "risk_curves_high_dpi.png"
+        save_risk_curves(sample_risk_report, output_path, config=config)
+
+        assert output_path.exists()
+        # Higher DPI should result in larger file size
+        assert output_path.stat().st_size > 0
+
+
+class TestRiskCurveConfig:
+    """Tests for RiskCurveConfig dataclass."""
+
+    def test_default_config(self) -> None:
+        """Should create config with default values."""
+        from let_it_ride.analytics.visualizations import RiskCurveConfig
+
+        config = RiskCurveConfig()
+
+        assert config.figsize == (12, 8)
+        assert config.dpi == 150
+        assert config.show_confidence_bands is True
+        assert config.show_analytical is True
+        assert config.show_thresholds is True
+        assert config.title == "Risk of Ruin by Bankroll Level"
+
+    def test_custom_config(self) -> None:
+        """Should accept custom values."""
+        from let_it_ride.analytics.visualizations import RiskCurveConfig
+
+        config = RiskCurveConfig(
+            figsize=(8, 6),
+            dpi=72,
+            show_confidence_bands=False,
+            title="Custom Risk Analysis",
+        )
+
+        assert config.figsize == (8, 6)
+        assert config.dpi == 72
+        assert config.show_confidence_bands is False
+        assert config.title == "Custom Risk Analysis"
