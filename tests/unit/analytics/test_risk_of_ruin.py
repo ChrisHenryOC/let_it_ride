@@ -986,7 +986,9 @@ class TestValidationLimits:
         profits = [50.0] * 20
         results = create_session_results(profits=profits)
 
-        with pytest.raises(ValueError, match="simulations_per_level must be a positive"):
+        with pytest.raises(
+            ValueError, match="simulations_per_level must be a positive"
+        ):
             calculate_risk_of_ruin(
                 session_results=results,
                 bankroll_units=[50],
@@ -998,7 +1000,9 @@ class TestValidationLimits:
         profits = [50.0] * 20
         results = create_session_results(profits=profits)
 
-        with pytest.raises(ValueError, match="simulations_per_level must be a positive"):
+        with pytest.raises(
+            ValueError, match="simulations_per_level must be a positive"
+        ):
             calculate_risk_of_ruin(
                 session_results=results,
                 bankroll_units=[50],
