@@ -52,6 +52,78 @@ def rng() -> random.Random:
     return random.Random(42)
 
 
+# --- Helper Functions ---
+
+
+def create_table_session(
+    main_paytable: MainGamePaytable,
+    rng: random.Random,
+    *,
+    num_seats: int = 1,
+    starting_bankroll: float = 500.0,
+    base_bet: float = 5.0,
+    max_hands: int | None = None,
+    win_limit: float | None = None,
+    loss_limit: float | None = None,
+    strategy: BasicStrategy
+    | AlwaysRideStrategy
+    | AlwaysPullStrategy
+    | CustomStrategy
+    | None = None,
+    bonus_paytable: BonusPaytable | None = None,
+    bonus_bet: float = 0.0,
+    dealer_config: DealerConfig | None = None,
+) -> TableSession:
+    """Factory method for creating TableSession with common defaults.
+
+    This helper reduces boilerplate in integration tests by providing
+    sensible defaults while allowing full customization when needed.
+
+    Args:
+        main_paytable: Required main game paytable.
+        rng: Required random number generator.
+        num_seats: Number of seats at the table (default 1).
+        starting_bankroll: Initial bankroll for each seat (default 500.0).
+        base_bet: Base bet amount (default 5.0).
+        max_hands: Maximum hands to play. None for unlimited.
+        win_limit: Stop when profit reaches this amount. None to disable.
+        loss_limit: Stop when loss reaches this amount. None to disable.
+        strategy: Strategy to use. Defaults to BasicStrategy if None.
+        bonus_paytable: Optional bonus paytable for 3-card bonus betting.
+        bonus_bet: Bonus bet amount per hand (default 0.0).
+        dealer_config: Optional dealer discard configuration.
+
+    Returns:
+        Configured TableSession ready for play.
+    """
+    if strategy is None:
+        strategy = BasicStrategy()
+
+    table_config = TableConfig(num_seats=num_seats)
+    config = TableSessionConfig(
+        table_config=table_config,
+        starting_bankroll=starting_bankroll,
+        base_bet=base_bet,
+        max_hands=max_hands,
+        win_limit=win_limit,
+        loss_limit=loss_limit,
+        bonus_bet=bonus_bet,
+    )
+    deck = Deck()
+    table = Table(
+        deck,
+        strategy,
+        main_paytable,
+        bonus_paytable,
+        rng,
+        table_config=table_config,
+        dealer_config=dealer_config,
+    )
+    betting_system = FlatBetting(base_bet)
+
+    return TableSession(config, table, betting_system)
+
+
 # --- TableSession Complete Lifecycle Tests ---
 
 
@@ -414,18 +486,7 @@ class TestMultiRoundBankrollTracking:
         rng: random.Random,
     ) -> None:
         """Verify bankroll changes are tracked correctly over multiple rounds."""
-        config = TableSessionConfig(
-            table_config=TableConfig(num_seats=1),
-            starting_bankroll=500.0,
-            base_bet=5.0,
-            max_hands=30,
-        )
-        deck = Deck()
-        strategy = BasicStrategy()
-        table = Table(deck, strategy, main_paytable, None, rng)
-        betting_system = FlatBetting(5.0)
-
-        session = TableSession(config, table, betting_system)
+        session = create_table_session(main_paytable, rng, max_hands=30)
         result = session.run_to_completion()
 
         sr = result.seat_results[0].session_result
@@ -445,18 +506,7 @@ class TestMultiRoundBankrollTracking:
         rng: random.Random,
     ) -> None:
         """Verify peak bankroll and drawdown are tracked correctly."""
-        config = TableSessionConfig(
-            table_config=TableConfig(num_seats=1),
-            starting_bankroll=500.0,
-            base_bet=5.0,
-            max_hands=50,
-        )
-        deck = Deck()
-        strategy = BasicStrategy()
-        table = Table(deck, strategy, main_paytable, None, rng)
-        betting_system = FlatBetting(5.0)
-
-        session = TableSession(config, table, betting_system)
+        session = create_table_session(main_paytable, rng, max_hands=50)
         result = session.run_to_completion()
 
         sr = result.seat_results[0].session_result
@@ -480,18 +530,14 @@ class TestMultiRoundBankrollTracking:
         rng: random.Random,
     ) -> None:
         """Verify total wagered accumulates correctly."""
-        config = TableSessionConfig(
-            table_config=TableConfig(num_seats=1),
+        session = create_table_session(
+            main_paytable,
+            rng,
             starting_bankroll=1000.0,
             base_bet=10.0,
             max_hands=10,
+            strategy=AlwaysRideStrategy(),  # Always 3 bets at risk
         )
-        deck = Deck()
-        strategy = AlwaysRideStrategy()  # Always 3 bets at risk
-        table = Table(deck, strategy, main_paytable, None, rng)
-        betting_system = FlatBetting(10.0)
-
-        session = TableSession(config, table, betting_system)
         result = session.run_to_completion()
 
         sr = result.seat_results[0].session_result
@@ -506,26 +552,7 @@ class TestMultiRoundBankrollTracking:
         rng: random.Random,
     ) -> None:
         """Verify each seat tracks its own bankroll independently."""
-        table_config = TableConfig(num_seats=3)
-        config = TableSessionConfig(
-            table_config=table_config,
-            starting_bankroll=500.0,
-            base_bet=5.0,
-            max_hands=25,
-        )
-        deck = Deck()
-        strategy = BasicStrategy()
-        table = Table(
-            deck,
-            strategy,
-            main_paytable,
-            None,
-            rng,
-            table_config=table_config,
-        )
-        betting_system = FlatBetting(5.0)
-
-        session = TableSession(config, table, betting_system)
+        session = create_table_session(main_paytable, rng, num_seats=3, max_hands=25)
         result = session.run_to_completion()
 
         assert len(result.seat_results) == 3
@@ -584,19 +611,13 @@ class TestTableWithBonusBets:
         rng: random.Random,
     ) -> None:
         """Verify total bonus wagered is tracked in session."""
-        config = TableSessionConfig(
-            table_config=TableConfig(num_seats=1),
-            starting_bankroll=500.0,
-            base_bet=5.0,
+        session = create_table_session(
+            main_paytable,
+            rng,
+            bonus_paytable=bonus_paytable,
             bonus_bet=2.0,
             max_hands=10,
         )
-        deck = Deck()
-        strategy = BasicStrategy()
-        table = Table(deck, strategy, main_paytable, bonus_paytable, rng)
-        betting_system = FlatBetting(5.0)
-
-        session = TableSession(config, table, betting_system)
         result = session.run_to_completion()
 
         sr = result.seat_results[0].session_result
@@ -652,28 +673,14 @@ class TestTableWithDealerDiscard:
         rng: random.Random,
     ) -> None:
         """Verify discard mechanics work across session rounds."""
-        table_config = TableConfig(num_seats=2)
-        config = TableSessionConfig(
-            table_config=table_config,
-            starting_bankroll=500.0,
-            base_bet=5.0,
-            max_hands=10,
-        )
-        deck = Deck()
-        strategy = BasicStrategy()
         dealer_config = DealerConfig(discard_enabled=True, discard_cards=3)
-        table = Table(
-            deck,
-            strategy,
+        session = create_table_session(
             main_paytable,
-            None,
             rng,
-            table_config=table_config,
+            num_seats=2,
+            max_hands=10,
             dealer_config=dealer_config,
         )
-        betting_system = FlatBetting(5.0)
-
-        session = TableSession(config, table, betting_system)
 
         # Play rounds manually to check discard each time
         discards_seen = []
