@@ -18,9 +18,12 @@ Analyze and fix GitHub issue: $ARGUMENTS
 ## 2. PLAN
 
 1. `gh issue view` for full details
-2. Launch **Explore agent** (medium) for complex issues - check `/scratchpads/`, closed PRs, patterns
+2. For complex issues, launch **Explore agent** (quick):
+   - Check `/scratchpads/INDEX.md` for related prior work (read full scratchpad only if directly relevant)
+   - Search for similar patterns in source code
 3. Break into tasks with **TodoWrite**
 4. Create scratchpad: `/scratchpads/issue-{number}-{short-name}.md` with issue link + tasks
+5. Update index: `echo "| #{number} | {Description} |" >> /scratchpads/INDEX.md`
 
 ## 3. CREATE
 
@@ -36,10 +39,10 @@ Analyze and fix GitHub issue: $ARGUMENTS
 3. Format/lint: `poetry run ruff format src/ tests/ && poetry run ruff check src/ tests/ --fix`
 4. Type check: `poetry run mypy src/`
 5. All functions need type annotations
-6. Launch **test-coverage-reviewer agent**
 
-## 5. VERIFY & PUSH
+## 5. PUSH & PR
 
-1. Launch **code-quality-reviewer agent**
-2. Push: `git push -u origin {branch}`
-3. Create PR: `gh pr create` with title `{feat|fix}: LIR-N description`, body includes `Closes #{github_issue_number}`
+1. Push: `git push -u origin {branch}`
+2. Create PR: `gh pr create` with title `{feat|fix}: LIR-N description`, body includes `Closes #{github_issue_number}`
+
+Note: Code review happens via `/review-pr` after PR creation.
