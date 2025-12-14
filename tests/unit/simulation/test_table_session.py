@@ -680,7 +680,7 @@ class TestTableSessionState:
 
         session = TableSession(config, mock_table, betting_system)
 
-        assert session.stop_reason() is None
+        assert session.stop_reason is None
 
     def test_is_complete_true_after_run_to_completion(self) -> None:
         """Verify is_complete is True after run_to_completion."""

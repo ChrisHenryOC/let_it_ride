@@ -396,7 +396,7 @@ class TestSessionInitialization:
         assert session.session_profit == 0.0
         assert session.bankroll == 1000.0
         assert session.streak == 0
-        assert session.stop_reason() is None
+        assert session.stop_reason is None
 
 
 # --- Stop Condition Tests ---
@@ -420,7 +420,7 @@ class TestStopOnWinLimit:
         session.play_hand()
 
         assert session.should_stop() is True
-        assert session.stop_reason() == StopReason.WIN_LIMIT
+        assert session.stop_reason == StopReason.WIN_LIMIT
         assert session.session_profit == 150.0
 
     def test_stops_on_exact_win_limit(self) -> None:
@@ -437,7 +437,7 @@ class TestStopOnWinLimit:
         session.play_hand()
 
         assert session.should_stop() is True
-        assert session.stop_reason() == StopReason.WIN_LIMIT
+        assert session.stop_reason == StopReason.WIN_LIMIT
 
     def test_continues_below_win_limit(self) -> None:
         """Verify session continues when below win limit."""
@@ -459,7 +459,7 @@ class TestStopOnWinLimit:
 
         session.play_hand()
         assert session.should_stop() is True
-        assert session.stop_reason() == StopReason.WIN_LIMIT
+        assert session.stop_reason == StopReason.WIN_LIMIT
         assert session.session_profit == 110.0
 
 
@@ -481,7 +481,7 @@ class TestStopOnLossLimit:
         session.play_hand()
 
         assert session.should_stop() is True
-        assert session.stop_reason() == StopReason.LOSS_LIMIT
+        assert session.stop_reason == StopReason.LOSS_LIMIT
         assert session.session_profit == -250.0
 
     def test_stops_on_exact_loss_limit(self) -> None:
@@ -498,7 +498,7 @@ class TestStopOnLossLimit:
         session.play_hand()
 
         assert session.should_stop() is True
-        assert session.stop_reason() == StopReason.LOSS_LIMIT
+        assert session.stop_reason == StopReason.LOSS_LIMIT
 
     def test_continues_above_loss_limit(self) -> None:
         """Verify session continues when above loss limit."""
@@ -522,7 +522,7 @@ class TestStopOnLossLimit:
 
         session.play_hand()
         assert session.should_stop() is True
-        assert session.stop_reason() == StopReason.LOSS_LIMIT
+        assert session.stop_reason == StopReason.LOSS_LIMIT
         assert session.session_profit == -225.0
 
 
@@ -551,7 +551,7 @@ class TestStopOnMaxHands:
         session.play_hand()
         assert session.hands_played == 3
         assert session.should_stop() is True
-        assert session.stop_reason() == StopReason.MAX_HANDS
+        assert session.stop_reason == StopReason.MAX_HANDS
 
     def test_single_hand_max(self) -> None:
         """Verify session stops after single hand when max_hands=1."""
@@ -567,7 +567,7 @@ class TestStopOnMaxHands:
         session.play_hand()
 
         assert session.should_stop() is True
-        assert session.stop_reason() == StopReason.MAX_HANDS
+        assert session.stop_reason == StopReason.MAX_HANDS
 
 
 class TestStopOnInsufficientFunds:
@@ -588,7 +588,7 @@ class TestStopOnInsufficientFunds:
 
         assert session.bankroll == 50.0
         assert session.should_stop() is True
-        assert session.stop_reason() == StopReason.INSUFFICIENT_FUNDS
+        assert session.stop_reason == StopReason.INSUFFICIENT_FUNDS
 
     def test_continues_when_exactly_at_minimum(self) -> None:
         """Verify session continues when exactly at minimum bet."""
@@ -623,7 +623,7 @@ class TestStopOnInsufficientFunds:
 
         assert session.bankroll == 75.0
         assert session.should_stop() is True
-        assert session.stop_reason() == StopReason.INSUFFICIENT_FUNDS
+        assert session.stop_reason == StopReason.INSUFFICIENT_FUNDS
 
     def test_insufficient_funds_disabled(self) -> None:
         """Verify session continues when insufficient funds check is disabled."""
@@ -663,7 +663,7 @@ class TestStopConditionPriority:
         # Must call should_stop() to determine stop reason
         assert session.should_stop() is True
         # Win limit should be checked first
-        assert session.stop_reason() == StopReason.WIN_LIMIT
+        assert session.stop_reason == StopReason.WIN_LIMIT
 
     def test_loss_limit_before_insufficient_funds(self) -> None:
         """Verify loss limit is checked before insufficient funds."""
@@ -680,7 +680,7 @@ class TestStopConditionPriority:
 
         # Must call should_stop() to determine stop reason
         assert session.should_stop() is True
-        assert session.stop_reason() == StopReason.LOSS_LIMIT
+        assert session.stop_reason == StopReason.LOSS_LIMIT
 
 
 # --- Session Execution Tests ---

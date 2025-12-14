@@ -333,6 +333,7 @@ class Session:
 
         return False
 
+    @property
     def stop_reason(self) -> StopReason | None:
         """Return the reason the session stopped, or None if not stopped."""
         return self._stop_reason
