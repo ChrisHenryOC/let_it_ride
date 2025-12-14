@@ -34,6 +34,7 @@ from let_it_ride.simulation.utils import (
     get_bonus_paytable,
     get_main_paytable,
 )
+from let_it_ride.strategy.bonus import BonusStrategy, create_bonus_strategy
 
 if TYPE_CHECKING:
     from let_it_ride.bankroll import BettingSystem
@@ -88,6 +89,7 @@ def _run_single_session(
     main_paytable: MainGamePaytable,
     bonus_paytable: BonusPaytable | None,
     betting_system_factory: Callable[[], BettingSystem],
+    bonus_strategy_factory: Callable[[], BonusStrategy],
     session_config: SessionConfig,
 ) -> SessionResult:
     """Run a single session with the given seed.
@@ -99,6 +101,7 @@ def _run_single_session(
         main_paytable: Main game paytable.
         bonus_paytable: Bonus paytable (or None).
         betting_system_factory: Factory to create fresh betting system.
+        bonus_strategy_factory: Factory to create fresh bonus strategy.
         session_config: Session configuration.
 
     Returns:
@@ -117,7 +120,10 @@ def _run_single_session(
     )
 
     betting_system = betting_system_factory()
-    session = Session(session_config, engine, betting_system)
+    bonus_strategy = bonus_strategy_factory()
+    session = Session(
+        session_config, engine, betting_system, bonus_strategy=bonus_strategy
+    )
 
     return session.run_to_completion()
 
@@ -145,6 +151,9 @@ def run_worker_sessions(task: WorkerTask) -> WorkerResult:
         def betting_system_factory() -> BettingSystem:
             return create_betting_system(task.config.bankroll)
 
+        def bonus_strategy_factory() -> BonusStrategy:
+            return create_bonus_strategy(task.config.bonus_strategy)
+
         results: list[tuple[int, SessionResult]] = []
 
         for session_id in task.session_ids:
@@ -156,6 +165,7 @@ def run_worker_sessions(task: WorkerTask) -> WorkerResult:
                 main_paytable=main_paytable,
                 bonus_paytable=bonus_paytable,
                 betting_system_factory=betting_system_factory,
+                bonus_strategy_factory=bonus_strategy_factory,
                 session_config=session_config,
             )
             results.append((session_id, result))

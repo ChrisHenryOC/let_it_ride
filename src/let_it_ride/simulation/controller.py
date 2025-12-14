@@ -47,6 +47,7 @@ from let_it_ride.strategy import (
     conservative_strategy,
 )
 from let_it_ride.strategy.base import Decision
+from let_it_ride.strategy.bonus import BonusStrategy, create_bonus_strategy
 
 if TYPE_CHECKING:
     from let_it_ride.config.models import (
@@ -393,6 +394,9 @@ class SimulationController:
         def betting_system_factory() -> BettingSystem:
             return create_betting_system(self._config.bankroll)
 
+        def bonus_strategy_factory() -> BonusStrategy:
+            return create_bonus_strategy(self._config.bonus_strategy)
+
         # Use RNGManager for centralized seed management
         rng_manager = RNGManager(base_seed=self._base_seed)
         session_seeds = rng_manager.create_session_seeds(num_sessions)
@@ -409,6 +413,7 @@ class SimulationController:
                 main_paytable,
                 bonus_paytable,
                 betting_system_factory,
+                bonus_strategy_factory,
             )
             result = self._run_session(session)
             session_results.append(result)
@@ -436,6 +441,7 @@ class SimulationController:
         main_paytable: MainGamePaytable,
         bonus_paytable: BonusPaytable | None,
         betting_system_factory: Callable[[], BettingSystem],
+        bonus_strategy_factory: Callable[[], BonusStrategy],
     ) -> Session:
         """Create a new session with fresh state.
 
@@ -446,6 +452,7 @@ class SimulationController:
             main_paytable: Main game paytable (reused across sessions).
             bonus_paytable: Bonus paytable or None (reused across sessions).
             betting_system_factory: Factory to create fresh betting system per session.
+            bonus_strategy_factory: Factory to create fresh bonus strategy per session.
 
         Returns:
             A new Session instance ready to run.
@@ -471,6 +478,9 @@ class SimulationController:
         # Betting system needs fresh state per session
         betting_system = betting_system_factory()
 
+        # Bonus strategy needs fresh state per session
+        bonus_strategy = bonus_strategy_factory()
+
         # Create session-specific hand callback wrapper if hand callback is set
         session_hand_callback = None
         if self._hand_callback is not None:
@@ -485,7 +495,11 @@ class SimulationController:
                 callback(sid, hand_id, result)
 
         return Session(
-            session_config, engine, betting_system, hand_callback=session_hand_callback
+            session_config,
+            engine,
+            betting_system,
+            bonus_strategy=bonus_strategy,
+            hand_callback=session_hand_callback,
         )
 
     def _run_session(self, session: Session) -> SessionResult:

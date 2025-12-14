@@ -6,6 +6,7 @@ These tests validate:
 - Session win rate within expected range
 - Reproducibility (same seed = same results)
 - Parallel vs sequential equivalence
+- Streak-based bonus strategy integration
 """
 
 from __future__ import annotations
@@ -14,6 +15,11 @@ from let_it_ride.analytics.validation import (
     calculate_chi_square,
     calculate_wilson_confidence_interval,
     validate_simulation,
+)
+from let_it_ride.config.models import (
+    BonusStrategyConfig,
+    StreakActionConfig,
+    StreakBasedBonusConfig,
 )
 from let_it_ride.simulation import SimulationController
 from let_it_ride.simulation.aggregation import (
@@ -174,9 +180,9 @@ class TestStatisticalValidity:
         )
 
         # The p-value should be extremely small for such a biased distribution
-        assert chi_result.p_value < 0.001, (
-            f"P-value {chi_result.p_value:.6f} unexpectedly high for biased distribution"
-        )
+        assert (
+            chi_result.p_value < 0.001
+        ), f"P-value {chi_result.p_value:.6f} unexpectedly high for biased distribution"
 
     def test_aggregate_results_integration(self) -> None:
         """Test aggregate_results() with actual SimulationController output.
@@ -398,6 +404,126 @@ class TestValidationIntegration:
         assert isinstance(report.chi_square_result.p_value, float)
         assert isinstance(report.session_win_rate, float)
         assert len(report.session_win_rate_ci) == 2
+
+
+class TestStreakBasedBonusIntegration:
+    """Tests for streak-based bonus strategy integration with simulation."""
+
+    def test_streak_based_bonus_strategy_executes(self) -> None:
+        """Verify streak-based bonus strategy runs without error in simulation.
+
+        This is the primary integration test for LIR-37 (issue #40).
+        """
+        # Create config with streak-based bonus strategy
+        config = create_e2e_config(
+            num_sessions=100,
+            hands_per_session=50,
+            random_seed=42,
+            workers=1,  # Sequential for simplicity
+        )
+
+        # Override bonus strategy to streak_based
+        config = config.model_copy(
+            update={
+                "bonus_strategy": BonusStrategyConfig(
+                    enabled=True,
+                    type="streak_based",
+                    streak_based=StreakBasedBonusConfig(
+                        base_amount=5.0,
+                        trigger="main_loss",
+                        streak_length=3,
+                        action=StreakActionConfig(type="multiply", value=2.0),
+                        reset_on="main_win",
+                        max_multiplier=8.0,
+                    ),
+                ),
+            }
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        # Verify sessions completed
+        assert len(results.session_results) == 100
+
+        # Verify bonus wagered is non-zero (strategy was used)
+        total_bonus_wagered = sum(
+            r.total_bonus_wagered for r in results.session_results
+        )
+        assert total_bonus_wagered > 0, "No bonus bets were placed"
+
+    def test_streak_based_bonus_with_parallel_execution(self) -> None:
+        """Verify streak-based bonus strategy works with parallel execution."""
+        config = create_e2e_config(
+            num_sessions=100,
+            hands_per_session=50,
+            random_seed=12345,
+            workers=4,  # Parallel
+        )
+
+        config = config.model_copy(
+            update={
+                "bonus_strategy": BonusStrategyConfig(
+                    enabled=True,
+                    type="streak_based",
+                    streak_based=StreakBasedBonusConfig(
+                        base_amount=2.0,
+                        trigger="bonus_loss",
+                        streak_length=2,
+                        action=StreakActionConfig(type="increase", value=1.0),
+                        reset_on="bonus_win",
+                        max_multiplier=10.0,
+                    ),
+                ),
+            }
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        assert len(results.session_results) == 100
+        total_bonus_wagered = sum(
+            r.total_bonus_wagered for r in results.session_results
+        )
+        assert total_bonus_wagered > 0
+
+    def test_streak_based_bonus_sequential_parallel_equivalence(self) -> None:
+        """Verify streak-based bonus produces same results in sequential vs parallel."""
+        seed = 77777
+        bonus_config = BonusStrategyConfig(
+            enabled=True,
+            type="streak_based",
+            streak_based=StreakBasedBonusConfig(
+                base_amount=3.0,
+                trigger="any_loss",
+                streak_length=2,
+                action=StreakActionConfig(type="multiply", value=1.5),
+                reset_on="any_win",
+                max_multiplier=4.0,
+            ),
+        )
+
+        # Sequential
+        config_seq = create_e2e_config(
+            num_sessions=50, random_seed=seed, workers=1
+        )
+        config_seq = config_seq.model_copy(update={"bonus_strategy": bonus_config})
+        results_seq = SimulationController(config_seq).run()
+
+        # Parallel
+        config_par = create_e2e_config(
+            num_sessions=50, random_seed=seed, workers=2
+        )
+        config_par = config_par.model_copy(update={"bonus_strategy": bonus_config})
+        results_par = SimulationController(config_par).run()
+
+        # Compare results
+        for seq, par in zip(
+            results_seq.session_results, results_par.session_results, strict=True
+        ):
+            assert seq.session_profit == par.session_profit
+            assert seq.hands_played == par.hands_played
+            assert seq.total_bonus_wagered == par.total_bonus_wagered
 
 
 def _normalize_frequencies(frequencies: dict[str, int]) -> dict[str, int]:

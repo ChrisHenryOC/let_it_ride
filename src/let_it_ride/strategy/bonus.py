@@ -318,6 +318,28 @@ class StreakBasedBonusStrategy:
     bet amount when a streak reaches a configurable length. It supports
     various trigger types (main game, bonus, or any win/loss) and actions
     (increase, decrease, multiply, stop, start).
+
+    Note:
+        This strategy implements stateful behavior beyond the BonusStrategy
+        protocol. In addition to get_bonus_bet(), it provides:
+        - record_result(main_won, bonus_won): Updates internal streak state
+          after each hand. Must be called by the simulation engine.
+        - reset(): Resets streak state for a new session.
+
+    Example:
+        >>> strategy = StreakBasedBonusStrategy(
+        ...     base_amount=5.0,
+        ...     trigger="bonus_loss",
+        ...     streak_length=3,
+        ...     action_type="multiply",
+        ...     action_value=2.0,
+        ...     reset_on="bonus_win",
+        ... )
+        >>> # After 3 consecutive bonus losses, bet doubles to 10
+        >>> strategy.record_result(main_won=True, bonus_won=False)
+        >>> strategy.record_result(main_won=True, bonus_won=False)
+        >>> strategy.record_result(main_won=True, bonus_won=False)
+        >>> bet = strategy.get_bonus_bet(context)  # Returns 10.0
     """
 
     __slots__ = (

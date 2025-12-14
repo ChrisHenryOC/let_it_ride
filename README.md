@@ -159,7 +159,7 @@ Key configuration sections:
 - `deck`: Shuffle algorithm (fisher_yates or cryptographic)
 - `bankroll`: Starting amount, base bet, stop conditions, betting system
 - `strategy`: Pull/ride decision strategy (basic, conservative, aggressive, custom)
-- `bonus_strategy`: Three Card Bonus betting (never, always, static, bankroll_conditional)
+- `bonus_strategy`: Three Card Bonus betting (never, always, static, bankroll_conditional, streak_based)
 - `paytables`: Main game and bonus payout tables
 - `output`: Export formats and visualization options
 

@@ -36,11 +36,16 @@ def create_mock_engine(results: list[float]) -> Mock:
         bonus_bet: float = 0.0,
         context=None,  # noqa: ARG001
     ):
+        net_result = next(result_iter)
         result = Mock()
         result.hand_id = hand_id
-        result.net_result = next(result_iter)
+        result.net_result = net_result
         result.bets_at_risk = base_bet * 3  # Assume all bets ride
         result.bonus_bet = bonus_bet
+        # Set main_payout based on net_result (positive = win)
+        result.main_payout = max(0.0, net_result)
+        # Set bonus_payout to 0 (no bonus wins in basic mock)
+        result.bonus_payout = 0.0
         return result
 
     mock.play_hand.side_effect = play_hand_side_effect
@@ -70,6 +75,10 @@ def create_mock_engine_with_custom_bets(results: list[tuple[float, float]]) -> M
         result.net_result = net_result
         result.bets_at_risk = bets_at_risk
         result.bonus_bet = bonus_bet
+        # Set main_payout based on net_result (positive = win)
+        result.main_payout = max(0.0, net_result)
+        # Set bonus_payout to 0 (no bonus wins in basic mock)
+        result.bonus_payout = 0.0
         return result
 
     mock.play_hand.side_effect = play_hand_side_effect
