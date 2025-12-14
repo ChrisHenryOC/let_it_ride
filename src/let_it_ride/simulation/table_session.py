@@ -21,6 +21,7 @@ from let_it_ride.simulation.session import (
     SessionResult,
     StopReason,
     calculate_new_streak,
+    validate_session_config,
 )
 from let_it_ride.strategy.base import StrategyContext
 
@@ -55,39 +56,15 @@ class TableSessionConfig:
 
     def __post_init__(self) -> None:
         """Validate configuration values."""
-        if self.starting_bankroll <= 0:
-            raise ValueError("starting_bankroll must be positive")
-        if self.base_bet <= 0:
-            raise ValueError("base_bet must be positive")
-        if self.win_limit is not None and self.win_limit <= 0:
-            raise ValueError("win_limit must be positive if set")
-        if self.loss_limit is not None and self.loss_limit <= 0:
-            raise ValueError("loss_limit must be positive if set")
-        if self.max_hands is not None and self.max_hands <= 0:
-            raise ValueError("max_hands must be positive if set")
-        if self.bonus_bet < 0:
-            raise ValueError("bonus_bet cannot be negative")
-
-        # Validate at least one stop condition is configured
-        has_stop_condition = (
-            self.win_limit is not None
-            or self.loss_limit is not None
-            or self.max_hands is not None
-            or self.stop_on_insufficient_funds
+        validate_session_config(
+            starting_bankroll=self.starting_bankroll,
+            base_bet=self.base_bet,
+            win_limit=self.win_limit,
+            loss_limit=self.loss_limit,
+            max_hands=self.max_hands,
+            bonus_bet=self.bonus_bet,
+            stop_on_insufficient_funds=self.stop_on_insufficient_funds,
         )
-        if not has_stop_condition:
-            raise ValueError(
-                "At least one stop condition must be configured: "
-                "win_limit, loss_limit, max_hands, or stop_on_insufficient_funds"
-            )
-
-        # Validate starting bankroll covers minimum bet
-        min_bet_required = (self.base_bet * 3) + self.bonus_bet
-        if self.starting_bankroll < min_bet_required:
-            raise ValueError(
-                f"starting_bankroll ({self.starting_bankroll}) must be at least "
-                f"base_bet * 3 + bonus_bet ({min_bet_required})"
-            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,6 +288,7 @@ class TableSession:
 
         return False
 
+    @property
     def stop_reason(self) -> StopReason | None:
         """Return the reason the session stopped, or None if not stopped."""
         return self._stop_reason
