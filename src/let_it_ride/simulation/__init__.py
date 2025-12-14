@@ -44,6 +44,7 @@ from let_it_ride.simulation.session import (
     SessionResult,
     StopReason,
     calculate_new_streak,
+    validate_session_config,
 )
 from let_it_ride.simulation.table_session import (
     SeatSessionResult,
@@ -83,4 +84,5 @@ __all__ = [
     "get_decision_from_string",
     "merge_aggregates",
     "validate_rng_quality",
+    "validate_session_config",
 ]
