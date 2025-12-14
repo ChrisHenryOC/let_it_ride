@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --success-color: #27ae60;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --text-color: #2c3e50;
+            --text-muted: #7f8c8d;
+            --bg-color: #f5f6fa;
+            --card-bg: #ffffff;
+            --border-color: #dcdde1;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        header .meta {
+            color: var(--text-muted);
+            font-size: 0.9em;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            background: var(--primary-color);
+            color: white;
+            padding: 15px 20px;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-item {
+            padding: 15px;
+            background: var(--bg-color);
+            border-radius: 6px;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .stat-value.positive {
+            color: var(--success-color);
+        }
+
+        .stat-value.negative {
+            color: var(--danger-color);
+        }
+
+        .stat-detail {
+            font-size: 0.8em;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table th,
+        table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        table th {
+            background: var(--bg-color);
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 0.85em;
+            letter-spacing: 0.5px;
+        }
+
+        table tr:hover {
+            background-color: var(--bg-color);
+        }
+
+        .chart-container {
+            margin: 20px 0;
+            min-height: 400px;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .config-section {
+            background: var(--bg-color);
+            padding: 15px;
+            border-radius: 6px;
+        }
+
+        .config-section h4 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 0.95em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed var(--border-color);
+        }
+
+        .config-item:last-child {
+            border-bottom: none;
+        }
+
+        .config-label {
+            color: var(--text-muted);
+        }
+
+        .config-value {
+            font-weight: 500;
+        }
+
+        .section-title {
+            margin: 30px 0 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--text-color);
+        }
+
+        .risk-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .risk-item {
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .risk-item.low {
+            background: rgba(39, 174, 96, 0.1);
+            border: 1px solid var(--success-color);
+        }
+
+        .risk-item.medium {
+            background: rgba(243, 156, 18, 0.1);
+            border: 1px solid var(--warning-color);
+        }
+
+        .risk-item.high {
+            background: rgba(231, 76, 60, 0.1);
+            border: 1px solid var(--danger-color);
+        }
+
+        .risk-value {
+            font-size: 1.8em;
+            font-weight: 700;
+        }
+
+        .risk-label {
+            font-size: 0.85em;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-muted);
+            font-size: 0.85em;
+            margin-top: 30px;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .stats-grid,
+            .config-grid,
+            .risk-grid {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                font-size: 0.9em;
+            }
+
+            table th,
+            table td {
+                padding: 8px 10px;
+            }
+
+            .stat-value {
+                font-size: 1.2em;
+            }
+
+            .chart-container {
+                min-height: 300px;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .card {
+                box-shadow: none;
+                border: 1px solid var(--border-color);
+                page-break-inside: avoid;
+            }
+
+            .chart-container {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>{{ title }}</h1>
+            <p class="meta">
+                Generated: {{ generated_at }} | Simulator Version: {{ simulator_version }}
+            </p>
+        </header>
+
+        <!-- Key Metrics Summary -->
+        <div class="card">
+            <div class="card-header">Key Metrics</div>
+            <div class="card-body">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Session Win Rate</div>
+                        <div class="stat-value">{{ stats.session_win_rate }}</div>
+                        <div class="stat-detail">95% CI: {{ stats.session_win_rate_ci }}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Expected Value / Hand</div>
+                        <div class="stat-value {% if '-' in stats.ev_per_hand %}negative{% else %}positive{% endif %}">{{ stats.ev_per_hand }}</div>
+                        <div class="stat-detail">95% CI: {{ stats.ev_per_hand_ci }}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Total Sessions</div>
+                        <div class="stat-value">{{ stats.total_sessions }}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Total Hands</div>
+                        <div class="stat-value">{{ stats.total_hands }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aggregate Statistics -->
+        <div class="card">
+            <div class="card-header">Aggregate Statistics</div>
+            <div class="card-body">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Net Result</div>
+                        <div class="stat-value {% if '-' in aggregate.net_result %}negative{% else %}positive{% endif %}">{{ aggregate.net_result }}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Total Wagered</div>
+                        <div class="stat-value">{{ aggregate.total_wagered }}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Total Won</div>
+                        <div class="stat-value">{{ aggregate.total_won }}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">EV per Hand</div>
+                        <div class="stat-value {% if '-' in aggregate.expected_value_per_hand %}negative{% else %}positive{% endif %}">{{ aggregate.expected_value_per_hand }}</div>
+                    </div>
+                </div>
+
+                <h3 class="section-title">Session Outcomes</h3>
+                <div class="stats-grid">
+                    <div class="stat-item" style="border-left-color: var(--success-color);">
+                        <div class="stat-label">Winning Sessions</div>
+                        <div class="stat-value positive">{{ aggregate.winning_sessions }}</div>
+                    </div>
+                    <div class="stat-item" style="border-left-color: var(--danger-color);">
+                        <div class="stat-label">Losing Sessions</div>
+                        <div class="stat-value negative">{{ aggregate.losing_sessions }}</div>
+                    </div>
+                    <div class="stat-item" style="border-left-color: var(--text-muted);">
+                        <div class="stat-label">Push Sessions</div>
+                        <div class="stat-value">{{ aggregate.push_sessions }}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Win Rate</div>
+                        <div class="stat-value">{{ aggregate.session_win_rate }}</div>
+                    </div>
+                </div>
+
+                <h3 class="section-title">Profit Distribution</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Mean Profit</div>
+                        <div class="stat-value {% if '-' in aggregate.session_profit_mean %}negative{% else %}positive{% endif %}">{{ aggregate.session_profit_mean }}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Median Profit</div>
+                        <div class="stat-value {% if '-' in aggregate.session_profit_median %}negative{% else %}positive{% endif %}">{{ aggregate.session_profit_median }}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Std Deviation</div>
+                        <div class="stat-value">{{ aggregate.session_profit_std }}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Range</div>
+                        <div class="stat-value">{{ aggregate.session_profit_min }} to {{ aggregate.session_profit_max }}</div>
+                    </div>
+                </div>
+
+                <h3 class="section-title">Main Game vs Bonus</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Wagered</th>
+                            <th>Won</th>
+                            <th>EV / Hand</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Main Game</td>
+                            <td>{{ aggregate.main_wagered }}</td>
+                            <td>{{ aggregate.main_won }}</td>
+                            <td>{{ aggregate.main_ev_per_hand }}</td>
+                        </tr>
+                        <tr>
+                            <td>Bonus</td>
+                            <td>{{ aggregate.bonus_wagered }}</td>
+                            <td>{{ aggregate.bonus_won }}</td>
+                            <td>{{ aggregate.bonus_ev_per_hand }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Risk Metrics -->
+        <div class="card">
+            <div class="card-header">Risk Metrics</div>
+            <div class="card-body">
+                <div class="risk-grid">
+                    <div class="risk-item medium">
+                        <div class="risk-value">{{ stats.risk.prob_any_loss }}</div>
+                        <div class="risk-label">Probability of Any Loss</div>
+                    </div>
+                    <div class="risk-item high">
+                        <div class="risk-value">{{ stats.risk.prob_loss_50pct }}</div>
+                        <div class="risk-label">Probability of 50%+ Loss</div>
+                    </div>
+                    <div class="risk-item high">
+                        <div class="risk-value">{{ stats.risk.prob_loss_100pct }}</div>
+                        <div class="risk-label">Probability of Ruin</div>
+                    </div>
+                </div>
+                <div class="stats-grid" style="margin-top: 20px;">
+                    <div class="stat-item">
+                        <div class="stat-label">Mean Max Drawdown</div>
+                        <div class="stat-value negative">{{ stats.risk.max_drawdown_mean }}</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Drawdown Std Dev</div>
+                        <div class="stat-value">{{ stats.risk.max_drawdown_std }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if include_charts %}
+        <!-- Charts Section -->
+        <div class="card">
+            <div class="card-header">Session Outcome Distribution</div>
+            <div class="card-body">
+                <div class="chart-container">
+                    {{ histogram_html | safe }}
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Bankroll Trajectories</div>
+            <div class="card-body">
+                <div class="chart-container">
+                    {{ trajectory_html | safe }}
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Hand Frequency Analysis</div>
+            <div class="card-body">
+                <div class="chart-container">
+                    {{ hand_frequency_html | safe }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if include_config %}
+        <!-- Configuration Summary -->
+        <div class="card">
+            <div class="card-header">Configuration Summary</div>
+            <div class="card-body">
+                <div class="config-grid">
+                    <div class="config-section">
+                        <h4>Simulation</h4>
+                        <div class="config-item">
+                            <span class="config-label">Sessions</span>
+                            <span class="config-value">{{ config.simulation.num_sessions }}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Hands per Session</span>
+                            <span class="config-value">{{ config.simulation.hands_per_session }}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Random Seed</span>
+                            <span class="config-value">{{ config.simulation.random_seed }}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Workers</span>
+                            <span class="config-value">{{ config.simulation.workers }}</span>
+                        </div>
+                    </div>
+                    <div class="config-section">
+                        <h4>Bankroll</h4>
+                        <div class="config-item">
+                            <span class="config-label">Starting Amount</span>
+                            <span class="config-value">{{ config.bankroll.starting_amount }}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Base Bet</span>
+                            <span class="config-value">{{ config.bankroll.base_bet }}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Betting System</span>
+                            <span class="config-value">{{ config.bankroll.betting_system }}</span>
+                        </div>
+                    </div>
+                    <div class="config-section">
+                        <h4>Strategy</h4>
+                        <div class="config-item">
+                            <span class="config-label">Main Strategy</span>
+                            <span class="config-value">{{ config.strategy.type }}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Bonus Strategy</span>
+                            <span class="config-value">{{ config.bonus_strategy.type }}</span>
+                        </div>
+                    </div>
+                    <div class="config-section">
+                        <h4>Timing</h4>
+                        <div class="config-item">
+                            <span class="config-label">Start Time</span>
+                            <span class="config-value">{{ config.timing.start_time }}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">End Time</span>
+                            <span class="config-value">{{ config.timing.end_time }}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Duration</span>
+                            <span class="config-value">{{ config.timing.duration }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if include_raw_data and raw_sessions %}
+        <!-- Raw Session Data -->
+        <div class="card">
+            <div class="card-header">Session Details</div>
+            <div class="card-body">
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Outcome</th>
+                                <th>Hands</th>
+                                <th>Starting</th>
+                                <th>Final</th>
+                                <th>Profit</th>
+                                <th>Max Drawdown</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for session in raw_sessions %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ session.outcome }}</td>
+                                <td>{{ session.hands_played }}</td>
+                                <td>{{ session.starting_bankroll }}</td>
+                                <td>{{ session.final_bankroll }}</td>
+                                <td>{{ session.session_profit }}</td>
+                                <td>{{ session.max_drawdown }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <footer>
+            <p>Let It Ride Simulation Report | Generated by Let It Ride Simulator v{{ simulator_version }}</p>
+        </footer>
+    </div>
+</body>
+</html>
