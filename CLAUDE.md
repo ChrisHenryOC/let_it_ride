@@ -59,14 +59,9 @@ Key abstractions:
 - `TableSession`: manages multi-seat table sessions with per-seat tracking
 - `DealerConfig`: optional dealer discard (burn cards) before community cards
 
-## Game Rules Summary
+## Game Rules
 
-1. Player places 3 equal bets, receives 3 cards
-2. **Decision 1**: After viewing 3 cards, pull Bet 1 or let it ride
-3. First community card revealed (4 cards visible)
-4. **Decision 2**: Pull Bet 2 or let it ride
-5. Second community card revealed, hands pay per paytable
-6. Optional Three Card Bonus: side bet on player's initial 3 cards
+Let It Ride: 3 equal bets, 3 player cards, 2 community cards. Two decision points to pull bets or let them ride. Pays on pair of 10s+. See `.claude/references/let-it-ride-game-rules.md` for full rules and paytables.
 
 ## Configuration
 
@@ -96,59 +91,7 @@ The `RNGManager` class provides centralized seed management for reproducible sim
 
 ## GitHub CLI Tips
 
-### Posting PR Inline Comments
-
-Use `position` (integer) not `line` or `subject_type`. The position is the line number **within the diff hunk**, not the file line number.
-
-**Calculating the correct position:**
-
-1. Save the PR diff: `gh pr diff PR_NUMBER > /tmp/pr.diff`
-2. Find where the target file's diff starts (look for `diff --git a/path/to/file`)
-3. Find the `@@` hunk header line number in the combined diff
-4. Calculate: `position = target_line_in_diff - hunk_header_line`
-
-**Example:** If a file's `@@` line is at line 182 in the diff, and you want to comment on what appears at line 223, the position is `223 - 181 = 42` (the @@ line itself is position 1).
-
-```bash
-# First, examine the diff to find correct positions
-gh pr diff PR_NUMBER > /tmp/pr.diff
-cat -n /tmp/pr.diff | grep -A 5 "the code you want to comment on"
-
-# Then post with the calculated position
-gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments \
-  --method POST \
-  -f body="Comment text" \
-  -f path="path/to/file.py" \
-  -f commit_id="$(gh pr view PR_NUMBER --json headRefOid -q .headRefOid)" \
-  -F position=42
-```
-
-**Important:**
-- Use `-F position=42` (capital F) to pass as integer, not `-f position=42` (string)
-- The position is relative to the diff hunk, NOT the absolute file line number
-- Always verify positions by examining the actual diff output before posting comments
-
-### Responding to PR Review Comments
-
-When making changes in response to a PR review comment (especially those tagged with `@claude`):
-
-1. Make the requested code changes
-2. **Reply to the original comment** explaining what was changed
-3. Commit and push the changes
-
-To reply to an inline comment:
-
-```bash
-# Find the comment ID
-gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments --jq '.[] | {id, body: .body[:50]}'
-
-# Reply to the comment
-gh api repos/OWNER/REPO/pulls/PR_NUMBER/comments/COMMENT_ID/replies \
-  --method POST \
-  -f body="Done. Updated X to do Y. See commit abc123."
-```
-
-Keep replies concise - briefly state what was changed and reference the commit if helpful.
+For PR inline comments, use `position` (diff line offset from `@@` header), not `line`. Use `-F` for integer values. See `.claude/memories/github-cli-pr-comments.md` for detailed syntax and examples.
 
 ## Issue Numbering Convention
 

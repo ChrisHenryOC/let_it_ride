@@ -37,8 +37,7 @@ After agents complete, create `CONSOLIDATED-REVIEW.md`:
 [2-3 sentences]
 
 ## Issue Matrix
-| # | Severity | Issue | File:Line | Reviewer(s) | In PR Scope? | Actionable? |
-|---|----------|-------|-----------|-------------|--------------|-------------|
+(Use format from `.claude/memories/review-issue-matrix.md`)
 
 ## Actionable Issues
 [Issues where In PR Scope AND Actionable are Yes]
@@ -46,8 +45,6 @@ After agents complete, create `CONSOLIDATED-REVIEW.md`:
 ## Deferred Issues
 [Issues where either is No, with reason]
 ```
-
-**Severity levels:** Critical (security/data loss), High (>10% perf impact, missing tests), Medium (maintainability), Low (skip).
 
 ## Step 4: Post Comment
 

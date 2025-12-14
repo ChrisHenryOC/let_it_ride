@@ -3,86 +3,43 @@ allowed-tools: Bash(gh issue view:*),Bash(gh issue list:*),Bash(git checkout:*),
 description: Analyze and fix a GitHub issue
 ---
 
-Please analyze and fix the GitHub issue: $ARGUMENTS.
+Analyze and fix GitHub issue: $ARGUMENTS
 
-# IDENTIFY THE ISSUE
+## 1. IDENTIFY & APPROVE
 
-## MANDATORY USER APPROVAL CHECKPOINT
+**Required before ANY work:**
+1. Find issue:
+   - "next": Check `docs/implementation_todo.md` + `gh issue list --state open`
+   - "LIR-N": `gh issue list --search "LIR-N in:title"`
+   - Number: `gh issue view $ARGUMENTS`
+2. **Use AskUserQuestion** for approval (GitHub #, LIR-N, title, description)
+3. Only proceed after explicit "Yes"
 
-**STOP! Before doing ANY work, you MUST get explicit user approval for the issue.**
+## 2. PLAN
 
-This applies to ALL cases - "next", LIR identifiers, and issue numbers.
+1. `gh issue view` for full details
+2. Launch **Explore agent** (medium) for complex issues - check `/scratchpads/`, closed PRs, patterns
+3. Break into tasks with **TodoWrite**
+4. Create scratchpad: `/scratchpads/issue-{number}-{short-name}.md` with issue link + tasks
 
-1. First, identify the issue:
-   - **If "next":** Read `docs/implementation_todo.md` and `gh issue list --state open` to find the next issue
-   - **If "LIR-N" format:** `gh issue list --search "LIR-N in:title"` to find the GitHub issue
-   - **If a number:** `gh issue view $ARGUMENTS` directly
+## 3. CREATE
 
-2. **THEN IMMEDIATELY USE AskUserQuestion** to get approval:
-   - Present: GitHub issue number, LIR identifier, title, and brief description
-   - Ask: "Should I proceed with this issue?"
-   - Options: "Yes, proceed" / "No, choose different issue"
-   - **DO NOT SKIP THIS STEP. DO NOT PROCEED WITHOUT USER CONFIRMATION.**
+1. Create branch: `feature/issue-{number}-{desc}` or `fix/issue-{number}-{desc}`
+2. Stage scratchpad: `git add scratchpads/issue-{number}-*.md`
+3. Implement in small steps, commit after each
+4. Include scratchpad in first commit
 
-3. If user declines, ask which issue they prefer and repeat step 2
+## 4. TEST
 
-4. Only after explicit "Yes" confirmation, proceed to the PLAN phase
+1. Write positive + negative tests
+2. Run: `poetry run pytest`
+3. Format/lint: `poetry run ruff format src/ tests/ && poetry run ruff check src/ tests/ --fix`
+4. Type check: `poetry run mypy src/`
+5. All functions need type annotations
+6. Launch **test-coverage-reviewer agent**
 
-# PLAN
+## 5. VERIFY & PUSH
 
-1. Use `gh issue view` to get full issue details
-2. For complex issues, launch an **Explore agent** (thoroughness: medium) to understand context:
-   - Search `/scratchpads/` for previous thoughts on this issue
-   - Search closed PRs for related history
-   - Find relevant source files and existing patterns
-3. Ask clarifying questions if the issue is ambiguous
-4. Break the issue into small, manageable tasks using the **TodoWrite tool**
-5. For complex architectural decisions, use the **Plan agent**
-6. Document your plan in a scratchpad: `/scratchpads/issue-{number}-{short-name}.md`
-   - Include link to the GitHub issue
-   - List the planned tasks
-
-# CREATE
-
-**CHECKPOINT:** Before writing any code, verify the scratchpad exists:
-- File: `/scratchpads/issue-{number}-{short-name}.md`
-- Must contain: GitHub issue link, planned tasks
-- If missing, create it now before proceeding
-
-1. Create branch: `feature/issue-{number}-{short-description}` or `fix/issue-{number}-...`
-2. **Stage the scratchpad immediately** after creating the branch:
-   ```bash
-   git add scratchpads/issue-{number}-{short-name}.md
-   ```
-3. Implement in small steps according to your plan
-4. Commit after each logical step with descriptive messages
-5. **Include the scratchpad in your first commit** - it documents the planning process
-
-# TEST
-
-1. Check the issue for specified test requirements
-2. Write tests:
-   - Positive tests (verify correct behavior)
-   - Negative tests (verify error handling)
-3. Run the full test suite: `poetry run pytest`
-4. Format and lint code:
-   ```bash
-   poetry run ruff format src/ tests/ && poetry run ruff check src/ tests/ --fix
-   ```
-   If any files were modified, stage and amend the previous commit
-5. Ensure type checking passes: `poetry run mypy src/`
-6. All functions must have type annotations for parameters and return values
-7. Launch **test-coverage-reviewer agent** for coverage verification
-
-# VERIFY
-
-Before creating the PR, launch the **code-quality-reviewer agent** to check your implementation.
-
-# PUSH
-
-1. Push branch: `git push -u origin {branch-name}`
-2. Create PR with `gh pr create`:
-   - Title: `{feat|fix}: LIR-N description`
-   - Body must include: `Closes #{github_issue_number}`
-3. Note the PR number for `/review-pr`
-
+1. Launch **code-quality-reviewer agent**
+2. Push: `git push -u origin {branch}`
+3. Create PR: `gh pr create` with title `{feat|fix}: LIR-N description`, body includes `Closes #{github_issue_number}`

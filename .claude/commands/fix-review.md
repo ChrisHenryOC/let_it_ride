@@ -20,12 +20,7 @@ Also add any @claude PR comments as High severity issues (record comment ID for 
 
 # BUILD ISSUE MATRIX
 
-Before implementing fixes, create a matrix of ALL issues:
-
-| # | Reviewer | Severity | Issue | File:Line | In PR Scope? | Actionable? |
-|---|----------|----------|-------|-----------|--------------|-------------|
-
-**Actionable** = Can fix without adding dependencies, changing files outside PR, or major refactoring.
+Before implementing fixes, create a matrix of ALL issues using format from `.claude/memories/review-issue-matrix.md`.
 
 # CREATE TODO LIST
 
