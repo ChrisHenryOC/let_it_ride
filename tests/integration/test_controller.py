@@ -123,6 +123,10 @@ def create_mock_engine(net_result: float, track_hands: list[int] | None = None) 
         result.net_result = net_result
         result.bets_at_risk = base_bet * 3
         result.bonus_bet = bonus_bet
+        # Set main_payout based on net_result (positive = win)
+        result.main_payout = max(0.0, net_result)
+        # Set bonus_payout to 0 (no bonus wins in basic mock)
+        result.bonus_payout = 0.0
         return result
 
     mock.play_hand.side_effect = play_hand

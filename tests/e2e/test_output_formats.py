@@ -189,9 +189,7 @@ class TestCSVOutputGeneration:
 
         # Export with hands
         exporter = CSVExporter(tmp_path, prefix="test")
-        paths = exporter.export_all(
-            sim_results, include_hands=True, hands=hand_records
-        )
+        paths = exporter.export_all(sim_results, include_hands=True, hands=hand_records)
 
         assert len(paths) == 3
         assert (tmp_path / "test_hands.csv").exists()

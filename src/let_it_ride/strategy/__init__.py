@@ -18,6 +18,7 @@ from let_it_ride.strategy.bonus import (
     BonusStrategy,
     NeverBonusStrategy,
     StaticBonusStrategy,
+    StreakBasedBonusStrategy,
     create_bonus_strategy,
 )
 from let_it_ride.strategy.custom import (
@@ -42,6 +43,7 @@ __all__ = [
     "InvalidFieldError",
     "NeverBonusStrategy",
     "StaticBonusStrategy",
+    "StreakBasedBonusStrategy",
     "Strategy",
     "StrategyContext",
     "StrategyRule",

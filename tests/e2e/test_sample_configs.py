@@ -289,7 +289,11 @@ class TestSampleConfigsLargeScale:
         aggregate = aggregate_results(results.session_results)
         assert aggregate.total_sessions == 1000
         # Win rate should be within expected bounds (see conftest.py for rationale)
-        assert MIN_AGGREGATE_WIN_RATE <= aggregate.session_win_rate <= MAX_AGGREGATE_WIN_RATE
+        assert (
+            MIN_AGGREGATE_WIN_RATE
+            <= aggregate.session_win_rate
+            <= MAX_AGGREGATE_WIN_RATE
+        )
 
     def test_all_configs_handle_hundred_sessions(self) -> None:
         """Verify all configs handle 100 sessions efficiently."""

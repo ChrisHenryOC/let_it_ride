@@ -18,6 +18,7 @@ from let_it_ride.bankroll.betting_systems import BettingContext, BettingSystem
 from let_it_ride.bankroll.tracker import BankrollTracker
 from let_it_ride.core.game_engine import GameEngine, GameHandResult
 from let_it_ride.strategy.base import StrategyContext
+from let_it_ride.strategy.bonus import BonusContext, BonusStrategy
 
 # Type alias for per-hand callback function.
 # Called with (hand_id, GameHandResult) after each hand completes.
@@ -198,12 +199,14 @@ class Session:
         "_config",
         "_engine",
         "_betting_system",
+        "_bonus_strategy",
         "_bankroll",
         "_hands_played",
         "_total_wagered",
         "_total_bonus_wagered",
         "_last_result",
         "_streak",
+        "_bonus_streak",
         "_stop_reason",
         "_hand_callback",
     )
@@ -213,6 +216,7 @@ class Session:
         config: SessionConfig,
         engine: GameEngine,
         betting_system: BettingSystem,
+        bonus_strategy: BonusStrategy | None = None,
         hand_callback: HandCallback | None = None,
     ) -> None:
         """Initialize a new session.
@@ -221,12 +225,15 @@ class Session:
             config: Session configuration.
             engine: GameEngine for playing hands.
             betting_system: BettingSystem for determining bet sizes.
+            bonus_strategy: Optional BonusStrategy for dynamic bonus betting.
+                If provided, overrides config.bonus_bet with dynamic amounts.
             hand_callback: Optional callback called after each hand completes.
                 Called with (hand_id, GameHandResult).
         """
         self._config = config
         self._engine = engine
         self._betting_system = betting_system
+        self._bonus_strategy = bonus_strategy
         self._hand_callback = hand_callback
         self._bankroll = BankrollTracker(config.starting_bankroll)
         self._hands_played = 0
@@ -234,10 +241,15 @@ class Session:
         self._total_bonus_wagered = 0.0
         self._last_result: float | None = None
         self._streak = 0
+        self._bonus_streak = 0
         self._stop_reason: StopReason | None = None
 
         # Reset betting system for new session
         self._betting_system.reset()
+
+        # Reset bonus strategy if it has a reset method
+        if self._bonus_strategy is not None and hasattr(self._bonus_strategy, "reset"):
+            self._bonus_strategy.reset()
 
     @property
     def hands_played(self) -> int:
@@ -348,8 +360,22 @@ class Session:
         )
         base_bet = self._betting_system.get_bet(betting_context)
 
-        # Get bonus bet from config
-        bonus_bet = self._config.bonus_bet
+        # Get bonus bet from strategy or config
+        if self._bonus_strategy is not None:
+            bonus_context = BonusContext(
+                bankroll=self._bankroll.balance,
+                starting_bankroll=self._config.starting_bankroll,
+                session_profit=self._bankroll.session_profit,
+                hands_played=self._hands_played,
+                main_streak=self._streak,
+                bonus_streak=self._bonus_streak,
+                base_bet=base_bet,
+                min_bonus_bet=1.0,  # Default minimum
+                max_bonus_bet=100.0,  # Default maximum
+            )
+            bonus_bet = self._bonus_strategy.get_bonus_bet(bonus_context)
+        else:
+            bonus_bet = self._config.bonus_bet
 
         # Create strategy context
         strategy_context = StrategyContext(
@@ -367,6 +393,12 @@ class Session:
             context=strategy_context,
         )
 
+        # Determine win/loss for main and bonus bets
+        main_won = result.main_payout > 0
+        bonus_won: bool | None = None
+        if result.bonus_bet > 0:
+            bonus_won = result.bonus_payout > 0
+
         # Update session state
         self._hands_played += 1
         self._total_wagered += result.bets_at_risk
@@ -374,15 +406,40 @@ class Session:
         self._bankroll.apply_result(result.net_result)
         self._last_result = result.net_result
         self._update_streak(result.net_result)
+        self._update_bonus_streak(bonus_won)
 
         # Record result in betting system
         self._betting_system.record_result(result.net_result)
+
+        # Record result in bonus strategy if it supports state tracking
+        if self._bonus_strategy is not None and hasattr(
+            self._bonus_strategy, "record_result"
+        ):
+            self._bonus_strategy.record_result(main_won=main_won, bonus_won=bonus_won)
 
         # Call hand callback if registered
         if self._hand_callback is not None:
             self._hand_callback(result.hand_id, result)
 
         return result
+
+    def _update_bonus_streak(self, bonus_won: bool | None) -> None:
+        """Update the bonus win/loss streak based on bonus result.
+
+        Args:
+            bonus_won: True if bonus won, False if lost, None if no bonus bet.
+        """
+        if bonus_won is None:
+            # No bonus bet placed, streak unchanged
+            return
+        if bonus_won:
+            self._bonus_streak = (
+                self._bonus_streak + 1 if self._bonus_streak > 0 else 1
+            )
+        else:
+            self._bonus_streak = (
+                self._bonus_streak - 1 if self._bonus_streak < 0 else -1
+            )
 
     def run_to_completion(self) -> SessionResult:
         """Run the session until a stop condition is met.

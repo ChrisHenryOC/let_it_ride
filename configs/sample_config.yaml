@@ -173,6 +173,19 @@ bonus_strategy:
   #         max_profit: null
   #         bet_amount: 5.00
 
+  # --- Example: Streak-based betting ---
+  # Adjusts bonus bet after consecutive wins/losses
+  # type: "streak_based"
+  # streak_based:
+  #   base_amount: 5.00              # Starting bonus bet amount
+  #   trigger: "bonus_loss"          # Event to track (main_loss, main_win, bonus_loss, bonus_win, any_loss, any_win)
+  #   streak_length: 3               # Consecutive events before adjustment
+  #   action:
+  #     type: "multiply"             # multiply, increase, decrease, stop, start
+  #     value: 2.0                   # Multiplier or amount to adjust by
+  #   reset_on: "bonus_win"          # Event that resets streak (or "never")
+  #   max_multiplier: 8.0            # Cap on bet multiplier
+
 # ------------------------------------------------------------------
 # PAYTABLES - Payout configurations
 # ------------------------------------------------------------------
