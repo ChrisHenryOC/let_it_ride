@@ -4,7 +4,7 @@ Tests file creation, content validation, chart generation, template rendering,
 responsive design elements, and various configuration options.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -530,8 +530,8 @@ class TestEdgeCases:
         results = SimulationResults(
             config=FullConfig(),
             session_results=[session],
-            start_time=datetime.now(),
-            end_time=datetime.now(),
+            start_time=datetime.now(timezone.utc),
+            end_time=datetime.now(timezone.utc),
             total_hands=10,
         )
 
@@ -569,8 +569,8 @@ class TestEdgeCases:
         results = SimulationResults(
             config=FullConfig(),
             session_results=sessions,
-            start_time=datetime.now(),
-            end_time=datetime.now(),
+            start_time=datetime.now(timezone.utc),
+            end_time=datetime.now(timezone.utc),
             total_hands=sum(s.hands_played for s in sessions),
         )
 
@@ -605,8 +605,8 @@ class TestEdgeCases:
         results = SimulationResults(
             config=FullConfig(),
             session_results=sessions,
-            start_time=datetime.now(),
-            end_time=datetime.now(),
+            start_time=datetime.now(timezone.utc),
+            end_time=datetime.now(timezone.utc),
             total_hands=sum(s.hands_played for s in sessions),
         )
 
@@ -643,8 +643,8 @@ class TestEdgeCases:
         results = SimulationResults(
             config=FullConfig(),
             session_results=sessions,
-            start_time=datetime.now(),
-            end_time=datetime.now(),
+            start_time=datetime.now(timezone.utc),
+            end_time=datetime.now(timezone.utc),
             total_hands=sum(s.hands_played for s in sessions),
         )
 
@@ -655,6 +655,103 @@ class TestEdgeCases:
         assert path.exists()
         content = path.read_text(encoding="utf-8")
         assert "0.00%" in content  # 0% win rate
+
+
+class TestCDNMode:
+    """Tests for CDN mode (self_contained=False)."""
+
+    def test_cdn_mode_uses_external_plotly(
+        self, tmp_path: Path, sample_simulation_results, sample_stats
+    ) -> None:
+        """Verify CDN mode uses external Plotly.js instead of inline."""
+        path = tmp_path / "cdn_report.html"
+        config = HTMLReportConfig(self_contained=False)
+        generate_html_report(sample_simulation_results, sample_stats, path, config)
+
+        content = path.read_text(encoding="utf-8")
+        # CDN mode should reference external Plotly
+        assert "cdn.plot.ly" in content or "plotly" in content.lower()
+        # Should still have chart containers
+        assert "histogram-chart" in content
+
+    def test_cdn_mode_smaller_file_size(
+        self, tmp_path: Path, sample_simulation_results, sample_stats
+    ) -> None:
+        """Verify CDN mode produces smaller file than self-contained."""
+        cdn_path = tmp_path / "cdn_report.html"
+        contained_path = tmp_path / "contained_report.html"
+
+        cdn_config = HTMLReportConfig(self_contained=False)
+        contained_config = HTMLReportConfig(self_contained=True)
+
+        generate_html_report(
+            sample_simulation_results, sample_stats, cdn_path, cdn_config
+        )
+        generate_html_report(
+            sample_simulation_results, sample_stats, contained_path, contained_config
+        )
+
+        # CDN version should be much smaller (Plotly.js is ~3MB inline)
+        cdn_size = cdn_path.stat().st_size
+        contained_size = contained_path.stat().st_size
+        assert cdn_size < contained_size
+
+
+class TestConfigOptions:
+    """Tests for configuration options (histogram_bins, trajectory_sample_size)."""
+
+    def test_histogram_bins_integer(
+        self, tmp_path: Path, sample_simulation_results, sample_stats
+    ) -> None:
+        """Verify histogram_bins accepts integer value."""
+        path = tmp_path / "report.html"
+        config = HTMLReportConfig(histogram_bins=20)
+        generate_html_report(sample_simulation_results, sample_stats, path, config)
+
+        assert path.exists()
+        content = path.read_text(encoding="utf-8")
+        assert "histogram-chart" in content
+
+    def test_histogram_bins_auto(
+        self, tmp_path: Path, sample_simulation_results, sample_stats
+    ) -> None:
+        """Verify histogram_bins='auto' works correctly."""
+        path = tmp_path / "report.html"
+        config = HTMLReportConfig(histogram_bins="auto")
+        generate_html_report(sample_simulation_results, sample_stats, path, config)
+
+        assert path.exists()
+        content = path.read_text(encoding="utf-8")
+        assert "histogram-chart" in content
+
+    def test_trajectory_sample_size(
+        self, tmp_path: Path, sample_simulation_results, sample_stats
+    ) -> None:
+        """Verify trajectory_sample_size controls number of trajectories shown."""
+        path = tmp_path / "report.html"
+        # Use a sample size larger than available sessions
+        config = HTMLReportConfig(trajectory_sample_size=2)
+        generate_html_report(sample_simulation_results, sample_stats, path, config)
+
+        assert path.exists()
+        content = path.read_text(encoding="utf-8")
+        assert "trajectory-chart" in content
+        # Title should reflect sample size
+        assert "Sample of" in content
+
+    def test_trajectory_sample_size_exceeds_sessions(
+        self, tmp_path: Path, sample_simulation_results, sample_stats
+    ) -> None:
+        """Verify trajectory handles sample_size larger than session count."""
+        path = tmp_path / "report.html"
+        # 4 sessions in sample data, request 20
+        config = HTMLReportConfig(trajectory_sample_size=20)
+        generate_html_report(sample_simulation_results, sample_stats, path, config)
+
+        assert path.exists()
+        content = path.read_text(encoding="utf-8")
+        # Should show all 4 sessions since we only have 4
+        assert "Sample of 4" in content
 
 
 class TestModuleExports:

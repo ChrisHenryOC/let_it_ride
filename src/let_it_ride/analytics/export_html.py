@@ -16,18 +16,28 @@ import plotly.graph_objects as go
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from let_it_ride import __version__
+from let_it_ride.simulation.aggregation import AggregateStatistics, aggregate_results
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from let_it_ride.analytics.statistics import DetailedStatistics
-    from let_it_ride.simulation.aggregation import AggregateStatistics
     from let_it_ride.simulation.controller import SimulationResults
     from let_it_ride.simulation.session import SessionResult
 
 
-# Theoretical hand frequency probabilities for Let It Ride (5-card poker)
-# These are the expected frequencies for standard poker hands
+# Chart color constants for consistent styling across all visualizations
+COLOR_PRIMARY = "#3498db"  # Blue - primary data, main bars
+COLOR_SUCCESS = "#27ae60"  # Green - positive values, profits
+COLOR_DANGER = "#e74c3c"  # Red - negative values, losses
+COLOR_MUTED = "#95a5a6"  # Gray - secondary data, neutral values
+COLOR_DARK = "#2c3e50"  # Dark gray - reference lines, break-even
+
+# Theoretical hand frequency percentages for Let It Ride chart display.
+# These differ from validation.py's THEORETICAL_HAND_PROBS in two ways:
+# 1. Values are percentages (e.g., 0.144 = 0.144%) for chart display
+# 2. Pairs are split into paying (10s+) and non-paying categories for game context
+# See validation.py for exact combinatorial probabilities used in chi-square tests.
 THEORETICAL_HAND_FREQUENCIES: dict[str, float] = {
     "royal_flush": 0.000154,
     "straight_flush": 0.00139,
@@ -66,7 +76,7 @@ class HTMLReportConfig:
     include_raw_data: bool = False
     self_contained: bool = True
     trajectory_sample_size: int = 10
-    histogram_bins: int | str = "auto"
+    histogram_bins: int | Literal["auto"] = "auto"
 
 
 @dataclass(slots=True)
@@ -137,7 +147,7 @@ def _format_currency(value: float) -> str:
 
 def _create_histogram_chart(
     session_results: list[SessionResult],
-    bins: int | str = "auto",
+    bins: int | Literal["auto"] = "auto",
 ) -> go.Figure:
     """Create a Plotly histogram of session profit/loss distribution.
 
@@ -148,16 +158,33 @@ def _create_histogram_chart(
     Returns:
         Plotly Figure object.
     """
-    profits = [r.session_profit for r in session_results]
-
     fig = go.Figure()
+
+    # Handle empty session list
+    if not session_results:
+        fig.add_annotation(
+            text="No session data available",
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+            font={"size": 16, "color": COLOR_MUTED},
+        )
+        fig.update_layout(
+            title="Session Profit/Loss Distribution",
+            template="plotly_white",
+        )
+        return fig
+
+    profits = [r.session_profit for r in session_results]
 
     # Add histogram trace
     fig.add_trace(
         go.Histogram(
             x=profits,
             nbinsx=None if bins == "auto" else bins,
-            marker_color="#3498db",
+            marker_color=COLOR_PRIMARY,
             marker_line_color="white",
             marker_line_width=1,
             opacity=0.8,
@@ -170,7 +197,7 @@ def _create_histogram_chart(
     fig.add_vline(
         x=mean_profit,
         line_dash="dash",
-        line_color="#e74c3c",
+        line_color=COLOR_DANGER,
         annotation_text=f"Mean: {_format_currency(mean_profit)}",
         annotation_position="top right",
     )
@@ -179,7 +206,7 @@ def _create_histogram_chart(
     fig.add_vline(
         x=0,
         line_dash="solid",
-        line_color="#2c3e50",
+        line_color=COLOR_DARK,
         line_width=2,
         annotation_text="Break-even",
         annotation_position="bottom right",
@@ -231,11 +258,11 @@ def _create_trajectory_chart(
 
         # Color based on outcome
         if session.final_bankroll > starting_bankroll:
-            color = "#27ae60"  # Green for profit
+            color = COLOR_SUCCESS  # Green for profit
         elif session.final_bankroll < starting_bankroll:
-            color = "#e74c3c"  # Red for loss
+            color = COLOR_DANGER  # Red for loss
         else:
-            color = "#95a5a6"  # Gray for break-even
+            color = COLOR_MUTED  # Gray for break-even
 
         fig.add_trace(
             go.Scatter(
@@ -257,7 +284,7 @@ def _create_trajectory_chart(
     fig.add_hline(
         y=starting_bankroll,
         line_dash="dash",
-        line_color="#2c3e50",
+        line_color=COLOR_DARK,
         annotation_text=f"Starting: {_format_currency(starting_bankroll)}",
         annotation_position="right",
     )
@@ -299,7 +326,7 @@ def _create_hand_frequency_chart(
             x=0.5,
             y=0.5,
             showarrow=False,
-            font={"size": 16, "color": "#7f8c8d"},
+            font={"size": 16, "color": COLOR_MUTED},
         )
         fig.update_layout(
             title="Hand Frequency Comparison",
@@ -339,7 +366,7 @@ def _create_hand_frequency_chart(
             x=display_names,
             y=actual_values,
             name="Actual",
-            marker_color="#3498db",
+            marker_color=COLOR_PRIMARY,
             text=[f"{v:.2f}%" for v in actual_values],
             textposition="outside",
         )
@@ -351,7 +378,7 @@ def _create_hand_frequency_chart(
             x=display_names,
             y=theoretical_values,
             name="Theoretical",
-            marker_color="#95a5a6",
+            marker_color=COLOR_MUTED,
             text=[f"{v:.2f}%" for v in theoretical_values],
             textposition="outside",
         )
@@ -568,19 +595,21 @@ class HTMLReportGenerator:
         self,
         results: SimulationResults,
         stats: DetailedStatistics,
+        aggregate_stats: AggregateStatistics | None = None,
     ) -> str:
         """Render the HTML report as a string.
 
         Args:
             results: Simulation results.
             stats: Detailed statistics.
+            aggregate_stats: Optional pre-computed aggregate statistics.
+                If not provided, will be computed from session_results.
 
         Returns:
             Complete HTML document as string.
         """
-        from let_it_ride.simulation.aggregation import aggregate_results
-
-        aggregate_stats = aggregate_results(results.session_results)
+        if aggregate_stats is None:
+            aggregate_stats = aggregate_results(results.session_results)
 
         # Generate charts
         charts = self._generate_charts(results, aggregate_stats)

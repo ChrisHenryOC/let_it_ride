@@ -445,6 +445,14 @@
         </div>
 
         {% if include_charts %}
+        {#
+            SECURITY NOTE: The | safe filter is intentionally used for Plotly chart HTML.
+            This is safe because:
+            1. Chart HTML is generated server-side by Plotly from trusted simulation data
+            2. All data originates from internal simulation results, not user input
+            3. Plotly's to_html() produces sanitized output for embedded charts
+            The alternative (escaping) would break the interactive chart functionality.
+        #}
         <!-- Charts Section -->
         <div class="card">
             <div class="card-header">Session Outcome Distribution</div>
