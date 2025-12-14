@@ -278,7 +278,7 @@ Let It Ride tables typically seat 1-6 players:
 | ID | Requirement | Target |
 |----|-------------|--------|
 | NFR-201 | Hand evaluation accuracy | 100% (validated against test suite) |
-| NFR-202 | RNG quality | Pass statistical randomness tests |
+| NFR-202 | RNG quality | Pass statistical randomness tests (chi-square uniformity test, Wald-Wolfowitz runs test) |
 | NFR-203 | Payout calculation accuracy | 100% |
 
 ### 4.3 Maintainability (NFR-300)

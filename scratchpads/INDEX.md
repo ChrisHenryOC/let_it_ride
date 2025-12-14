@@ -53,3 +53,4 @@ Quick reference for prior implementation work. Read full scratchpad only if dire
 | #100 | Test Quality Improvements |
 | #106 | Rng Isolation Hand Testing |
 | #89 | Session API Consistency And DRY |
+| #43 | LIR-40 Documentation and User Guide |
