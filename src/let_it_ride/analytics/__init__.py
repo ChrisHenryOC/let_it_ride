@@ -34,6 +34,12 @@ from let_it_ride.analytics.export_json import (
     export_json,
     load_json,
 )
+from let_it_ride.analytics.risk_of_ruin import (
+    RiskOfRuinReport,
+    RiskOfRuinResult,
+    calculate_risk_of_ruin,
+    format_risk_of_ruin_report,
+)
 from let_it_ride.analytics.statistics import (
     ConfidenceInterval,
     DetailedStatistics,
@@ -51,10 +57,13 @@ from let_it_ride.analytics.validation import (
 )
 from let_it_ride.analytics.visualizations import (
     HistogramConfig,
+    RiskCurveConfig,
     TrajectoryConfig,
     plot_bankroll_trajectories,
+    plot_risk_curves,
     plot_session_histogram,
     save_histogram,
+    save_risk_curves,
     save_trajectory_chart,
 )
 
@@ -82,6 +91,12 @@ __all__ = [
     "ResultsEncoder",
     "export_json",
     "load_json",
+    # Risk of ruin types
+    "RiskOfRuinReport",
+    "RiskOfRuinResult",
+    # Risk of ruin functions
+    "calculate_risk_of_ruin",
+    "format_risk_of_ruin_report",
     # Statistics types
     "ConfidenceInterval",
     "DetailedStatistics",
@@ -99,10 +114,13 @@ __all__ = [
     "validate_simulation",
     # Visualization types
     "HistogramConfig",
+    "RiskCurveConfig",
     "TrajectoryConfig",
     # Visualization functions
     "plot_bankroll_trajectories",
+    "plot_risk_curves",
     "plot_session_histogram",
     "save_histogram",
+    "save_risk_curves",
     "save_trajectory_chart",
 ]
