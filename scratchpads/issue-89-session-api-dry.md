@@ -10,11 +10,11 @@ GitHub Issue: https://github.com/chrishenry/let_it_ride/issues/89
 
 2. **DRY Validation**: Extract shared validation to helper function
    - `SessionConfig.__post_init__` and `TableSessionConfig.__post_init__` are nearly identical
-   - Create shared `_validate_session_config()` function
+   - Create shared `validate_session_config()` function
 
-3. **Test Setup Helper**: Create factory method for integration tests
+3. **Test Setup Helper**: Create factory function for integration tests
    - `tests/integration/test_table.py` has ~20+ repeated setup patterns
-   - Create `_create_table_session()` helper with sensible defaults
+   - Create `create_table_session()` helper with sensible defaults
 
 ## Implementation Notes
 

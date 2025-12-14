@@ -26,7 +26,7 @@ from let_it_ride.simulation.table_session import (
     TableSession,
     TableSessionConfig,
 )
-from let_it_ride.strategy.base import Decision, StrategyContext
+from let_it_ride.strategy.base import Decision, Strategy, StrategyContext
 from let_it_ride.strategy.baseline import AlwaysPullStrategy, AlwaysRideStrategy
 from let_it_ride.strategy.basic import BasicStrategy
 from let_it_ride.strategy.custom import CustomStrategy, StrategyRule
@@ -65,16 +65,12 @@ def create_table_session(
     max_hands: int | None = None,
     win_limit: float | None = None,
     loss_limit: float | None = None,
-    strategy: BasicStrategy
-    | AlwaysRideStrategy
-    | AlwaysPullStrategy
-    | CustomStrategy
-    | None = None,
+    strategy: Strategy | None = None,
     bonus_paytable: BonusPaytable | None = None,
     bonus_bet: float = 0.0,
     dealer_config: DealerConfig | None = None,
 ) -> TableSession:
-    """Factory method for creating TableSession with common defaults.
+    """Factory function for creating TableSession with common defaults.
 
     This helper reduces boilerplate in integration tests by providing
     sensible defaults while allowing full customization when needed.
