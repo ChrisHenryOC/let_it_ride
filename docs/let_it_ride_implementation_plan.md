@@ -1157,12 +1157,74 @@ Implement bankroll trajectory line charts for sample sessions.
 
 ---
 
+### LIR-57: Seat Position Tracking and Per-Seat Analytics
+
+**Labels:** `analytics`, `priority-high`, `multi-player`
+
+**Description:**
+Add seat position tracking to session results and implement per-seat analytics for multi-seat simulations. Currently, multi-seat simulations lose seat position information when extracting results, making it impossible to analyze outcomes by seat position.
+
+**Problem Statement:**
+- `SessionResult` objects are extracted from `SeatSessionResult` without preserving `seat_number`
+- CSV output has no `seat_number` or `table_session_id` columns
+- Aggregate statistics treat all seats as independent sessions
+- No way to analyze whether seat position affects outcomes
+
+**Acceptance Criteria:**
+- [ ] Add `seat_number: int | None` field to `SessionResult` (None for single-seat)
+- [ ] Add `table_session_id: int | None` field to `SessionResult` (None for single-seat)
+- [ ] Update controller to preserve seat info when extracting from `SeatSessionResult`
+- [ ] Update parallel execution to preserve seat info
+- [ ] Add `seat_number` and `table_session_id` columns to sessions CSV
+- [ ] Implement per-seat aggregation in statistics module
+- [ ] Add per-seat statistics display in CLI formatter when `num_seats > 1`
+- [ ] Backwards compatible: single-seat simulations unchanged
+- [ ] Unit tests for seat position preservation
+- [ ] Integration tests for per-seat analytics
+
+**Dependencies:** LIR-56, LIR-27
+
+**Files to Modify:**
+- `src/let_it_ride/simulation/session.py` - Add optional seat fields to `SessionResult`
+- `src/let_it_ride/simulation/controller.py` - Preserve seat info when extracting results
+- `src/let_it_ride/simulation/parallel.py` - Same for parallel execution
+- `src/let_it_ride/analytics/export_csv.py` - Add seat columns to sessions CSV
+- `src/let_it_ride/cli/formatters.py` - Display per-seat statistics
+
+**Files to Create:**
+- `src/let_it_ride/analytics/seat_statistics.py` - Per-seat aggregation functions
+
+**Example Sessions CSV Output:**
+```csv
+table_session_id,seat_number,outcome,stop_reason,hands_played,...
+0,1,loss,max_hands,200,...
+0,2,win,win_limit,150,...
+0,3,loss,loss_limit,180,...
+```
+
+**Example CLI Output:**
+```
+       Per-Seat Analysis
+ Seat  Win Rate  Avg Profit
+   1     42.0%     -$12.50
+   2     38.5%     -$18.00
+   3     41.2%     -$14.75
+```
+
+**Estimated Scope:** ~250 lines
+
+**GitHub Issue:** #141
+
+---
+
 ### LIR-44: Chair Position Analytics
 
 **Labels:** `analytics`, `priority-medium`, `multi-player`
 
 **Description:**
 Implement analytics for comparing results by seat position, answering the research question: "Does the seat you're in affect your winning percentage?"
+
+**Note:** This issue depends on LIR-57 for seat position tracking. LIR-57 provides the data; LIR-44 provides advanced statistical analysis.
 
 **Acceptance Criteria:**
 - [ ] Statistics aggregated by seat position (1-6)
@@ -1173,7 +1235,7 @@ Implement analytics for comparing results by seat position, answering the resear
 - [ ] Report section for chair position analysis
 - [ ] Unit tests with known multi-player data
 
-**Dependencies:** LIR-43, LIR-25
+**Dependencies:** LIR-57, LIR-25
 
 **Files to Create:**
 - `src/let_it_ride/analytics/chair_position.py`
@@ -1619,7 +1681,8 @@ Phase 5: Analytics
 LIR-22 ─► LIR-25 ─► LIR-26
 LIR-22 ─► LIR-27, LIR-28
 LIR-22 ─► LIR-29 ─► LIR-30
-LIR-43,LIR-25 ─► LIR-44 (Chair Position Analytics)
+LIR-56,LIR-27 ─► LIR-57 (Seat Position Tracking)
+LIR-57,LIR-25 ─► LIR-44 (Chair Position Analytics)
 
 Phase 6: CLI
 LIR-8,LIR-20 ─► LIR-31 ─► LIR-32
@@ -1663,12 +1726,12 @@ All ─► LIR-40
 | 3 | LIR-15 through LIR-19 | Bankroll/Session | ~950 |
 | 3.5 | LIR-42, LIR-43 | Multi-Player Foundation (BLOCKING) | ~550 |
 | 4 | LIR-20 through LIR-24 | Simulation | ~1,050 |
-| 5 | LIR-25 through LIR-30, LIR-44 | Analytics + Chair Position | ~1,200 |
+| 5 | LIR-25 through LIR-30, LIR-44, LIR-57 | Analytics + Seat Tracking | ~1,450 |
 | 6 | LIR-31 through LIR-35 | CLI/Integration | ~1,150 |
 | 7 | LIR-37 through LIR-40, LIR-45 | Advanced (Note: LIR-36 cancelled) | ~1,300 |
-| **Total** | **43** | | **~9,450** |
+| **Total** | **44** | | **~9,700** |
 
-This plan provides 43 well-scoped issues that Claude Code can execute against, with clear acceptance criteria and dependency tracking for efficient parallel development.
+This plan provides 44 well-scoped issues that Claude Code can execute against, with clear acceptance criteria and dependency tracking for efficient parallel development.
 
 **New Items (POC Findings):**
 - LIR-41 (Dealer Discard Mechanics) - Phase 2, ~100 lines
@@ -1676,6 +1739,7 @@ This plan provides 43 well-scoped issues that Claude Code can execute against, w
 - LIR-43 (Multi-Player Session Management) - Phase 3.5, ~250 lines
 - LIR-44 (Chair Position Analytics) - Phase 5, ~150 lines
 - LIR-45 (Property-Based Testing) - Phase 7, ~100 lines
+- LIR-57 (Seat Position Tracking and Per-Seat Analytics) - Phase 5, ~250 lines (GitHub #141)
 
 **Cancelled Items:**
 - LIR-3 (Multi-Deck Shoe Implementation) - Not needed; each hand uses freshly shuffled single deck
