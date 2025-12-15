@@ -60,8 +60,8 @@ The `configs/` directory contains pre-built configurations:
 | `basic_strategy.yaml` | Optimal basic strategy, flat betting |
 | `conservative.yaml` | Conservative strategy, lower variance |
 | `aggressive.yaml` | Aggressive strategy, higher variance |
-| `bonus_conditional.yaml` | Bonus betting when ahead |
-| `multi_seat.yaml` | Multi-player table simulation |
+| `bonus_comparison.yaml` | Bonus betting strategy comparison |
+| `progressive_betting.yaml` | Progressive betting systems |
 | `sample_config.yaml` | Full configuration with all options |
 
 ## Creating Your Own Configuration

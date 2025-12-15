@@ -24,7 +24,7 @@ Welcome to the Let It Ride Strategy Simulator documentation. This tool simulates
 
 - **[Requirements Specification](let_it_ride_requirements.md)** - Full requirements document
 - **[Implementation Plan](let_it_ride_implementation_plan.md)** - Development roadmap
-- **[Performance](performance.md)** - Performance benchmarks and targets
+- **[Performance](performance.md)** - Performance benchmarks and profiling
 - **[Contributing](../CONTRIBUTING.md)** - How to contribute to the project
 
 ## Game Overview

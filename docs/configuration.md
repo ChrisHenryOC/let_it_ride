@@ -17,6 +17,18 @@ paytables:       # Payout configurations
 output:          # Results and reporting
 ```
 
+## Metadata Section (Optional)
+
+```yaml
+metadata:
+  name: "My Simulation"           # Descriptive name for this configuration
+  description: "Testing basic strategy with conservative limits"
+  author: "Your Name"             # Who created this config
+  version: "1.0"                  # Config version tracking
+```
+
+The metadata section is purely informational and does not affect simulation behavior. It's useful for documenting and organizing configuration files.
+
 ## Simulation Section
 
 ```yaml
@@ -45,18 +57,11 @@ simulation:
 ```yaml
 deck:
   # Shuffle algorithm
-  # - "fisher_yates": Fast, standard shuffling
-  # - "cryptographic": Uses cryptographic RNG for better randomness
+  # - "fisher_yates": Fast, standard shuffling (default)
   shuffle_algorithm: "fisher_yates"
-
-  # Use cryptographic entropy for seeding (non-reproducible)
-  use_crypto: false
-
-  # Validate RNG quality on startup (chi-square + runs tests)
-  validate_rng_quality: false
 ```
 
-**Note:** When `use_crypto: true`, the simulation uses the `secrets` module for high-entropy seeding, making results non-reproducible even with a seed specified.
+**Note:** RNG settings like `use_crypto` are configured via the `RNGManager` class when using the API directly, not through the deck configuration.
 
 ## Table Section
 

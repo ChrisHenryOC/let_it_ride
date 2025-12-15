@@ -30,7 +30,7 @@ session = Session(config, strategy)
 
 # Run the session
 result = session.run()
-print(f"Result: ${result.net_profit:.2f}")
+print(f"Result: ${result.session_profit:.2f}")
 ```
 
 ## Core Module
@@ -44,33 +44,31 @@ from let_it_ride.core import Card, Rank, Suit
 ace_spades = Card(Rank.ACE, Suit.SPADES)
 ten_hearts = Card(Rank.TEN, Suit.HEARTS)
 
-# Parse from string
-card = Card.from_string("As")  # Ace of spades
-card = Card.from_string("Th")  # Ten of hearts
-
 # Card properties
-print(card.rank)  # Rank.TEN
-print(card.suit)  # Suit.HEARTS
-print(card.is_high_card)  # True (10, J, Q, K, A)
+print(ace_spades.rank)  # Rank.ACE
+print(ace_spades.suit)  # Suit.SPADES
+print(ten_hearts)  # Th (string representation)
 ```
 
 ### Deck
 
 ```python
+import random
 from let_it_ride.core import Deck
 
 deck = Deck()
-deck.shuffle()
+rng = random.Random(42)  # Create RNG for shuffling
+deck.shuffle(rng)
 
 # Deal cards
 cards = deck.deal(5)
 
 # Check remaining
-print(deck.cards_remaining)
+print(deck.cards_remaining())  # Method, not property
 
 # Reset for new hand
 deck.reset()
-deck.shuffle()
+deck.shuffle(rng)
 ```
 
 ### Hand Evaluation
@@ -84,7 +82,13 @@ from let_it_ride.core import (
 )
 
 # Five-card hand
-cards = [Card.from_string(s) for s in ["As", "Ks", "Qs", "Js", "Ts"]]
+cards = [
+    Card(Rank.ACE, Suit.SPADES),
+    Card(Rank.KING, Suit.SPADES),
+    Card(Rank.QUEEN, Suit.SPADES),
+    Card(Rank.JACK, Suit.SPADES),
+    Card(Rank.TEN, Suit.SPADES),
+]
 result = evaluate_five_card_hand(cards)
 print(result.rank)      # FiveCardHandRank.ROYAL_FLUSH
 print(result.high_cards)  # [ACE, KING, QUEEN, JACK, TEN]
@@ -218,7 +222,7 @@ session = Session(config, strategy)
 result: SessionResult = session.run()
 
 # Result properties
-print(result.net_profit)
+print(result.session_profit)
 print(result.hands_played)
 print(result.stop_reason)
 print(result.outcome)  # SessionOutcome.WIN, LOSS, or PUSH
@@ -245,7 +249,7 @@ result = table_session.run()
 
 # Per-seat results
 for seat_result in result.seat_results:
-    print(f"Seat {seat_result.seat_position}: ${seat_result.net_profit:.2f}")
+    print(f"Seat {seat_result.seat_position}: ${seat_result.session_profit:.2f}")
 ```
 
 ### Simulation Controller
@@ -264,7 +268,7 @@ controller = SimulationController(config)
 results: SimulationResults = controller.run()
 
 print(f"Sessions: {results.total_sessions}")
-print(f"Win rate: {results.win_rate:.1%}")
+print(f"Win rate: {results.session_win_rate:.1%}")
 print(f"Total hands: {results.total_hands}")
 ```
 
@@ -274,16 +278,18 @@ print(f"Total hands: {results.total_hands}")
 from let_it_ride.simulation import RNGManager, validate_rng_quality
 
 # Create RNG with specific seed
-rng = RNGManager(seed=42)
+rng = RNGManager(base_seed=42)
 
 # Use cryptographic entropy (non-reproducible)
 rng = RNGManager(use_crypto=True)
 
 # Validate RNG quality
-result = validate_rng_quality(rng, num_samples=100000)
-print(f"Chi-square p-value: {result.chi_square_p_value:.4f}")
-print(f"Runs test p-value: {result.runs_test_p_value:.4f}")
-print(f"Passed: {result.passed}")
+result = validate_rng_quality(rng.create_rng(), sample_size=100000)
+print(f"Chi-square stat: {result.chi_square_stat:.4f}")
+print(f"Chi-square passed: {result.chi_square_passed}")
+print(f"Runs test stat: {result.runs_test_stat:.4f}")
+print(f"Runs test passed: {result.runs_test_passed}")
+print(f"Overall passed: {result.passed}")
 ```
 
 ## Bankroll Module
@@ -292,13 +298,13 @@ print(f"Passed: {result.passed}")
 
 ```python
 from let_it_ride.bankroll import (
+    BettingContext,
     FlatBetting,
     MartingaleBetting,
     ReverseMartingaleBetting,
     ParoliBetting,
     DAlembertBetting,
     FibonacciBetting,
-    ProportionalBetting,
 )
 
 # Flat betting
@@ -311,11 +317,19 @@ betting = MartingaleBetting(
     max_bet=500.0,
 )
 
-# Get next bet
-bet = betting.get_bet(bankroll=500.0)
+# Get next bet (requires BettingContext)
+context = BettingContext(
+    bankroll=500.0,
+    starting_bankroll=500.0,
+    session_profit=0.0,
+    last_result=None,
+    streak=0,
+    hands_played=0,
+)
+bet = betting.get_bet(context)
 
-# Record result
-betting.record_result(won=False, profit=-15.0)
+# Record result (single float: positive=win, negative=loss)
+betting.record_result(-15.0)
 ```
 
 ## Configuration Module
@@ -363,12 +377,12 @@ wins = 0
 total_profit = 0.0
 
 for i in range(1000):
-    session = Session(config, strategy, bonus_strategy=bonus_strategy, seed=i)
+    session = Session(config, strategy, bonus_strategy=bonus_strategy)
     result = session.run()
 
-    if result.net_profit > 0:
+    if result.session_profit > 0:
         wins += 1
-    total_profit += result.net_profit
+    total_profit += result.session_profit
 
 print(f"Win rate: {wins/1000:.1%}")
 print(f"Average profit: ${total_profit/1000:.2f}")
