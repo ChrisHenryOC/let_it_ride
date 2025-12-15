@@ -1501,7 +1501,9 @@ class TestRiskCurvesSave:
 
         with pytest.raises(ValueError, match="Invalid format"):
             save_risk_curves(
-                sample_risk_report, output_path, output_format="jpg"  # type: ignore
+                sample_risk_report,
+                output_path,
+                output_format="jpg",  # type: ignore
             )
 
     def test_save_risk_curves_creates_parent_dirs(
@@ -1515,7 +1517,9 @@ class TestRiskCurvesSave:
 
         assert output_path.exists()
 
-    def test_save_risk_curves_custom_dpi(self, sample_risk_report, tmp_path: Path) -> None:
+    def test_save_risk_curves_custom_dpi(
+        self, sample_risk_report, tmp_path: Path
+    ) -> None:
         """Should respect custom DPI setting."""
         from let_it_ride.analytics.visualizations import (
             RiskCurveConfig,

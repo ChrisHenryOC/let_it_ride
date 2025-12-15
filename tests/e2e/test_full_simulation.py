@@ -504,16 +504,12 @@ class TestStreakBasedBonusIntegration:
         )
 
         # Sequential
-        config_seq = create_e2e_config(
-            num_sessions=50, random_seed=seed, workers=1
-        )
+        config_seq = create_e2e_config(num_sessions=50, random_seed=seed, workers=1)
         config_seq = config_seq.model_copy(update={"bonus_strategy": bonus_config})
         results_seq = SimulationController(config_seq).run()
 
         # Parallel
-        config_par = create_e2e_config(
-            num_sessions=50, random_seed=seed, workers=2
-        )
+        config_par = create_e2e_config(num_sessions=50, random_seed=seed, workers=2)
         config_par = config_par.model_copy(update={"bonus_strategy": bonus_config})
         results_par = SimulationController(config_par).run()
 

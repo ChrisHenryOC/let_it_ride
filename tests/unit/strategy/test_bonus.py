@@ -1982,7 +1982,9 @@ class TestStreakBasedBonusStrategyEdgeCases:
         # Streak doesn't reset (main_win doesn't match "invalid_reset")
         assert strategy._current_streak == 2
 
-    def test_trigger_equals_reset_on_conflict(self, default_context: BonusContext) -> None:
+    def test_trigger_equals_reset_on_conflict(
+        self, default_context: BonusContext
+    ) -> None:
         """Test behavior when trigger and reset_on are the same event.
 
         When trigger == reset_on, the reset check happens after trigger check,

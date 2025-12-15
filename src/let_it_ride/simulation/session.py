@@ -471,9 +471,7 @@ class Session:
             # No bonus bet placed, streak unchanged
             return
         if bonus_won:
-            self._bonus_streak = (
-                self._bonus_streak + 1 if self._bonus_streak > 0 else 1
-            )
+            self._bonus_streak = self._bonus_streak + 1 if self._bonus_streak > 0 else 1
         else:
             self._bonus_streak = (
                 self._bonus_streak - 1 if self._bonus_streak < 0 else -1
