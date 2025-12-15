@@ -1121,6 +1121,7 @@ class FullConfig(BaseModel):
     Attributes:
         metadata: Optional metadata about the configuration.
         simulation: Simulation run parameters.
+        table: Table settings (num_seats for multi-player).
         deck: Deck handling configuration.
         dealer: Dealer card handling configuration.
         bankroll: Bankroll management configuration.
@@ -1134,6 +1135,7 @@ class FullConfig(BaseModel):
 
     metadata: MetadataConfig = Field(default_factory=MetadataConfig)
     simulation: SimulationConfig = Field(default_factory=SimulationConfig)
+    table: TableConfig = Field(default_factory=TableConfig)
     deck: DeckConfig = Field(default_factory=DeckConfig)
     dealer: DealerConfig = Field(default_factory=DealerConfig)
     bankroll: BankrollConfig = Field(default_factory=BankrollConfig)
@@ -1141,3 +1143,45 @@ class FullConfig(BaseModel):
     bonus_strategy: BonusStrategyConfig = Field(default_factory=BonusStrategyConfig)
     paytables: PaytablesConfig = Field(default_factory=PaytablesConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
+
+    @model_validator(mode="after")
+    def validate_multi_seat_bonus_strategy(self) -> FullConfig:
+        """Validate that multi-seat tables don't use dynamic bonus strategies.
+
+        Multi-seat table sessions use a fixed bonus bet amount calculated once
+        at session start. Dynamic bonus strategies (bankroll_conditional,
+        streak_based, session_conditional, combined, custom) that adjust bets
+        based on per-hand session state won't work correctly in multi-seat mode.
+        """
+        # Dynamic strategies that depend on per-hand session state
+        dynamic_bonus_strategies = {
+            "bankroll_conditional",
+            "streak_based",
+            "session_conditional",
+            "combined",
+            "custom",
+        }
+
+        if (
+            self.table.num_seats > 1
+            and self.bonus_strategy.type in dynamic_bonus_strategies
+        ):
+            raise ValueError(
+                f"Multi-seat tables (num_seats={self.table.num_seats}) are not "
+                f"compatible with dynamic bonus strategy type "
+                f"'{self.bonus_strategy.type}'. Multi-seat mode uses a fixed "
+                f"bonus bet calculated at session start. Use 'never', 'always', "
+                f"or 'static' bonus strategy with multi-seat tables."
+            )
+
+        # Validate total results won't cause excessive memory usage
+        # Each result ~500 bytes, 100M results ~50GB RAM
+        max_total_results = 100_000_000
+        total_results = self.simulation.num_sessions * self.table.num_seats
+        if total_results > max_total_results:
+            raise ValueError(
+                f"Total results (num_sessions={self.simulation.num_sessions:,} * "
+                f"num_seats={self.table.num_seats} = {total_results:,}) exceeds "
+                f"maximum of {max_total_results:,}. Reduce num_sessions or num_seats."
+            )
+        return self

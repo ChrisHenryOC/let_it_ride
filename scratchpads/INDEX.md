@@ -54,3 +54,4 @@ Quick reference for prior implementation work. Read full scratchpad only if dire
 | #106 | Rng Isolation Hand Testing |
 | #89 | Session API Consistency And DRY |
 | #43 | LIR-40 Documentation and User Guide |
+| #138 | LIR-56: Table Configuration Integration with CLI |

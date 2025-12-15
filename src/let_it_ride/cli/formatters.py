@@ -159,6 +159,11 @@ class OutputFormatter:
             table.add_row("Seed", str(config.simulation.random_seed))
         table.add_row("Workers", str(config.simulation.workers))
 
+        # Table settings (only show if multi-seat)
+        if config.table.num_seats > 1:
+            table.add_row("", "")  # Separator
+            table.add_row("Table Seats", str(config.table.num_seats))
+
         # Bankroll settings
         table.add_row("", "")  # Separator
         table.add_row(

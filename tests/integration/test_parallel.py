@@ -27,6 +27,7 @@ from let_it_ride.config.models import (
     SimulationConfig,
     StopConditionsConfig,
     StrategyConfig,
+    TableConfig,
 )
 from let_it_ride.simulation import (
     SessionOutcome,
@@ -738,3 +739,227 @@ class TestMaxWorkersLimit:
 
         result = get_effective_worker_count(MAX_WORKERS + 500)
         assert result == MAX_WORKERS
+
+
+class TestParallelMultiSeatExecution:
+    """Tests for parallel execution with multi-seat tables."""
+
+    def test_multi_seat_parallel_produces_correct_result_count(self) -> None:
+        """Test multi-seat parallel execution produces num_sessions * num_seats results."""
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=10,
+                hands_per_session=50,
+                random_seed=42,
+                workers=2,
+            ),
+            table=TableConfig(num_seats=4),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        # Should have num_sessions * num_seats = 10 * 4 = 40 results
+        assert len(results.session_results) == 40
+
+    def test_multi_seat_parallel_vs_sequential_equivalence(self) -> None:
+        """Test multi-seat produces identical results in parallel vs sequential."""
+        seed = 54321
+        num_sessions = 10
+        num_seats = 3
+
+        base_config = {
+            "simulation": SimulationConfig(
+                num_sessions=num_sessions,
+                hands_per_session=50,
+                random_seed=seed,
+            ),
+            "table": TableConfig(num_seats=num_seats),
+            "bankroll": BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            "strategy": StrategyConfig(type="basic"),
+        }
+
+        # Sequential (workers=1)
+        config_seq = FullConfig(**{**base_config, "simulation": SimulationConfig(
+            num_sessions=num_sessions,
+            hands_per_session=50,
+            random_seed=seed,
+            workers=1,
+        )})
+        results_seq = SimulationController(config_seq).run()
+
+        # Parallel (workers=2)
+        config_par = FullConfig(**{**base_config, "simulation": SimulationConfig(
+            num_sessions=num_sessions,
+            hands_per_session=50,
+            random_seed=seed,
+            workers=2,
+        )})
+        results_par = SimulationController(config_par).run()
+
+        # Should have same number of results
+        assert len(results_seq.session_results) == len(results_par.session_results)
+        assert len(results_seq.session_results) == num_sessions * num_seats
+
+        # Verify each result matches
+        for seq, par in zip(
+            results_seq.session_results, results_par.session_results, strict=True
+        ):
+            assert seq.hands_played == par.hands_played
+            assert seq.session_profit == par.session_profit
+            assert seq.final_bankroll == par.final_bankroll
+            assert seq.outcome == par.outcome
+
+    def test_multi_seat_parallel_with_various_seat_counts(self) -> None:
+        """Test parallel execution works with different seat counts."""
+        for num_seats in [2, 4, 6]:
+            config = FullConfig(
+                simulation=SimulationConfig(
+                    num_sessions=5,
+                    hands_per_session=30,
+                    random_seed=12345,
+                    workers=2,
+                ),
+                table=TableConfig(num_seats=num_seats),
+                bankroll=BankrollConfig(
+                    starting_amount=500.0,
+                    base_bet=5.0,
+                    stop_conditions=StopConditionsConfig(
+                        win_limit=100.0,
+                        loss_limit=200.0,
+                    ),
+                    betting_system=BettingSystemConfig(type="flat"),
+                ),
+                strategy=StrategyConfig(type="basic"),
+            )
+
+            controller = SimulationController(config)
+            results = controller.run()
+
+            expected_count = 5 * num_seats
+            assert len(results.session_results) == expected_count, (
+                f"Expected {expected_count} results for {num_seats} seats"
+            )
+
+    def test_multi_seat_parallel_all_results_valid(self) -> None:
+        """Test all multi-seat parallel results have valid data."""
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=15,
+                hands_per_session=50,
+                random_seed=42,
+                workers=3,
+            ),
+            table=TableConfig(num_seats=4),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        for result in results.session_results:
+            assert result.hands_played > 0
+            assert result.starting_bankroll == 500.0
+            assert result.stop_reason in StopReason
+            assert result.outcome in SessionOutcome
+            assert result.total_wagered >= 0
+
+    def test_multi_seat_parallel_with_bonus_betting(self) -> None:
+        """Test multi-seat parallel execution with static bonus betting."""
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=10,
+                hands_per_session=50,
+                random_seed=42,
+                workers=2,
+            ),
+            table=TableConfig(num_seats=3),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+            bonus_strategy=BonusStrategyConfig(
+                enabled=True,
+                type="always",
+                always=AlwaysBonusConfig(amount=5.0),
+            ),
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        # Should have 10 * 3 = 30 results
+        assert len(results.session_results) == 30
+
+        # All results should be valid
+        for result in results.session_results:
+            assert result.hands_played > 0
+
+    def test_multi_seat_parallel_worker_task_includes_num_seats(self) -> None:
+        """Test that WorkerTask correctly carries multi-seat configuration."""
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=10,
+                hands_per_session=50,
+                random_seed=42,
+                workers=2,
+            ),
+            table=TableConfig(num_seats=6),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+
+        task = WorkerTask(
+            worker_id=0,
+            session_ids=[0, 1, 2],
+            session_seeds={0: 12345, 1: 23456, 2: 34567},
+            config=config,
+        )
+
+        result = run_worker_sessions(task)
+
+        assert result.error is None
+        # 3 sessions * 6 seats = 18 results
+        assert len(result.session_results) == 18

@@ -28,6 +28,7 @@ from let_it_ride.config.models import (
     StaticBonusConfig,
     StopConditionsConfig,
     StrategyConfig,
+    TableConfig,
 )
 
 
@@ -871,3 +872,172 @@ class TestProfitTierValidation:
         tier = ProfitTier(min_profit=-100.0, max_profit=0.0, bet_amount=1.0)
         assert tier.min_profit == -100.0
         assert tier.max_profit == 0.0
+
+
+class TestTableConfig:
+    """Tests for TableConfig model."""
+
+    def test_default_value(self) -> None:
+        """Test default num_seats is 1."""
+        config = TableConfig()
+        assert config.num_seats == 1
+
+    def test_valid_seat_counts(self) -> None:
+        """Test all valid seat counts (1-6)."""
+        for num_seats in range(1, 7):
+            config = TableConfig(num_seats=num_seats)
+            assert config.num_seats == num_seats
+
+    def test_num_seats_below_min(self) -> None:
+        """Test num_seats below 1 raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            TableConfig(num_seats=0)
+        assert "greater than or equal to 1" in str(exc_info.value)
+
+    def test_num_seats_above_max(self) -> None:
+        """Test num_seats above 6 raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            TableConfig(num_seats=7)
+        assert "less than or equal to 6" in str(exc_info.value)
+
+
+class TestFullConfigWithTable:
+    """Tests for FullConfig with table configuration."""
+
+    def test_default_table_config(self) -> None:
+        """Test that default FullConfig has table with num_seats=1."""
+        config = FullConfig()
+        assert config.table is not None
+        assert config.table.num_seats == 1
+
+    def test_multi_seat_table_config(self) -> None:
+        """Test FullConfig with multi-seat table."""
+        config = FullConfig(table=TableConfig(num_seats=6))
+        assert config.table.num_seats == 6
+
+    def test_table_config_from_dict(self) -> None:
+        """Test creating FullConfig with table section from dict."""
+        config = FullConfig(table={"num_seats": 4})
+        assert config.table.num_seats == 4
+
+    def test_full_config_with_table_and_simulation(self) -> None:
+        """Test FullConfig combines table and simulation settings."""
+        config = FullConfig(
+            table=TableConfig(num_seats=6),
+            simulation=SimulationConfig(num_sessions=1000),
+        )
+        assert config.table.num_seats == 6
+        assert config.simulation.num_sessions == 1000
+
+    def test_multi_seat_with_static_bonus_strategy_allowed(self) -> None:
+        """Test multi-seat with static bonus strategies is allowed."""
+        # Static strategies should work with multi-seat
+        for strategy_type in ("never", "always", "static"):
+            if strategy_type == "always":
+                bonus_config = BonusStrategyConfig(
+                    type=strategy_type, always={"amount": 5.0}
+                )
+            elif strategy_type == "static":
+                bonus_config = BonusStrategyConfig(
+                    type=strategy_type, static={"amount": 5.0}
+                )
+            else:
+                bonus_config = BonusStrategyConfig(type=strategy_type)
+
+            config = FullConfig(
+                table=TableConfig(num_seats=6),
+                bonus_strategy=bonus_config,
+            )
+            assert config.table.num_seats == 6
+            assert config.bonus_strategy.type == strategy_type
+
+    def test_multi_seat_with_dynamic_bonus_strategy_rejected(self) -> None:
+        """Test multi-seat with dynamic bonus strategies raises error."""
+        # Dynamic strategies should be rejected with multi-seat
+        dynamic_strategies = [
+            "bankroll_conditional",
+            "streak_based",
+        ]
+
+        for strategy_type in dynamic_strategies:
+            # Create minimal config for each strategy type
+            if strategy_type == "bankroll_conditional":
+                bonus_config = BonusStrategyConfig(
+                    type=strategy_type,
+                    bankroll_conditional={"base_amount": 5.0},
+                )
+            elif strategy_type == "streak_based":
+                bonus_config = BonusStrategyConfig(
+                    type=strategy_type,
+                    streak_based={
+                        "base_amount": 5.0,
+                        "trigger": "main_loss",
+                        "streak_length": 3,
+                        "action": {"type": "increase", "value": 1.0},
+                        "reset_on": "main_win",
+                    },
+                )
+            else:
+                continue
+
+            with pytest.raises(ValidationError) as exc_info:
+                FullConfig(
+                    table=TableConfig(num_seats=2),
+                    bonus_strategy=bonus_config,
+                )
+            error_str = str(exc_info.value)
+            assert "Multi-seat tables" in error_str
+            assert strategy_type in error_str
+
+    def test_single_seat_with_dynamic_bonus_strategy_allowed(self) -> None:
+        """Test single-seat with dynamic bonus strategies is allowed."""
+        bonus_config = BonusStrategyConfig(
+            type="bankroll_conditional",
+            bankroll_conditional={"base_amount": 5.0},
+        )
+        config = FullConfig(
+            table=TableConfig(num_seats=1),
+            bonus_strategy=bonus_config,
+        )
+        assert config.table.num_seats == 1
+        assert config.bonus_strategy.type == "bankroll_conditional"
+
+    def test_total_results_validation_passes_under_limit(self) -> None:
+        """Test total results under 100M limit passes validation."""
+        # 50M sessions * 2 seats = 100M total (at limit)
+        config = FullConfig(
+            simulation=SimulationConfig(num_sessions=50_000_000),
+            table=TableConfig(num_seats=2),
+        )
+        assert config.simulation.num_sessions == 50_000_000
+        assert config.table.num_seats == 2
+
+    def test_total_results_validation_fails_over_limit(self) -> None:
+        """Test total results over 100M limit raises error."""
+        # 50M sessions * 3 seats = 150M total (over limit)
+        with pytest.raises(ValidationError) as exc_info:
+            FullConfig(
+                simulation=SimulationConfig(num_sessions=50_000_000),
+                table=TableConfig(num_seats=3),
+            )
+        error_str = str(exc_info.value)
+        assert "Total results" in error_str
+        assert "exceeds" in error_str
+
+    def test_max_sessions_single_seat_allowed(self) -> None:
+        """Test max sessions (100M) with single seat is allowed."""
+        config = FullConfig(
+            simulation=SimulationConfig(num_sessions=100_000_000),
+            table=TableConfig(num_seats=1),
+        )
+        assert config.simulation.num_sessions == 100_000_000
+
+    def test_max_sessions_max_seats_rejected(self) -> None:
+        """Test max sessions with max seats (600M total) is rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            FullConfig(
+                simulation=SimulationConfig(num_sessions=100_000_000),
+                table=TableConfig(num_seats=6),
+            )
+        error_str = str(exc_info.value)
+        assert "600,000,000" in error_str  # Total results shown in error

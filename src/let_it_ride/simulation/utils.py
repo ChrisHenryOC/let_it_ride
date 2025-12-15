@@ -17,6 +17,7 @@ from let_it_ride.config.paytables import (
     standard_main_paytable,
 )
 from let_it_ride.simulation.session import SessionConfig
+from let_it_ride.simulation.table_session import TableSessionConfig
 
 if TYPE_CHECKING:
     from let_it_ride.config.models import FullConfig
@@ -109,6 +110,33 @@ def create_session_config(config: FullConfig, bonus_bet: float) -> SessionConfig
     stop_conditions = bankroll_config.stop_conditions
 
     return SessionConfig(
+        starting_bankroll=bankroll_config.starting_amount,
+        base_bet=bankroll_config.base_bet,
+        win_limit=stop_conditions.win_limit,
+        loss_limit=stop_conditions.loss_limit,
+        max_hands=config.simulation.hands_per_session,
+        stop_on_insufficient_funds=stop_conditions.stop_on_insufficient_funds,
+        bonus_bet=bonus_bet,
+    )
+
+
+def create_table_session_config(
+    config: FullConfig, bonus_bet: float
+) -> TableSessionConfig:
+    """Create a TableSessionConfig from FullConfig.
+
+    Args:
+        config: The full simulation configuration.
+        bonus_bet: The bonus bet amount.
+
+    Returns:
+        A TableSessionConfig instance for multi-seat table sessions.
+    """
+    bankroll_config = config.bankroll
+    stop_conditions = bankroll_config.stop_conditions
+
+    return TableSessionConfig(
+        table_config=config.table,
         starting_bankroll=bankroll_config.starting_amount,
         base_bet=bankroll_config.base_bet,
         win_limit=stop_conditions.win_limit,

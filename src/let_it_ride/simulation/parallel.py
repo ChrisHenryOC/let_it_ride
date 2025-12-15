@@ -22,15 +22,18 @@ from typing import TYPE_CHECKING, Literal
 
 from let_it_ride.core.deck import Deck
 from let_it_ride.core.game_engine import GameEngine
+from let_it_ride.core.table import Table
 from let_it_ride.simulation.controller import (
     create_betting_system,
     create_strategy,
 )
 from let_it_ride.simulation.rng import RNGManager
 from let_it_ride.simulation.session import Session, SessionConfig, SessionResult
+from let_it_ride.simulation.table_session import TableSession, TableSessionConfig
 from let_it_ride.simulation.utils import (
     calculate_bonus_bet,
     create_session_config,
+    create_table_session_config,
     get_bonus_paytable,
     get_main_paytable,
 )
@@ -128,6 +131,53 @@ def _run_single_session(
     return session.run_to_completion()
 
 
+def _run_single_table_session(
+    seed: int,
+    config: FullConfig,
+    strategy: Strategy,
+    main_paytable: MainGamePaytable,
+    bonus_paytable: BonusPaytable | None,
+    betting_system_factory: Callable[[], BettingSystem],
+    table_session_config: TableSessionConfig,
+) -> list[SessionResult]:
+    """Run a single multi-seat table session with the given seed.
+
+    Args:
+        seed: RNG seed for this session.
+        config: Full simulation configuration.
+        strategy: Strategy instance to use.
+        main_paytable: Main game paytable.
+        bonus_paytable: Bonus paytable (or None).
+        betting_system_factory: Factory to create fresh betting system.
+        table_session_config: Pre-computed config (constant across all sessions).
+
+    Returns:
+        List of SessionResult, one per seat.
+    """
+    session_rng = random.Random(seed)
+    deck = Deck()
+
+    table = Table(
+        deck=deck,
+        strategy=strategy,
+        main_paytable=main_paytable,
+        bonus_paytable=bonus_paytable,
+        rng=session_rng,
+        table_config=config.table,
+        dealer_config=config.dealer,
+    )
+
+    betting_system = betting_system_factory()
+    table_session = TableSession(
+        config=table_session_config,
+        table=table,
+        betting_system=betting_system,
+    )
+
+    table_result = table_session.run_to_completion()
+    return [seat_result.session_result for seat_result in table_result.seat_results]
+
+
 def run_worker_sessions(task: WorkerTask) -> WorkerResult:
     """Execute sessions assigned to a worker.
 
@@ -156,19 +206,53 @@ def run_worker_sessions(task: WorkerTask) -> WorkerResult:
 
         results: list[tuple[int, SessionResult]] = []
 
+        # Check if we should use multi-seat table sessions
+        num_seats = task.config.table.num_seats
+        use_table_session = num_seats > 1
+
+        # Pre-compute table session config (constant for all sessions in worker)
+        table_session_config: TableSessionConfig | None = None
+        if use_table_session:
+            table_session_config = create_table_session_config(task.config, bonus_bet)
+
         for session_id in task.session_ids:
             seed = task.session_seeds[session_id]
-            result = _run_single_session(
-                seed=seed,
-                config=task.config,
-                strategy=strategy,
-                main_paytable=main_paytable,
-                bonus_paytable=bonus_paytable,
-                betting_system_factory=betting_system_factory,
-                bonus_strategy_factory=bonus_strategy_factory,
-                session_config=session_config,
-            )
-            results.append((session_id, result))
+
+            if use_table_session:
+                assert table_session_config is not None
+                # Multi-seat: run TableSession and collect per-seat results
+                seat_results = _run_single_table_session(
+                    seed=seed,
+                    config=task.config,
+                    strategy=strategy,
+                    main_paytable=main_paytable,
+                    bonus_paytable=bonus_paytable,
+                    betting_system_factory=betting_system_factory,
+                    table_session_config=table_session_config,
+                )
+                # Add each seat's result with a unique composite ID
+                # Composite ID scheme: session_id * num_seats + seat_idx
+                # This guarantees unique IDs and maintains ordering:
+                # - Session 0: IDs 0, 1, ..., num_seats-1
+                # - Session 1: IDs num_seats, num_seats+1, ..., 2*num_seats-1
+                # - etc.
+                # Total results = num_sessions * num_seats
+                for seat_idx, seat_result in enumerate(seat_results):
+                    composite_id = session_id * num_seats + seat_idx
+                    results.append((composite_id, seat_result))
+            else:
+                # Single-seat: use Session for efficiency
+                result = _run_single_session(
+                    seed=seed,
+                    config=task.config,
+                    strategy=strategy,
+                    main_paytable=main_paytable,
+                    bonus_paytable=bonus_paytable,
+                    betting_system_factory=betting_system_factory,
+                    bonus_strategy_factory=bonus_strategy_factory,
+                    session_config=session_config,
+                )
+                results.append((session_id, result))
 
         return WorkerResult(
             worker_id=task.worker_id,
@@ -269,7 +353,10 @@ class ParallelExecutor:
         return tasks
 
     def _merge_results(
-        self, worker_results: list[WorkerResult], num_sessions: int
+        self,
+        worker_results: list[WorkerResult],
+        num_sessions: int,
+        num_seats: int = 1,
     ) -> list[SessionResult]:
         """Merge and order results from all workers.
 
@@ -279,9 +366,10 @@ class ParallelExecutor:
         Args:
             worker_results: Results from all workers.
             num_sessions: Expected number of sessions.
+            num_seats: Number of seats per table (for multi-seat mode).
 
         Returns:
-            List of SessionResult objects ordered by session ID.
+            List of SessionResult objects ordered by result ID.
 
         Raises:
             RuntimeError: If any worker failed or results are missing.
@@ -292,11 +380,14 @@ class ParallelExecutor:
             errors = [f"Worker {wr.worker_id}: {wr.error}" for wr in failed_workers]
             raise RuntimeError(f"Worker failures: {'; '.join(errors)}")
 
+        # For multi-seat, we have num_sessions * num_seats results
+        expected_results = num_sessions * num_seats
+
         # Pre-allocate result list for O(1) direct assignment
-        results: list[SessionResult | None] = [None] * num_sessions
+        results: list[SessionResult | None] = [None] * expected_results
         for worker_result in worker_results:
-            for session_id, session_result in worker_result.session_results:
-                results[session_id] = session_result
+            for result_id, session_result in worker_result.session_results:
+                results[result_id] = session_result
 
         # Verify we have all expected results
         missing = [i for i, r in enumerate(results) if r is None]
@@ -321,11 +412,13 @@ class ParallelExecutor:
 
         Returns:
             List of SessionResult objects in session order.
+            For multi-seat tables, returns num_sessions * num_seats results.
 
         Raises:
             RuntimeError: If any worker fails.
         """
         num_sessions = config.simulation.num_sessions
+        num_seats = config.table.num_seats
         base_seed = config.simulation.random_seed
 
         # Pre-generate all session seeds for determinism
@@ -343,7 +436,7 @@ class ParallelExecutor:
             progress_callback(num_sessions, num_sessions)
 
         # Merge and return ordered results
-        return self._merge_results(worker_results, num_sessions)
+        return self._merge_results(worker_results, num_sessions, num_seats)
 
 
 def get_effective_worker_count(workers: int | Literal["auto"]) -> int:

@@ -526,6 +526,7 @@ class TestPrintConfigSummary:
         config.simulation.hands_per_session = 50
         config.simulation.random_seed = 42
         config.simulation.workers = 4
+        config.table.num_seats = 1
         config.bankroll.starting_amount = 500.0
         config.bankroll.base_bet = 10.0
         config.bankroll.betting_system.type = "flat"
@@ -554,6 +555,7 @@ class TestPrintConfigSummary:
         config.simulation.hands_per_session = 50
         config.simulation.random_seed = 42
         config.simulation.workers = 4
+        config.table.num_seats = 1
         config.bankroll.starting_amount = 500.0
         config.bankroll.base_bet = 10.0
         config.bankroll.betting_system.type = "flat"
@@ -573,6 +575,7 @@ class TestPrintConfigSummary:
         config.simulation.hands_per_session = 50
         config.simulation.random_seed = None
         config.simulation.workers = 4
+        config.table.num_seats = 1
         config.bankroll.starting_amount = 500.0
         config.bankroll.base_bet = 10.0
         config.bankroll.betting_system.type = "flat"
@@ -584,6 +587,79 @@ class TestPrintConfigSummary:
 
         # Seed row should be omitted when None
         assert "Seed" not in output
+
+
+class TestConfigSummaryMultiSeat:
+    """Tests for multi-seat display in config summary."""
+
+    def test_config_summary_multi_seat_shown(self, formatter: OutputFormatter) -> None:
+        """Test config summary shows table seats when num_seats > 1."""
+        from unittest.mock import MagicMock
+
+        config = MagicMock()
+        config.simulation.num_sessions = 100
+        config.simulation.hands_per_session = 50
+        config.simulation.random_seed = 42
+        config.simulation.workers = 4
+        config.table.num_seats = 6
+        config.bankroll.starting_amount = 500.0
+        config.bankroll.base_bet = 10.0
+        config.bankroll.betting_system.type = "flat"
+        config.strategy.type = "basic"
+        config.bonus_strategy.type = "never"
+
+        formatter.print_config_summary(config)
+        output = get_console_output(formatter.console)
+
+        assert "Table Seats" in output
+        assert "6" in output
+
+    def test_config_summary_single_seat_hidden(self, formatter: OutputFormatter) -> None:
+        """Test config summary hides table seats when num_seats == 1."""
+        from unittest.mock import MagicMock
+
+        config = MagicMock()
+        config.simulation.num_sessions = 100
+        config.simulation.hands_per_session = 50
+        config.simulation.random_seed = 42
+        config.simulation.workers = 4
+        config.table.num_seats = 1
+        config.bankroll.starting_amount = 500.0
+        config.bankroll.base_bet = 10.0
+        config.bankroll.betting_system.type = "flat"
+        config.strategy.type = "basic"
+        config.bonus_strategy.type = "never"
+
+        formatter.print_config_summary(config)
+        output = get_console_output(formatter.console)
+
+        assert "Table Seats" not in output
+
+    def test_config_summary_multi_seat_various_counts(self) -> None:
+        """Test config summary shows correct seat count for various values."""
+        from unittest.mock import MagicMock
+
+        for num_seats in [2, 3, 4, 5, 6]:
+            console = Console(file=StringIO(), force_terminal=True, width=120)
+            formatter = OutputFormatter(verbosity=1, use_color=True, console=console)
+
+            config = MagicMock()
+            config.simulation.num_sessions = 100
+            config.simulation.hands_per_session = 50
+            config.simulation.random_seed = 42
+            config.simulation.workers = 4
+            config.table.num_seats = num_seats
+            config.bankroll.starting_amount = 500.0
+            config.bankroll.base_bet = 10.0
+            config.bankroll.betting_system.type = "flat"
+            config.strategy.type = "basic"
+            config.bonus_strategy.type = "never"
+
+            formatter.print_config_summary(config)
+            output = get_console_output(formatter.console)
+
+            assert "Table Seats" in output
+            assert str(num_seats) in output
 
 
 class TestHandRankConstants:
