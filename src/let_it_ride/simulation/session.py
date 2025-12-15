@@ -113,12 +113,18 @@ class StopReason(Enum):
     LOSS_LIMIT: Session loss reached or exceeded loss limit.
     MAX_HANDS: Maximum number of hands reached.
     INSUFFICIENT_FUNDS: Bankroll too low to place minimum bet.
+    TABLE_ROUNDS_COMPLETE: Table reached its configured total rounds
+        (used in multi-seat sessions with seat replacement).
+    IN_PROGRESS: Session is still active (used for in-progress sessions
+        at table end in seat replacement mode).
     """
 
     WIN_LIMIT = "win_limit"
     LOSS_LIMIT = "loss_limit"
     MAX_HANDS = "max_hands"
     INSUFFICIENT_FUNDS = "insufficient_funds"
+    TABLE_ROUNDS_COMPLETE = "table_rounds_complete"
+    IN_PROGRESS = "in_progress"
 
 
 class SessionOutcome(Enum):

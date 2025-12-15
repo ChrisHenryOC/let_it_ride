@@ -800,21 +800,31 @@ class TestParallelMultiSeatExecution:
         }
 
         # Sequential (workers=1)
-        config_seq = FullConfig(**{**base_config, "simulation": SimulationConfig(
-            num_sessions=num_sessions,
-            hands_per_session=50,
-            random_seed=seed,
-            workers=1,
-        )})
+        config_seq = FullConfig(
+            **{
+                **base_config,
+                "simulation": SimulationConfig(
+                    num_sessions=num_sessions,
+                    hands_per_session=50,
+                    random_seed=seed,
+                    workers=1,
+                ),
+            }
+        )
         results_seq = SimulationController(config_seq).run()
 
         # Parallel (workers=2)
-        config_par = FullConfig(**{**base_config, "simulation": SimulationConfig(
-            num_sessions=num_sessions,
-            hands_per_session=50,
-            random_seed=seed,
-            workers=2,
-        )})
+        config_par = FullConfig(
+            **{
+                **base_config,
+                "simulation": SimulationConfig(
+                    num_sessions=num_sessions,
+                    hands_per_session=50,
+                    random_seed=seed,
+                    workers=2,
+                ),
+            }
+        )
         results_par = SimulationController(config_par).run()
 
         # Should have same number of results
@@ -857,9 +867,9 @@ class TestParallelMultiSeatExecution:
             results = controller.run()
 
             expected_count = 5 * num_seats
-            assert len(results.session_results) == expected_count, (
-                f"Expected {expected_count} results for {num_seats} seats"
-            )
+            assert (
+                len(results.session_results) == expected_count
+            ), f"Expected {expected_count} results for {num_seats} seats"
 
     def test_multi_seat_parallel_all_results_valid(self) -> None:
         """Test all multi-seat parallel results have valid data."""

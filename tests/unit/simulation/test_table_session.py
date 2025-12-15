@@ -1222,3 +1222,543 @@ class TestProgressiveBettingIntegration:
         # Final profit: -30 + 60 - 30 = 0
         assert result.seat_results[0].session_result.session_profit == 0.0
         assert result.seat_results[1].session_result.session_profit == 0.0
+
+
+# --- Seat Replacement Mode Tests ---
+
+
+class TestTableSessionConfigSeatReplacement:
+    """Tests for TableSessionConfig with table_total_rounds."""
+
+    def test_config_with_table_total_rounds(self) -> None:
+        """Verify config accepts table_total_rounds parameter."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=100.0,
+            table_total_rounds=100,
+        )
+        assert config.table_total_rounds == 100
+
+    def test_config_table_total_rounds_none_by_default(self) -> None:
+        """Verify table_total_rounds defaults to None."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            max_hands=10,
+        )
+        assert config.table_total_rounds is None
+
+    def test_config_zero_table_total_rounds_raises(self) -> None:
+        """Verify zero table_total_rounds raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            TableSessionConfig(
+                table_config=TableConfig(num_seats=2),
+                starting_bankroll=1000.0,
+                base_bet=25.0,
+                win_limit=100.0,
+                table_total_rounds=0,
+            )
+        assert "table_total_rounds must be positive" in str(exc_info.value)
+
+    def test_config_negative_table_total_rounds_raises(self) -> None:
+        """Verify negative table_total_rounds raises ValueError."""
+        with pytest.raises(ValueError) as exc_info:
+            TableSessionConfig(
+                table_config=TableConfig(num_seats=2),
+                starting_bankroll=1000.0,
+                base_bet=25.0,
+                win_limit=100.0,
+                table_total_rounds=-10,
+            )
+        assert "table_total_rounds must be positive" in str(exc_info.value)
+
+
+class TestSeatReplacementMode:
+    """Tests for seat replacement mode behavior."""
+
+    def test_seat_replacement_mode_enabled_when_table_total_rounds_set(self) -> None:
+        """Verify seat_replacement_mode is True when table_total_rounds is configured."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=100.0,
+            table_total_rounds=50,
+        )
+        mock_table = create_mock_table([[0.0, 0.0] for _ in range(50)])
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        assert session.seat_replacement_mode is True
+
+    def test_seat_replacement_mode_disabled_by_default(self) -> None:
+        """Verify seat_replacement_mode is False when table_total_rounds is None."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            max_hands=10,
+        )
+        mock_table = create_mock_table([[0.0, 0.0] for _ in range(10)])
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        assert session.seat_replacement_mode is False
+
+    def test_seat_replacement_stops_at_table_total_rounds(self) -> None:
+        """Verify table stops at table_total_rounds regardless of seat states."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=10000.0,  # Very high, won't be reached
+            table_total_rounds=5,
+        )
+        mock_table = create_mock_table([[0.0, 0.0] for _ in range(10)])
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        assert result.total_rounds == 5
+        assert result.stop_reason == StopReason.TABLE_ROUNDS_COMPLETE
+
+    def test_seat_replacement_resets_seat_on_win_limit(self) -> None:
+        """Verify seat is reset when hitting win limit in replacement mode."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=1),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=100.0,
+            table_total_rounds=10,
+        )
+        # Win 100 in round 1, triggering reset
+        # Then play 9 more rounds with small wins
+        mock_table = create_mock_table([[100.0]] + [[10.0] for _ in range(9)])
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        # Should have completed sessions from resets
+        assert result.seat_sessions is not None
+        seat1_sessions = result.seat_sessions[1]
+
+        # First session should have hit win limit
+        assert len(seat1_sessions) >= 1
+        assert seat1_sessions[0].session_result.stop_reason == StopReason.WIN_LIMIT
+        assert seat1_sessions[0].session_result.session_profit == 100.0
+
+    def test_seat_replacement_tracks_multiple_sessions_per_seat(self) -> None:
+        """Verify multiple sessions are tracked when seat resets multiple times."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=1),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=100.0,
+            table_total_rounds=6,
+        )
+        # Win 100 in rounds 1, 3, 5 - triggering 3 resets
+        mock_table = create_mock_table(
+            [
+                [100.0],  # Round 0: Win limit, reset
+                [50.0],  # Round 1: In new session
+                [100.0],  # Round 2: Win limit again, reset
+                [30.0],  # Round 3: In new session
+                [100.0],  # Round 4: Win limit again, reset
+                [20.0],  # Round 5: Partial session
+            ]
+        )
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        assert result.seat_sessions is not None
+        seat1_sessions = result.seat_sessions[1]
+
+        # Should have 3 completed sessions + 1 in-progress
+        assert len(seat1_sessions) == 4
+
+        # Check completed sessions
+        assert seat1_sessions[0].session_result.stop_reason == StopReason.WIN_LIMIT
+        assert seat1_sessions[0].session_result.hands_played == 1
+        assert seat1_sessions[0].session_result.session_profit == 100.0
+
+        assert seat1_sessions[1].session_result.stop_reason == StopReason.WIN_LIMIT
+        assert seat1_sessions[1].session_result.hands_played == 2
+        assert seat1_sessions[1].session_result.session_profit == 150.0  # 50 + 100
+
+        assert seat1_sessions[2].session_result.stop_reason == StopReason.WIN_LIMIT
+        assert seat1_sessions[2].session_result.hands_played == 2
+        assert seat1_sessions[2].session_result.session_profit == 130.0  # 30 + 100
+
+        # In-progress session
+        assert seat1_sessions[3].session_result.stop_reason == StopReason.IN_PROGRESS
+        assert seat1_sessions[3].session_result.hands_played == 1
+        assert seat1_sessions[3].session_result.session_profit == 20.0
+
+    def test_seat_replacement_independent_seat_resets(self) -> None:
+        """Verify different seats can reset independently."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=100.0,
+            table_total_rounds=5,
+        )
+        # Seat 1 hits limit in round 0 (100), resets
+        # Seat 2 hits limit in round 2 (50+30+100=180, but win_limit=100, so at round 2)
+        # Both seats will have sessions completing and in-progress
+        mock_table = create_mock_table(
+            [
+                [100.0, 50.0],  # Round 0: Seat 1 resets (profit=100)
+                [20.0, 30.0],  # Round 1: Seat 1 at 20, Seat 2 at 80
+                [10.0, 100.0],  # Round 2: Seat 1 at 30, Seat 2 resets (profit=180)
+                [10.0, 20.0],  # Round 3: Seat 1 at 40, Seat 2 at 20
+                [10.0, 30.0],  # Round 4: Seat 1 at 50, Seat 2 at 50
+            ]
+        )
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        assert result.seat_sessions is not None
+
+        # Seat 1: 1 completed session (round 0) + 1 in-progress (rounds 1-4)
+        seat1_sessions = result.seat_sessions[1]
+        assert len(seat1_sessions) == 2
+        assert seat1_sessions[0].session_result.stop_reason == StopReason.WIN_LIMIT
+        assert seat1_sessions[0].session_result.session_profit == 100.0
+        assert seat1_sessions[1].session_result.stop_reason == StopReason.IN_PROGRESS
+        assert seat1_sessions[1].session_result.session_profit == 50.0  # 20+10+10+10
+
+        # Seat 2: 1 completed session (rounds 0-2) + 1 in-progress (rounds 3-4)
+        seat2_sessions = result.seat_sessions[2]
+        assert len(seat2_sessions) == 2
+        assert seat2_sessions[0].session_result.stop_reason == StopReason.WIN_LIMIT
+        assert seat2_sessions[0].session_result.session_profit == 180.0  # 50+30+100
+        assert seat2_sessions[1].session_result.stop_reason == StopReason.IN_PROGRESS
+        assert seat2_sessions[1].session_result.session_profit == 50.0  # 20+30
+
+    def test_seat_replacement_on_loss_limit(self) -> None:
+        """Verify seat resets on loss limit in replacement mode."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=1),
+            starting_bankroll=200.0,
+            base_bet=25.0,
+            loss_limit=100.0,
+            table_total_rounds=5,
+        )
+        # Lose 100 in round 1, triggering reset
+        mock_table = create_mock_table([[-100.0], [10.0], [20.0], [30.0], [40.0]])
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        assert result.seat_sessions is not None
+        seat1_sessions = result.seat_sessions[1]
+
+        assert len(seat1_sessions) == 2
+        assert seat1_sessions[0].session_result.stop_reason == StopReason.LOSS_LIMIT
+        assert seat1_sessions[0].session_result.session_profit == -100.0
+
+    def test_seat_replacement_on_insufficient_funds(self) -> None:
+        """Verify seat resets on insufficient funds in replacement mode."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=1),
+            starting_bankroll=100.0,  # Just enough for 1 hand (75)
+            base_bet=25.0,
+            table_total_rounds=3,
+        )
+        # Big loss drains bankroll, triggering reset
+        mock_table = create_mock_table(
+            [[-75.0], [10.0], [20.0]]  # After -75, only 25 left < 75 required
+        )
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        assert result.seat_sessions is not None
+        seat1_sessions = result.seat_sessions[1]
+
+        assert len(seat1_sessions) == 2
+        assert (
+            seat1_sessions[0].session_result.stop_reason
+            == StopReason.INSUFFICIENT_FUNDS
+        )
+
+    def test_seat_replacement_on_max_hands(self) -> None:
+        """Verify seat resets on max_hands in replacement mode."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=1),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            max_hands=2,  # Per-session max
+            table_total_rounds=6,
+        )
+        mock_table = create_mock_table([[10.0], [20.0], [30.0], [40.0], [50.0], [60.0]])
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        assert result.seat_sessions is not None
+        seat1_sessions = result.seat_sessions[1]
+
+        # 6 rounds with max_hands=2 means 3 complete sessions
+        assert len(seat1_sessions) == 3
+
+        assert seat1_sessions[0].session_result.stop_reason == StopReason.MAX_HANDS
+        assert seat1_sessions[0].session_result.hands_played == 2
+
+        assert seat1_sessions[1].session_result.stop_reason == StopReason.MAX_HANDS
+        assert seat1_sessions[1].session_result.hands_played == 2
+
+        assert seat1_sessions[2].session_result.stop_reason == StopReason.MAX_HANDS
+        assert seat1_sessions[2].session_result.hands_played == 2
+
+    def test_seat_replacement_bankroll_resets_to_starting(self) -> None:
+        """Verify bankroll resets to starting_bankroll on seat reset."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=1),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=200.0,
+            table_total_rounds=4,
+        )
+        # Win 200, reset with fresh 1000, then lose 50
+        mock_table = create_mock_table([[200.0], [-50.0], [0.0], [0.0]])
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        assert result.seat_sessions is not None
+        seat1_sessions = result.seat_sessions[1]
+
+        assert len(seat1_sessions) == 2
+
+        # First session: ended at 1200, profit 200
+        assert seat1_sessions[0].session_result.final_bankroll == 1200.0
+        assert seat1_sessions[0].session_result.session_profit == 200.0
+        assert seat1_sessions[0].session_result.starting_bankroll == 1000.0
+
+        # Second session: started at 1000 again
+        assert seat1_sessions[1].session_result.starting_bankroll == 1000.0
+        assert seat1_sessions[1].session_result.session_profit == -50.0
+        assert seat1_sessions[1].session_result.final_bankroll == 950.0
+
+
+class TestSeatReplacementBackwardsCompatibility:
+    """Tests to ensure backwards compatibility when table_total_rounds is None."""
+
+    def test_classic_mode_single_seat_unchanged(self) -> None:
+        """Verify single-seat classic mode behaves same as before."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=1),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            max_hands=3,
+        )
+        mock_table = create_mock_table([[10.0], [20.0], [30.0]])
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        assert result.total_rounds == 3
+        assert result.stop_reason == StopReason.MAX_HANDS
+        assert result.seat_sessions is None  # Not set in classic mode
+        assert len(result.seat_results) == 1
+        assert result.seat_results[0].session_result.hands_played == 3
+
+    def test_classic_mode_multi_seat_unchanged(self) -> None:
+        """Verify multi-seat classic mode behaves same as before."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=200.0,
+            max_hands=100,
+        )
+        # Seat 1 hits win limit after 2 rounds (100+100=200)
+        # Seat 2 hits win limit after 4 rounds (50*4=200)
+        mock_table = create_mock_table(
+            [
+                [100.0, 50.0],
+                [100.0, 50.0],  # Seat 1 hits 200, stops
+                [0.0, 50.0],  # Seat 1 stopped, ignored
+                [0.0, 50.0],  # Seat 2 hits 200, stops
+            ]
+        )
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        # Classic behavior: wait for all seats
+        assert result.total_rounds == 4
+        assert result.stop_reason == StopReason.WIN_LIMIT
+        assert result.seat_sessions is None
+
+        # Seat 1 stopped at round 2, profit frozen at 200
+        assert result.seat_results[0].session_result.session_profit == 200.0
+        # Seat 2 stopped at round 4, profit 200 (50*4)
+        assert result.seat_results[1].session_result.session_profit == 200.0
+
+
+class TestSeatReplacementResultStructure:
+    """Tests for TableSessionResult structure in seat replacement mode."""
+
+    def test_seat_sessions_dict_structure(self) -> None:
+        """Verify seat_sessions dict has correct structure."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=100.0,
+            table_total_rounds=3,
+        )
+        mock_table = create_mock_table([[100.0, 50.0], [20.0, 50.0], [30.0, 0.0]])
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        assert result.seat_sessions is not None
+        assert 1 in result.seat_sessions
+        assert 2 in result.seat_sessions
+        assert isinstance(result.seat_sessions[1], list)
+        assert isinstance(result.seat_sessions[2], list)
+        assert all(isinstance(s, SeatSessionResult) for s in result.seat_sessions[1])
+
+    def test_seat_results_contains_last_session_per_seat(self) -> None:
+        """Verify seat_results contains the last/in-progress session per seat."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=1),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=100.0,
+            table_total_rounds=3,
+        )
+        # Two completed sessions + in-progress
+        mock_table = create_mock_table([[100.0], [100.0], [50.0]])
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        # seat_results should have the last (in-progress) session
+        assert len(result.seat_results) == 1
+        last_session = result.seat_results[0].session_result
+        assert last_session.stop_reason == StopReason.IN_PROGRESS
+        assert last_session.session_profit == 50.0
+
+    def test_no_in_progress_session_when_last_round_triggers_reset(self) -> None:
+        """Verify no in-progress session when the last round triggers a reset."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=1),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=100.0,
+            table_total_rounds=2,
+        )
+        # Win limit hit on last round
+        mock_table = create_mock_table(
+            [[50.0], [100.0]]  # Hits win limit exactly at end
+        )
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        assert result.seat_sessions is not None
+        seat1_sessions = result.seat_sessions[1]
+
+        # Should have completed session but no hands played after reset
+        # So no in-progress session to add
+        # Wait - after the reset, hands_played_this_session would be 0
+        # The completed session had 2 hands with profit 150
+        assert len(seat1_sessions) == 1
+        assert seat1_sessions[0].session_result.stop_reason == StopReason.WIN_LIMIT
+        assert seat1_sessions[0].session_result.session_profit == 150.0
+
+
+class TestSeatStateReset:
+    """Tests for _SeatState.reset() method."""
+
+    def test_reset_clears_bankroll(self) -> None:
+        """Verify reset creates fresh bankroll."""
+        from let_it_ride.simulation.table_session import _SeatState
+
+        state = _SeatState(1000.0, current_round=0)
+        state.bankroll.apply_result(500.0)  # Now at 1500
+
+        state.reset(current_round=5)
+
+        assert state.bankroll.balance == 1000.0
+        assert state.bankroll.session_profit == 0.0
+
+    def test_reset_clears_wagering_totals(self) -> None:
+        """Verify reset clears wagering totals."""
+        from let_it_ride.simulation.table_session import _SeatState
+
+        state = _SeatState(1000.0, current_round=0)
+        state.total_wagered = 500.0
+        state.total_bonus_wagered = 50.0
+
+        state.reset(current_round=5)
+
+        assert state.total_wagered == 0.0
+        assert state.total_bonus_wagered == 0.0
+
+    def test_reset_clears_streak(self) -> None:
+        """Verify reset clears streak."""
+        from let_it_ride.simulation.table_session import _SeatState
+
+        state = _SeatState(1000.0, current_round=0)
+        state.streak = 5
+
+        state.reset(current_round=5)
+
+        assert state.streak == 0
+
+    def test_reset_preserves_completed_sessions(self) -> None:
+        """Verify reset does not clear completed_sessions."""
+        from let_it_ride.simulation.table_session import _SeatState
+
+        state = _SeatState(1000.0, current_round=0)
+        # Simulate adding a completed session
+        state.completed_sessions.append("dummy_session")  # type: ignore[arg-type]
+
+        state.reset(current_round=5)
+
+        assert len(state.completed_sessions) == 1
+
+    def test_reset_updates_session_start_round(self) -> None:
+        """Verify reset updates session_start_round."""
+        from let_it_ride.simulation.table_session import _SeatState
+
+        state = _SeatState(1000.0, current_round=0)
+        assert state.session_start_round == 0
+
+        state.reset(current_round=10)
+
+        assert state.session_start_round == 10
+
+    def test_hands_played_this_session(self) -> None:
+        """Verify hands_played_this_session calculates correctly."""
+        from let_it_ride.simulation.table_session import _SeatState
+
+        state = _SeatState(1000.0, current_round=5)
+
+        assert state.hands_played_this_session(5) == 0
+        assert state.hands_played_this_session(7) == 2
+        assert state.hands_played_this_session(10) == 5
