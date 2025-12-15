@@ -526,6 +526,7 @@ class TestPrintConfigSummary:
         config.simulation.hands_per_session = 50
         config.simulation.random_seed = 42
         config.simulation.workers = 4
+        config.table.num_seats = 1
         config.bankroll.starting_amount = 500.0
         config.bankroll.base_bet = 10.0
         config.bankroll.betting_system.type = "flat"
@@ -554,6 +555,7 @@ class TestPrintConfigSummary:
         config.simulation.hands_per_session = 50
         config.simulation.random_seed = 42
         config.simulation.workers = 4
+        config.table.num_seats = 1
         config.bankroll.starting_amount = 500.0
         config.bankroll.base_bet = 10.0
         config.bankroll.betting_system.type = "flat"
@@ -573,6 +575,7 @@ class TestPrintConfigSummary:
         config.simulation.hands_per_session = 50
         config.simulation.random_seed = None
         config.simulation.workers = 4
+        config.table.num_seats = 1
         config.bankroll.starting_amount = 500.0
         config.bankroll.base_bet = 10.0
         config.bankroll.betting_system.type = "flat"

@@ -1,0 +1,114 @@
+# =============================================================================
+# Multi-Seat Table Configuration Example
+# =============================================================================
+# Demonstrates multi-player table simulation where all seats share community
+# cards. This configuration runs a 6-seat table to analyze outcome correlation
+# across positions.
+#
+# In Let It Ride, table position has no strategic impact because:
+# - All players share the same community cards
+# - Players don't see each other's hole cards
+# - There's no player-vs-player competition
+#
+# However, multi-seat simulation is useful for:
+# - Analyzing outcome correlation (all seats benefit/suffer from same community)
+# - Understanding aggregate table win/loss patterns
+# - Simulating realistic casino table dynamics
+# =============================================================================
+
+metadata:
+  name: "Multi-Seat Table Example"
+  description: "6-seat table simulation to analyze outcome correlation"
+  version: "1.0"
+
+# -----------------------------------------------------------------------------
+# Simulation Parameters
+# -----------------------------------------------------------------------------
+simulation:
+  num_sessions: 10000
+  hands_per_session: 200
+  random_seed: 42
+  workers: "auto"
+  progress_interval: 1000
+
+# -----------------------------------------------------------------------------
+# Table Configuration
+# -----------------------------------------------------------------------------
+# A standard Let It Ride table accommodates 1-6 players.
+# All seats share the same community cards and use the same strategy.
+table:
+  num_seats: 6
+
+# -----------------------------------------------------------------------------
+# Deck Configuration
+# -----------------------------------------------------------------------------
+deck:
+  shuffle_algorithm: "fisher_yates"
+
+# -----------------------------------------------------------------------------
+# Bankroll Configuration
+# -----------------------------------------------------------------------------
+# Each seat starts with the same bankroll and follows the same stop conditions.
+bankroll:
+  starting_amount: 500.00
+  base_bet: 5.00
+
+  stop_conditions:
+    win_limit: 250.00
+    loss_limit: 200.00
+    max_hands: 200
+    stop_on_insufficient_funds: true
+
+  betting_system:
+    type: "flat"
+
+# -----------------------------------------------------------------------------
+# Strategy Configuration
+# -----------------------------------------------------------------------------
+# All seats use the same strategy for decision making.
+strategy:
+  type: "basic"
+
+# -----------------------------------------------------------------------------
+# Bonus Strategy Configuration
+# -----------------------------------------------------------------------------
+bonus_strategy:
+  enabled: false
+  type: "never"
+
+# -----------------------------------------------------------------------------
+# Paytables
+# -----------------------------------------------------------------------------
+paytables:
+  main_game:
+    type: "standard"
+  bonus:
+    type: "paytable_b"
+
+# -----------------------------------------------------------------------------
+# Output Configuration
+# -----------------------------------------------------------------------------
+output:
+  directory: "./results/multi_seat"
+  prefix: "multi_seat"
+
+  formats:
+    csv:
+      enabled: true
+      include_hands: false
+      include_sessions: true
+      include_aggregate: true
+    json:
+      enabled: true
+      pretty: true
+      include_config: true
+    html:
+      enabled: false
+
+  visualizations:
+    enabled: false
+
+  console:
+    progress_bar: true
+    verbosity: 1
+    show_summary: true

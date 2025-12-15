@@ -29,10 +29,13 @@ from let_it_ride.bankroll import (
 )
 from let_it_ride.core.deck import Deck
 from let_it_ride.core.game_engine import GameEngine, GameHandResult
+from let_it_ride.core.table import Table
 from let_it_ride.simulation.rng import RNGManager
 from let_it_ride.simulation.session import Session, SessionResult
+from let_it_ride.simulation.table_session import TableSession
 from let_it_ride.simulation.utils import (
     calculate_bonus_bet,
+    create_table_session_config,
     get_bonus_paytable,
     get_main_paytable,
 )
@@ -383,6 +386,7 @@ class SimulationController:
         """
         start_time = datetime.now()
         num_sessions = self._config.simulation.num_sessions
+        num_seats = self._config.table.num_seats
         session_results: list[SessionResult] = []
 
         # Create immutable components once and reuse across sessions
@@ -401,22 +405,40 @@ class SimulationController:
         rng_manager = RNGManager(base_seed=self._base_seed)
         session_seeds = rng_manager.create_session_seeds(num_sessions)
 
+        # Use multi-seat table session when num_seats > 1
+        use_table_session = num_seats > 1
+
         for session_id in range(num_sessions):
             # Use pre-generated session seed for reproducibility
             session_seed = session_seeds[session_id]
             session_rng = random.Random(session_seed)
 
-            session = self._create_session(
-                session_id,
-                session_rng,
-                strategy,
-                main_paytable,
-                bonus_paytable,
-                betting_system_factory,
-                bonus_strategy_factory,
-            )
-            result = self._run_session(session)
-            session_results.append(result)
+            if use_table_session:
+                # Multi-seat: use TableSession
+                table_session = self._create_table_session(
+                    session_rng,
+                    strategy,
+                    main_paytable,
+                    bonus_paytable,
+                    betting_system_factory,
+                )
+                table_result = table_session.run_to_completion()
+                # Extract per-seat SessionResults and add to results
+                for seat_result in table_result.seat_results:
+                    session_results.append(seat_result.session_result)
+            else:
+                # Single-seat: use Session for efficiency
+                session = self._create_session(
+                    session_id,
+                    session_rng,
+                    strategy,
+                    main_paytable,
+                    bonus_paytable,
+                    betting_system_factory,
+                    bonus_strategy_factory,
+                )
+                result = self._run_session(session)
+                session_results.append(result)
 
             if self._progress_callback is not None:
                 self._progress_callback(session_id + 1, num_sessions)
@@ -500,6 +522,51 @@ class SimulationController:
             betting_system,
             bonus_strategy=bonus_strategy,
             hand_callback=session_hand_callback,
+        )
+
+    def _create_table_session(
+        self,
+        rng: random.Random,
+        strategy: Strategy,
+        main_paytable: MainGamePaytable,
+        bonus_paytable: BonusPaytable | None,
+        betting_system_factory: Callable[[], BettingSystem],
+    ) -> TableSession:
+        """Create a new multi-seat table session with fresh state.
+
+        Args:
+            rng: Random number generator for this session.
+            strategy: Strategy instance (reused across sessions).
+            main_paytable: Main game paytable (reused across sessions).
+            bonus_paytable: Bonus paytable or None (reused across sessions).
+            betting_system_factory: Factory to create fresh betting system per session.
+
+        Returns:
+            A new TableSession instance ready to run.
+        """
+        bonus_bet = calculate_bonus_bet(self._config)
+        table_session_config = create_table_session_config(self._config, bonus_bet)
+
+        # Create game components - Deck must be fresh per session
+        deck = Deck()
+
+        table = Table(
+            deck=deck,
+            strategy=strategy,
+            main_paytable=main_paytable,
+            bonus_paytable=bonus_paytable,
+            rng=rng,
+            table_config=self._config.table,
+            dealer_config=self._config.dealer,
+        )
+
+        # Betting system needs fresh state per session
+        betting_system = betting_system_factory()
+
+        return TableSession(
+            config=table_session_config,
+            table=table,
+            betting_system=betting_system,
         )
 
     def _run_session(self, session: Session) -> SessionResult:

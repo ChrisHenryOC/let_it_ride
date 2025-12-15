@@ -1121,6 +1121,7 @@ class FullConfig(BaseModel):
     Attributes:
         metadata: Optional metadata about the configuration.
         simulation: Simulation run parameters.
+        table: Table settings (num_seats for multi-player).
         deck: Deck handling configuration.
         dealer: Dealer card handling configuration.
         bankroll: Bankroll management configuration.
@@ -1134,6 +1135,7 @@ class FullConfig(BaseModel):
 
     metadata: MetadataConfig = Field(default_factory=MetadataConfig)
     simulation: SimulationConfig = Field(default_factory=SimulationConfig)
+    table: TableConfig = Field(default_factory=TableConfig)
     deck: DeckConfig = Field(default_factory=DeckConfig)
     dealer: DealerConfig = Field(default_factory=DealerConfig)
     bankroll: BankrollConfig = Field(default_factory=BankrollConfig)

@@ -28,6 +28,7 @@ from let_it_ride.config.models import (
     StaticBonusConfig,
     StopConditionsConfig,
     StrategyConfig,
+    TableConfig,
 )
 
 
@@ -871,3 +872,59 @@ class TestProfitTierValidation:
         tier = ProfitTier(min_profit=-100.0, max_profit=0.0, bet_amount=1.0)
         assert tier.min_profit == -100.0
         assert tier.max_profit == 0.0
+
+
+class TestTableConfig:
+    """Tests for TableConfig model."""
+
+    def test_default_value(self) -> None:
+        """Test default num_seats is 1."""
+        config = TableConfig()
+        assert config.num_seats == 1
+
+    def test_valid_seat_counts(self) -> None:
+        """Test all valid seat counts (1-6)."""
+        for num_seats in range(1, 7):
+            config = TableConfig(num_seats=num_seats)
+            assert config.num_seats == num_seats
+
+    def test_num_seats_below_min(self) -> None:
+        """Test num_seats below 1 raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            TableConfig(num_seats=0)
+        assert "greater than or equal to 1" in str(exc_info.value)
+
+    def test_num_seats_above_max(self) -> None:
+        """Test num_seats above 6 raises error."""
+        with pytest.raises(ValidationError) as exc_info:
+            TableConfig(num_seats=7)
+        assert "less than or equal to 6" in str(exc_info.value)
+
+
+class TestFullConfigWithTable:
+    """Tests for FullConfig with table configuration."""
+
+    def test_default_table_config(self) -> None:
+        """Test that default FullConfig has table with num_seats=1."""
+        config = FullConfig()
+        assert config.table is not None
+        assert config.table.num_seats == 1
+
+    def test_multi_seat_table_config(self) -> None:
+        """Test FullConfig with multi-seat table."""
+        config = FullConfig(table=TableConfig(num_seats=6))
+        assert config.table.num_seats == 6
+
+    def test_table_config_from_dict(self) -> None:
+        """Test creating FullConfig with table section from dict."""
+        config = FullConfig(table={"num_seats": 4})
+        assert config.table.num_seats == 4
+
+    def test_full_config_with_table_and_simulation(self) -> None:
+        """Test FullConfig combines table and simulation settings."""
+        config = FullConfig(
+            table=TableConfig(num_seats=6),
+            simulation=SimulationConfig(num_sessions=1000),
+        )
+        assert config.table.num_seats == 6
+        assert config.simulation.num_sessions == 1000
