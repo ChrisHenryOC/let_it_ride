@@ -211,3 +211,6 @@ __marimo__/
 
 # Claude Code metrics (local to user)
 .claude/metrics/
+
+# results folder
+/results/

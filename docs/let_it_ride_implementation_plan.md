@@ -1339,6 +1339,47 @@ Profile and optimize to meet performance targets (100k hands/second).
 
 ---
 
+### LIR-56: Table Configuration Integration with CLI
+
+**Labels:** `cli`, `config`, `priority-medium`
+
+**Description:**
+Add `table` configuration section to `FullConfig` and integrate `TableSession` with the CLI so users can run multi-seat simulations via YAML configuration.
+
+**Background:**
+The `TableConfig` and `TableSession` classes exist (LIR-42, LIR-43), but the configuration loader and CLI don't yet support the `table` section in YAML files.
+
+**Acceptance Criteria:**
+- [ ] Add `table: TableConfig` field to `FullConfig` (defaults to `num_seats=1`)
+- [ ] Update CLI `run` command to use `TableSession` when `num_seats > 1`
+- [ ] Maintain backwards compatibility (single-seat behavior unchanged)
+- [ ] Update `validate` command to show table configuration
+- [ ] Results output includes per-seat breakdown for multi-seat runs
+- [ ] Sample configuration files demonstrating multi-seat setup
+- [ ] Unit tests for config loading with table section
+- [ ] Integration tests for multi-seat CLI runs
+- [ ] Documentation updates in /docs folder as well as /README.md and /CLAUDE.md as needed
+
+**Example Configuration:**
+```yaml
+table:
+  num_seats: 6  # 1-6 players sharing community cards
+```
+
+**Dependencies:** LIR-42, LIR-43, LIR-31
+
+**Files to Modify:**
+- `src/let_it_ride/config/models.py` - Add `table` to `FullConfig`
+- `src/let_it_ride/cli.py` - Use `TableSession` when appropriate
+- `src/let_it_ride/simulation/controller.py` - Support `TableSession` in parallel execution
+
+**Files to Create:**
+- `configs/multi_seat_example.yaml` - Sample multi-seat configuration
+
+**Estimated Scope:** ~200 lines
+
+---
+
 ## Phase 7: Advanced Features (LIR-36 through LIR-40)
 
 ### ~~LIR-36: Composition-Dependent Strategy~~ [CANCELLED]
