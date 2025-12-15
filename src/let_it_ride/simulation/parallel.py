@@ -29,7 +29,7 @@ from let_it_ride.simulation.controller import (
 )
 from let_it_ride.simulation.rng import RNGManager
 from let_it_ride.simulation.session import Session, SessionConfig, SessionResult
-from let_it_ride.simulation.table_session import TableSession
+from let_it_ride.simulation.table_session import TableSession, TableSessionConfig
 from let_it_ride.simulation.utils import (
     calculate_bonus_bet,
     create_session_config,
@@ -138,6 +138,7 @@ def _run_single_table_session(
     main_paytable: MainGamePaytable,
     bonus_paytable: BonusPaytable | None,
     betting_system_factory: Callable[[], BettingSystem],
+    table_session_config: TableSessionConfig,
 ) -> list[SessionResult]:
     """Run a single multi-seat table session with the given seed.
 
@@ -148,14 +149,13 @@ def _run_single_table_session(
         main_paytable: Main game paytable.
         bonus_paytable: Bonus paytable (or None).
         betting_system_factory: Factory to create fresh betting system.
+        table_session_config: Pre-computed config (constant across all sessions).
 
     Returns:
         List of SessionResult, one per seat.
     """
     session_rng = random.Random(seed)
     deck = Deck()
-    bonus_bet = calculate_bonus_bet(config)
-    table_session_config = create_table_session_config(config, bonus_bet)
 
     table = Table(
         deck=deck,
@@ -210,10 +210,16 @@ def run_worker_sessions(task: WorkerTask) -> WorkerResult:
         num_seats = task.config.table.num_seats
         use_table_session = num_seats > 1
 
+        # Pre-compute table session config (constant for all sessions in worker)
+        table_session_config: TableSessionConfig | None = None
+        if use_table_session:
+            table_session_config = create_table_session_config(task.config, bonus_bet)
+
         for session_id in task.session_ids:
             seed = task.session_seeds[session_id]
 
             if use_table_session:
+                assert table_session_config is not None
                 # Multi-seat: run TableSession and collect per-seat results
                 seat_results = _run_single_table_session(
                     seed=seed,
@@ -222,10 +228,16 @@ def run_worker_sessions(task: WorkerTask) -> WorkerResult:
                     main_paytable=main_paytable,
                     bonus_paytable=bonus_paytable,
                     betting_system_factory=betting_system_factory,
+                    table_session_config=table_session_config,
                 )
-                # Add each seat's result with a unique ID
+                # Add each seat's result with a unique composite ID
+                # Composite ID scheme: session_id * num_seats + seat_idx
+                # This guarantees unique IDs and maintains ordering:
+                # - Session 0: IDs 0, 1, ..., num_seats-1
+                # - Session 1: IDs num_seats, num_seats+1, ..., 2*num_seats-1
+                # - etc.
+                # Total results = num_sessions * num_seats
                 for seat_idx, seat_result in enumerate(seat_results):
-                    # Use composite ID: session_id * num_seats + seat_idx
                     composite_id = session_id * num_seats + seat_idx
                     results.append((composite_id, seat_result))
             else:

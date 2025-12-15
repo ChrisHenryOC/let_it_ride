@@ -77,6 +77,18 @@ Includes commented examples for multiple betting systems:
 - D'Alembert (linear progression)
 - Fibonacci sequence
 
+### multi_seat_example.yaml
+
+**Purpose:** Demonstrate multi-seat table simulation
+
+- **Strategy:** Basic
+- **Betting:** Flat betting
+- **Table:** 4 seats (multi-player simulation)
+- **Bonus:** Static $5 bonus bet
+- **Use case:** Simulate multiple players at the same table sharing community cards
+
+Multi-seat simulations share community cards among all seats while each seat has independent bankroll tracking. Useful for analyzing how shared cards affect outcomes across multiple players.
+
 ### sample_config.yaml
 
 **Purpose:** Reference showing all available configuration options
@@ -102,6 +114,7 @@ See `sample_config.yaml` for complete documentation of all options, or refer to 
 |---------|-------------|
 | `metadata` | Optional name, description, version |
 | `simulation` | Sessions, hands per session, seed, workers |
+| `table` | Multi-seat configuration (num_seats 1-6) |
 | `deck` | Shuffle algorithm (fisher_yates, cryptographic) |
 | `bankroll` | Starting amount, base bet, stop conditions, betting system |
 | `strategy` | Main game strategy (basic, conservative, aggressive, custom) |

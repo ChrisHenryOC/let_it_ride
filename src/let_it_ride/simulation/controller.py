@@ -32,7 +32,7 @@ from let_it_ride.core.game_engine import GameEngine, GameHandResult
 from let_it_ride.core.table import Table
 from let_it_ride.simulation.rng import RNGManager
 from let_it_ride.simulation.session import Session, SessionResult
-from let_it_ride.simulation.table_session import TableSession
+from let_it_ride.simulation.table_session import TableSession, TableSessionConfig
 from let_it_ride.simulation.utils import (
     calculate_bonus_bet,
     create_table_session_config,
@@ -408,12 +408,19 @@ class SimulationController:
         # Use multi-seat table session when num_seats > 1
         use_table_session = num_seats > 1
 
+        # Pre-compute table session config (constant across all sessions)
+        table_session_config: TableSessionConfig | None = None
+        if use_table_session:
+            bonus_bet = calculate_bonus_bet(self._config)
+            table_session_config = create_table_session_config(self._config, bonus_bet)
+
         for session_id in range(num_sessions):
             # Use pre-generated session seed for reproducibility
             session_seed = session_seeds[session_id]
             session_rng = random.Random(session_seed)
 
             if use_table_session:
+                assert table_session_config is not None
                 # Multi-seat: use TableSession
                 table_session = self._create_table_session(
                     session_rng,
@@ -421,9 +428,13 @@ class SimulationController:
                     main_paytable,
                     bonus_paytable,
                     betting_system_factory,
+                    table_session_config,
                 )
                 table_result = table_session.run_to_completion()
                 # Extract per-seat SessionResults and add to results
+                # Sequential processing maintains natural ordering: session 0 seats
+                # first, then session 1 seats, etc. This matches the composite ID
+                # scheme used in parallel.py (session_id * num_seats + seat_idx)
                 for seat_result in table_result.seat_results:
                     session_results.append(seat_result.session_result)
             else:
@@ -531,6 +542,7 @@ class SimulationController:
         main_paytable: MainGamePaytable,
         bonus_paytable: BonusPaytable | None,
         betting_system_factory: Callable[[], BettingSystem],
+        table_session_config: TableSessionConfig,
     ) -> TableSession:
         """Create a new multi-seat table session with fresh state.
 
@@ -540,12 +552,11 @@ class SimulationController:
             main_paytable: Main game paytable (reused across sessions).
             bonus_paytable: Bonus paytable or None (reused across sessions).
             betting_system_factory: Factory to create fresh betting system per session.
+            table_session_config: Pre-computed config (constant across all sessions).
 
         Returns:
             A new TableSession instance ready to run.
         """
-        bonus_bet = calculate_bonus_bet(self._config)
-        table_session_config = create_table_session_config(self._config, bonus_bet)
 
         # Create game components - Deck must be fresh per session
         deck = Deck()

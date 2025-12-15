@@ -34,6 +34,7 @@ from let_it_ride.config.models import (
     PaytablesConfig,
     ProportionalBettingConfig,
     ReverseMartingaleBettingConfig,
+    SimulationConfig,
     StopConditionsConfig,
     StrategyConfig,
     StrategyRule,
@@ -53,7 +54,9 @@ from let_it_ride.simulation.controller import (
     create_betting_system,
     create_strategy,
 )
+from let_it_ride.simulation.table_session import TableSessionConfig
 from let_it_ride.simulation.utils import (
+    create_table_session_config,
     get_bonus_paytable,
     get_main_paytable,
 )
@@ -816,3 +819,128 @@ class TestGetBonusPaytable:
             match="Unknown bonus paytable type: 'custom'",
         ):
             get_bonus_paytable(config)
+
+
+class TestCreateTableSessionConfig:
+    """Tests for create_table_session_config() factory function."""
+
+    def test_basic_field_mapping(self) -> None:
+        """Test all fields are correctly mapped from FullConfig."""
+        config = FullConfig(
+            simulation=SimulationConfig(hands_per_session=100),
+            table={"num_seats": 4},
+            bankroll=BankrollConfig(
+                starting_amount=1000.0,
+                base_bet=10.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=200.0,
+                    loss_limit=300.0,
+                    stop_on_insufficient_funds=True,
+                ),
+            ),
+        )
+        bonus_bet = 5.0
+
+        result = create_table_session_config(config, bonus_bet)
+
+        assert isinstance(result, TableSessionConfig)
+        assert result.table_config.num_seats == 4
+        assert result.starting_bankroll == 1000.0
+        assert result.base_bet == 10.0
+        assert result.win_limit == 200.0
+        assert result.loss_limit == 300.0
+        assert result.max_hands == 100
+        assert result.stop_on_insufficient_funds is True
+        assert result.bonus_bet == 5.0
+
+    def test_with_zero_bonus_bet(self) -> None:
+        """Test with bonus_bet=0.0 (bonus disabled)."""
+        config = FullConfig()
+        result = create_table_session_config(config, bonus_bet=0.0)
+        assert result.bonus_bet == 0.0
+
+    def test_with_positive_bonus_bet(self) -> None:
+        """Test with positive bonus bet amounts."""
+        config = FullConfig()
+
+        for bonus in [1.0, 5.0, 10.0, 25.0]:
+            result = create_table_session_config(config, bonus_bet=bonus)
+            assert result.bonus_bet == bonus
+
+    def test_with_none_win_limit(self) -> None:
+        """Test with win_limit=None (no win limit)."""
+        config = FullConfig(
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=None,
+                    loss_limit=200.0,
+                ),
+            ),
+        )
+        result = create_table_session_config(config, bonus_bet=0.0)
+        assert result.win_limit is None
+        assert result.loss_limit == 200.0
+
+    def test_with_none_loss_limit(self) -> None:
+        """Test with loss_limit=None (no loss limit)."""
+        config = FullConfig(
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=None,
+                ),
+            ),
+        )
+        result = create_table_session_config(config, bonus_bet=0.0)
+        assert result.win_limit == 100.0
+        assert result.loss_limit is None
+
+    def test_with_both_limits_none(self) -> None:
+        """Test with both win_limit and loss_limit as None."""
+        config = FullConfig(
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=None,
+                    loss_limit=None,
+                ),
+            ),
+        )
+        result = create_table_session_config(config, bonus_bet=0.0)
+        assert result.win_limit is None
+        assert result.loss_limit is None
+
+    def test_with_various_seat_counts(self) -> None:
+        """Test with different num_seats values (1-6)."""
+        for num_seats in range(1, 7):
+            config = FullConfig(table={"num_seats": num_seats})
+            result = create_table_session_config(config, bonus_bet=0.0)
+            assert result.table_config.num_seats == num_seats
+
+    def test_stop_on_insufficient_funds_false(self) -> None:
+        """Test with stop_on_insufficient_funds=False."""
+        config = FullConfig(
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    stop_on_insufficient_funds=False,
+                ),
+            ),
+        )
+        result = create_table_session_config(config, bonus_bet=0.0)
+        assert result.stop_on_insufficient_funds is False
+
+    def test_max_hands_from_simulation_config(self) -> None:
+        """Test that max_hands comes from simulation.hands_per_session."""
+        for hands in [50, 100, 500, 1000]:
+            config = FullConfig(
+                simulation=SimulationConfig(hands_per_session=hands),
+            )
+            result = create_table_session_config(config, bonus_bet=0.0)
+            assert result.max_hands == hands
