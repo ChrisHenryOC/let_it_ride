@@ -1762,3 +1762,83 @@ class TestSeatStateReset:
         assert state.hands_played_this_session(5) == 0
         assert state.hands_played_this_session(7) == 2
         assert state.hands_played_this_session(10) == 5
+
+
+class TestSeatReplacementConcurrentStopConditions:
+    """Tests for concurrent stop condition triggers in seat replacement mode."""
+
+    def test_multiple_seats_hit_stop_condition_same_round(self) -> None:
+        """Verify multiple seats can reset in the same round."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=3),
+            starting_bankroll=1000.0,
+            base_bet=25.0,
+            win_limit=100.0,
+            table_total_rounds=4,
+        )
+        # All 3 seats hit win limit simultaneously in round 0
+        mock_table = create_mock_table(
+            [
+                [100.0, 100.0, 100.0],  # All hit win limit, all reset
+                [10.0, 20.0, 30.0],  # New sessions
+                [40.0, 50.0, 60.0],  # Continue
+                [5.0, 5.0, 5.0],  # Continue
+            ]
+        )
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        assert result.seat_sessions is not None
+
+        # All seats should have completed session from round 0 + in-progress
+        for seat_num in [1, 2, 3]:
+            sessions = result.seat_sessions[seat_num]
+            assert len(sessions) == 2  # 1 completed + 1 in-progress
+            assert sessions[0].session_result.stop_reason == StopReason.WIN_LIMIT
+            assert sessions[0].session_result.hands_played == 1
+            assert sessions[0].session_result.session_profit == 100.0
+            assert sessions[1].session_result.stop_reason == StopReason.IN_PROGRESS
+
+        # Verify in-progress profits
+        assert result.seat_sessions[1][1].session_result.session_profit == 55.0  # 10+40+5
+        assert result.seat_sessions[2][1].session_result.session_profit == 75.0  # 20+50+5
+        assert result.seat_sessions[3][1].session_result.session_profit == 95.0  # 30+60+5
+
+    def test_mixed_stop_conditions_same_round(self) -> None:
+        """Verify different stop conditions can trigger for different seats in same round."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=200.0,
+            base_bet=25.0,
+            win_limit=100.0,
+            loss_limit=100.0,
+            table_total_rounds=3,
+        )
+        # Round 0: Seat 1 hits win, Seat 2 hits loss
+        mock_table = create_mock_table(
+            [
+                [100.0, -100.0],  # Seat 1 win_limit, Seat 2 loss_limit
+                [10.0, 10.0],  # New sessions
+                [20.0, 20.0],  # Continue
+            ]
+        )
+        betting_system = FlatBetting(25.0)
+
+        session = TableSession(config, mock_table, betting_system)
+        result = session.run_to_completion()
+
+        assert result.seat_sessions is not None
+
+        # Seat 1: hit win limit
+        seat1_sessions = result.seat_sessions[1]
+        assert seat1_sessions[0].session_result.stop_reason == StopReason.WIN_LIMIT
+
+        # Seat 2: hit loss limit
+        seat2_sessions = result.seat_sessions[2]
+        assert seat2_sessions[0].session_result.stop_reason == StopReason.LOSS_LIMIT
+
+        # Both have in-progress sessions
+        assert seat1_sessions[1].session_result.stop_reason == StopReason.IN_PROGRESS
+        assert seat2_sessions[1].session_result.stop_reason == StopReason.IN_PROGRESS

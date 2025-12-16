@@ -228,6 +228,7 @@ class TableSession:
         "_seat_states",
         "_rounds_played",
         "_stop_reason",
+        "_seat_replacement_mode",
     )
 
     def __init__(
@@ -249,6 +250,8 @@ class TableSession:
         self._betting_system = betting_system
         self._rounds_played = 0
         self._stop_reason: StopReason | None = None
+        # Cache seat replacement mode check for performance
+        self._seat_replacement_mode = config.table_total_rounds is not None
 
         # Initialize per-seat states
         num_seats = config.table_config.num_seats
@@ -273,7 +276,7 @@ class TableSession:
     @property
     def seat_replacement_mode(self) -> bool:
         """Return True if seat replacement mode is enabled."""
-        return self._config.table_total_rounds is not None
+        return self._seat_replacement_mode
 
     def _minimum_bet_required(self) -> float:
         """Return the minimum amount needed to play a round.
@@ -455,12 +458,6 @@ class TableSession:
         if self._stop_reason is not None:
             raise RuntimeError("Cannot play round: session is already complete")
 
-        # In seat replacement mode, check stop conditions before playing
-        # This handles seats that just completed a session
-        if self.seat_replacement_mode:
-            for seat_idx in range(len(self._seat_states)):
-                self._check_seat_stop_condition(seat_idx)
-
         # Get bet amount from betting system using first active seat's context
         # (all seats share the same betting system state)
         first_active_seat = next(
@@ -577,8 +574,8 @@ class TableSession:
         for idx, seat_state in enumerate(self._seat_states):
             seat_number = idx + 1
 
-            # Start with completed sessions
-            sessions = list(seat_state.completed_sessions)
+            # Start with completed sessions (shallow copy via slice)
+            sessions = seat_state.completed_sessions[:]
 
             # Add in-progress session if any hands were played
             if seat_state.hands_played_this_session(self._rounds_played) > 0:
@@ -590,8 +587,10 @@ class TableSession:
             seat_sessions[seat_number] = sessions
 
         # For backwards compatibility, seat_results contains the last session per seat
+        # Use explicit seat number ordering for deterministic iteration
         seat_results: list[SeatSessionResult] = []
-        for sessions in seat_sessions.values():
+        for seat_number in sorted(seat_sessions.keys()):
+            sessions = seat_sessions[seat_number]
             if sessions:
                 seat_results.append(sessions[-1])
 
