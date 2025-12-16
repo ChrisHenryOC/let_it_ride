@@ -19,6 +19,16 @@ class BankrollTracker:
         ~80MB. Enable only when visualization features (LIR-30) are needed.
     """
 
+    __slots__ = (
+        "_starting",
+        "_balance",
+        "_peak",
+        "_max_drawdown",
+        "_peak_at_max_drawdown",
+        "_track_history",
+        "_history",
+    )
+
     def __init__(self, starting_amount: float, *, track_history: bool = False) -> None:
         """Initialize the bankroll tracker.
 
@@ -164,6 +174,12 @@ class BankrollTracker:
 
         This is more efficient than creating a new BankrollTracker object
         as it reuses the existing object and avoids allocation overhead.
+
+        Note:
+            The ``track_history`` setting is preserved across resets.
+            The history list is cleared but retains its allocated capacity
+            (Python list.clear() behavior), which can be beneficial for
+            subsequent sessions of similar length.
 
         Args:
             starting_amount: New starting amount. If None, uses the original

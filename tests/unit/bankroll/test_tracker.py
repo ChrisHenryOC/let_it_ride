@@ -550,3 +550,35 @@ class TestReset:
         assert tracker.session_profit == 50.0
         assert tracker.peak_balance == 1100.0
         assert tracker.max_drawdown == 50.0
+
+    def test_reset_with_zero_starting_amount(self) -> None:
+        """Verify reset works with zero starting amount (edge case)."""
+        tracker = BankrollTracker(1000.0)
+        tracker.apply_result(500.0)
+
+        tracker.reset(0.0)
+
+        assert tracker.balance == 0.0
+        assert tracker.starting_balance == 0.0
+        assert tracker.session_profit == 0.0
+        assert tracker.peak_balance == 0.0
+
+    def test_multiple_consecutive_resets(self) -> None:
+        """Verify tracker handles multiple consecutive resets correctly."""
+        tracker = BankrollTracker(1000.0)
+
+        # First session
+        tracker.apply_result(200.0)
+        tracker.reset(500.0)
+
+        # Second session
+        tracker.apply_result(-100.0)
+        tracker.reset(2000.0)
+
+        # Third session
+        tracker.apply_result(50.0)
+
+        assert tracker.balance == 2050.0
+        assert tracker.starting_balance == 2000.0
+        assert tracker.session_profit == 50.0
+        assert tracker.peak_balance == 2050.0
