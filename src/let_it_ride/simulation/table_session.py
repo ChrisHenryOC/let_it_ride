@@ -189,10 +189,13 @@ class _SeatState:
         Clears all state and starts fresh with the original starting bankroll.
         Does NOT clear completed_sessions - that persists across resets.
 
+        Uses BankrollTracker.reset() instead of creating a new object to
+        reduce allocation pressure in high-churn scenarios.
+
         Args:
             current_round: The round number when the new session starts.
         """
-        self.bankroll = BankrollTracker(self._starting_bankroll)
+        self.bankroll.reset(self._starting_bankroll)
         self.total_wagered = 0.0
         self.total_bonus_wagered = 0.0
         self.last_result = None

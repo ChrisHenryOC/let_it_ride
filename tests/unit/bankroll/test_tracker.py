@@ -439,3 +439,114 @@ class TestDrawdownScenarios:
         assert tracker.peak_balance == 100.0
         assert tracker.max_drawdown == 50.0
         assert tracker.max_drawdown_pct == 50.0
+
+
+class TestReset:
+    """Tests for reset() method."""
+
+    def test_reset_restores_initial_balance(self) -> None:
+        """Verify reset restores balance to starting amount."""
+        tracker = BankrollTracker(1000.0)
+        tracker.apply_result(500.0)
+        tracker.apply_result(-200.0)
+
+        tracker.reset()
+
+        assert tracker.balance == 1000.0
+        assert tracker.starting_balance == 1000.0
+
+    def test_reset_clears_session_profit(self) -> None:
+        """Verify reset clears session profit."""
+        tracker = BankrollTracker(1000.0)
+        tracker.apply_result(300.0)
+
+        tracker.reset()
+
+        assert tracker.session_profit == 0.0
+
+    def test_reset_clears_peak(self) -> None:
+        """Verify reset clears peak balance."""
+        tracker = BankrollTracker(1000.0)
+        tracker.apply_result(500.0)  # Peak = 1500
+
+        tracker.reset()
+
+        assert tracker.peak_balance == 1000.0
+
+    def test_reset_clears_drawdown(self) -> None:
+        """Verify reset clears max drawdown."""
+        tracker = BankrollTracker(1000.0)
+        tracker.apply_result(-200.0)  # max_drawdown = 200
+
+        tracker.reset()
+
+        assert tracker.max_drawdown == 0.0
+        assert tracker.max_drawdown_pct == 0.0
+        assert tracker.current_drawdown == 0.0
+
+    def test_reset_clears_history(self) -> None:
+        """Verify reset clears history."""
+        tracker = BankrollTracker(1000.0, track_history=True)
+        tracker.apply_result(100.0)
+        tracker.apply_result(-50.0)
+
+        tracker.reset()
+
+        assert tracker.history_length == 0
+        assert tracker.history == []
+
+    def test_reset_preserves_history_tracking_setting(self) -> None:
+        """Verify reset preserves the track_history setting."""
+        tracker = BankrollTracker(1000.0, track_history=True)
+        tracker.reset()
+        tracker.apply_result(100.0)
+
+        assert tracker.is_tracking_history is True
+        assert tracker.history_length == 1
+
+    def test_reset_with_new_starting_amount(self) -> None:
+        """Verify reset can change the starting amount."""
+        tracker = BankrollTracker(1000.0)
+        tracker.apply_result(500.0)
+
+        tracker.reset(2000.0)
+
+        assert tracker.balance == 2000.0
+        assert tracker.starting_balance == 2000.0
+        assert tracker.peak_balance == 2000.0
+
+    def test_reset_with_none_uses_original_starting(self) -> None:
+        """Verify reset with None uses original starting amount."""
+        tracker = BankrollTracker(1000.0)
+        tracker.apply_result(500.0)
+
+        tracker.reset(None)
+
+        assert tracker.balance == 1000.0
+        assert tracker.starting_balance == 1000.0
+
+    def test_reset_with_negative_amount_raises(self) -> None:
+        """Verify reset with negative starting amount raises ValueError."""
+        tracker = BankrollTracker(1000.0)
+
+        with pytest.raises(ValueError) as exc_info:
+            tracker.reset(-500.0)
+
+        assert "Starting amount cannot be negative" in str(exc_info.value)
+
+    def test_reset_allows_tracking_after_reset(self) -> None:
+        """Verify tracker works correctly after reset."""
+        tracker = BankrollTracker(1000.0)
+        tracker.apply_result(500.0)
+        tracker.apply_result(-200.0)
+
+        tracker.reset()
+
+        # Apply new transactions
+        tracker.apply_result(100.0)
+        tracker.apply_result(-50.0)
+
+        assert tracker.balance == 1050.0
+        assert tracker.session_profit == 50.0
+        assert tracker.peak_balance == 1100.0
+        assert tracker.max_drawdown == 50.0

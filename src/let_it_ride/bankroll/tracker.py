@@ -159,6 +159,30 @@ class BankrollTracker:
             return []
         return self._history[-n:]
 
+    def reset(self, starting_amount: float | None = None) -> None:
+        """Reset the tracker to initial state for a new session.
+
+        This is more efficient than creating a new BankrollTracker object
+        as it reuses the existing object and avoids allocation overhead.
+
+        Args:
+            starting_amount: New starting amount. If None, uses the original
+                starting amount from initialization.
+
+        Raises:
+            ValueError: If starting_amount is negative.
+        """
+        if starting_amount is not None:
+            if starting_amount < 0:
+                raise ValueError("Starting amount cannot be negative")
+            self._starting = starting_amount
+
+        self._balance = self._starting
+        self._peak = self._starting
+        self._max_drawdown = 0.0
+        self._peak_at_max_drawdown = self._starting
+        self._history.clear()
+
     def __repr__(self) -> str:
         """Return a string representation of the tracker state."""
         return (
