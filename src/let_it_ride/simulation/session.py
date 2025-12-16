@@ -107,18 +107,27 @@ def calculate_new_streak(current_streak: int, result: float) -> int:
 
 
 class StopReason(Enum):
-    """Reason why a session stopped.
+    """Reason why a session stopped or its current status.
 
     WIN_LIMIT: Session profit reached or exceeded win limit.
     LOSS_LIMIT: Session loss reached or exceeded loss limit.
     MAX_HANDS: Maximum number of hands reached.
     INSUFFICIENT_FUNDS: Bankroll too low to place minimum bet.
+    TABLE_ROUNDS_COMPLETE: Table reached its configured total rounds
+        (used in multi-seat sessions with seat replacement).
+    IN_PROGRESS: Session has not completed - used only in seat replacement
+        mode when the table reaches table_total_rounds while a seat has an
+        incomplete session (hands played since last reset but no individual
+        stop condition triggered). This is a status indicator, not a true
+        stop reason - these sessions did not stop due to any limit.
     """
 
     WIN_LIMIT = "win_limit"
     LOSS_LIMIT = "loss_limit"
     MAX_HANDS = "max_hands"
     INSUFFICIENT_FUNDS = "insufficient_funds"
+    TABLE_ROUNDS_COMPLETE = "table_rounds_complete"
+    IN_PROGRESS = "in_progress"
 
 
 class SessionOutcome(Enum):

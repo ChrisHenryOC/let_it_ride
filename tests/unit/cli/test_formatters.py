@@ -614,7 +614,9 @@ class TestConfigSummaryMultiSeat:
         assert "Table Seats" in output
         assert "6" in output
 
-    def test_config_summary_single_seat_hidden(self, formatter: OutputFormatter) -> None:
+    def test_config_summary_single_seat_hidden(
+        self, formatter: OutputFormatter
+    ) -> None:
         """Test config summary hides table seats when num_seats == 1."""
         from unittest.mock import MagicMock
 

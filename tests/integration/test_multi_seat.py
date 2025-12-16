@@ -108,9 +108,9 @@ class TestMultiSeatSimulation:
 
             # All seats should play the same number of hands
             hands_played = [r.hands_played for r in table_results]
-            assert len(set(hands_played)) == 1, (
-                f"Table {table_idx}: seats played different hands: {hands_played}"
-            )
+            assert (
+                len(set(hands_played)) == 1
+            ), f"Table {table_idx}: seats played different hands: {hands_played}"
 
     def test_multi_seat_reproducible_with_seed(self) -> None:
         """Test that multi-seat simulation is reproducible with same seed."""
@@ -139,7 +139,9 @@ class TestMultiSeatSimulation:
 
         # Results should be identical
         assert len(results1.session_results) == len(results2.session_results)
-        for r1, r2 in zip(results1.session_results, results2.session_results, strict=True):
+        for r1, r2 in zip(
+            results1.session_results, results2.session_results, strict=True
+        ):
             assert r1.session_profit == r2.session_profit
             assert r1.hands_played == r2.hands_played
 

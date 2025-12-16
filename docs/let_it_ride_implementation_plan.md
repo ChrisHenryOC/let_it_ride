@@ -161,6 +161,7 @@ For detailed specifications, see GitHub Issues. Use `gh issue view <number>` or 
 - LIR-34: End-to-End Integration Tests
 - LIR-35: Performance Optimization
 - LIR-56: Table Configuration Integration
+- LIR-59: Seat Replacement Mode YAML Configuration (GitHub #144)
 
 ### Phase 7: Advanced Features
 - LIR-37: Streak-Based Bonus Strategy

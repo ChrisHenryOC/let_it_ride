@@ -312,7 +312,8 @@ class TestStopReason:
 
     def test_stop_reason_count(self) -> None:
         """Verify number of StopReason variants."""
-        assert len(StopReason) == 4
+        # Original 4 + TABLE_ROUNDS_COMPLETE + IN_PROGRESS
+        assert len(StopReason) == 6
 
 
 # --- SessionOutcome Tests ---
