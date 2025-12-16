@@ -1763,6 +1763,22 @@ class TestSeatStateReset:
         assert state.hands_played_this_session(7) == 2
         assert state.hands_played_this_session(10) == 5
 
+    def test_reset_reuses_bankroll_object(self) -> None:
+        """Verify reset reuses the same BankrollTracker instance (no new allocation)."""
+        from let_it_ride.simulation.table_session import _SeatState
+
+        state = _SeatState(1000.0, current_round=0)
+        original_bankroll_id = id(state.bankroll)
+
+        state.bankroll.apply_result(500.0)
+        state.reset(current_round=5)
+
+        # Same object should be reused
+        assert id(state.bankroll) == original_bankroll_id
+        # But state should be reset
+        assert state.bankroll.balance == 1000.0
+        assert state.bankroll.session_profit == 0.0
+
 
 class TestSeatReplacementConcurrentStopConditions:
     """Tests for concurrent stop condition triggers in seat replacement mode."""

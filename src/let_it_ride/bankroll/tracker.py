@@ -19,6 +19,16 @@ class BankrollTracker:
         ~80MB. Enable only when visualization features (LIR-30) are needed.
     """
 
+    __slots__ = (
+        "_starting",
+        "_balance",
+        "_peak",
+        "_max_drawdown",
+        "_peak_at_max_drawdown",
+        "_track_history",
+        "_history",
+    )
+
     def __init__(self, starting_amount: float, *, track_history: bool = False) -> None:
         """Initialize the bankroll tracker.
 
@@ -158,6 +168,36 @@ class BankrollTracker:
         if n <= 0:
             return []
         return self._history[-n:]
+
+    def reset(self, starting_amount: float | None = None) -> None:
+        """Reset the tracker to initial state for a new session.
+
+        This is more efficient than creating a new BankrollTracker object
+        as it reuses the existing object and avoids allocation overhead.
+
+        Note:
+            The ``track_history`` setting is preserved across resets.
+            The history list is cleared but retains its allocated capacity
+            (Python list.clear() behavior), which can be beneficial for
+            subsequent sessions of similar length.
+
+        Args:
+            starting_amount: New starting amount. If None, uses the original
+                starting amount from initialization.
+
+        Raises:
+            ValueError: If starting_amount is negative.
+        """
+        if starting_amount is not None:
+            if starting_amount < 0:
+                raise ValueError("Starting amount cannot be negative")
+            self._starting = starting_amount
+
+        self._balance = self._starting
+        self._peak = self._starting
+        self._max_drawdown = 0.0
+        self._peak_at_max_drawdown = self._starting
+        self._history.clear()
 
     def __repr__(self) -> str:
         """Return a string representation of the tracker state."""
