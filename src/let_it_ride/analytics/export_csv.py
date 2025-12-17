@@ -351,18 +351,46 @@ class CSVExporter:
                 include_seat_aggregate is True but results lack seat_number data.
         """
         # Deferred imports to avoid circular dependencies
-        from let_it_ride.analytics.chair_position import analyze_session_results_by_seat
-        from let_it_ride.simulation.aggregation import aggregate_results
+        from let_it_ride.analytics.chair_position import (
+            _build_analysis_from_aggregations,
+        )
+        from let_it_ride.analytics.chair_position import (
+            _SeatAggregation as ChairSeatAggregation,
+        )
+        from let_it_ride.simulation.aggregation import (
+            aggregate_results,
+            aggregate_with_seats,
+        )
 
         self._ensure_output_dir()
         created_files: list[Path] = []
 
-        # Export sessions
+        # Export sessions (first iteration over results)
         sessions_path = self.export_sessions(results.session_results)
         created_files.append(sessions_path)
 
-        # Export aggregate statistics
-        stats = aggregate_results(results.session_results)
+        # Compute aggregate statistics and optionally seat aggregations in one pass
+        # This combines what was previously two separate iterations
+        need_seat_aggregate = include_seat_aggregate and num_seats > 1
+
+        seat_aggregations: dict[int, ChairSeatAggregation] | None = None
+
+        if need_seat_aggregate:
+            # Single pass: compute both aggregate stats and seat aggregations
+            stats, seat_aggregations_raw = aggregate_with_seats(results.session_results)
+            # Convert to chair_position's _SeatAggregation type for compatibility
+            seat_aggregations = {}
+            for seat_num, agg in seat_aggregations_raw.items():
+                chair_agg = ChairSeatAggregation()
+                chair_agg.wins = agg.wins
+                chair_agg.losses = agg.losses
+                chair_agg.pushes = agg.pushes
+                chair_agg.total_profit = agg.total_profit
+                seat_aggregations[seat_num] = chair_agg
+        else:
+            # Standard path: just compute aggregate stats
+            stats = aggregate_results(results.session_results)
+
         aggregate_path = self.export_aggregate(stats)
         created_files.append(aggregate_path)
 
@@ -376,8 +404,14 @@ class CSVExporter:
             created_files.append(hands_path)
 
         # Optionally export seat aggregate (multi-seat only)
-        if include_seat_aggregate and num_seats > 1:
-            analysis = analyze_session_results_by_seat(results.session_results)
+        if need_seat_aggregate:
+            if not seat_aggregations:
+                raise ValueError("No seat data found in results")
+            analysis = _build_analysis_from_aggregations(
+                seat_aggregations,
+                confidence_level=0.95,
+                significance_level=0.05,
+            )
             seat_aggregate_path = self.export_seat_aggregate(analysis)
             created_files.append(seat_aggregate_path)
 
