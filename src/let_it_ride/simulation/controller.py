@@ -431,12 +431,15 @@ class SimulationController:
                     table_session_config,
                 )
                 table_result = table_session.run_to_completion()
-                # Extract per-seat SessionResults and add to results
+                # Extract per-seat SessionResults with seat_number preserved
                 # Sequential processing maintains natural ordering: session 0 seats
                 # first, then session 1 seats, etc. This matches the composite ID
                 # scheme used in parallel.py (session_id * num_seats + seat_idx)
                 for seat_result in table_result.seat_results:
-                    session_results.append(seat_result.session_result)
+                    result_with_seat = seat_result.session_result.with_seat_number(
+                        seat_result.seat_number
+                    )
+                    session_results.append(result_with_seat)
             else:
                 # Single-seat: use Session for efficiency
                 session = self._create_session(

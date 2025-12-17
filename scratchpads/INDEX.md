@@ -56,3 +56,4 @@ Quick reference for prior implementation work. Read full scratchpad only if dire
 | #43 | LIR-40 Documentation and User Guide |
 | #138 | LIR-56: Table Configuration Integration with CLI |
 | #142 | LIR-58: Multi-Seat Stop Condition Behavior Options |
+| #146 | LIR-60: Seat-Level Statistics |

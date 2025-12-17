@@ -175,7 +175,11 @@ def _run_single_table_session(
     )
 
     table_result = table_session.run_to_completion()
-    return [seat_result.session_result for seat_result in table_result.seat_results]
+    # Preserve seat_number in each SessionResult
+    return [
+        seat_result.session_result.with_seat_number(seat_result.seat_number)
+        for seat_result in table_result.seat_results
+    ]
 
 
 def run_worker_sessions(task: WorkerTask) -> WorkerResult:
