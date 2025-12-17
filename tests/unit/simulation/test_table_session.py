@@ -1818,9 +1818,15 @@ class TestSeatReplacementConcurrentStopConditions:
             assert sessions[1].session_result.stop_reason == StopReason.IN_PROGRESS
 
         # Verify in-progress profits
-        assert result.seat_sessions[1][1].session_result.session_profit == 55.0  # 10+40+5
-        assert result.seat_sessions[2][1].session_result.session_profit == 75.0  # 20+50+5
-        assert result.seat_sessions[3][1].session_result.session_profit == 95.0  # 30+60+5
+        assert (
+            result.seat_sessions[1][1].session_result.session_profit == 55.0
+        )  # 10+40+5
+        assert (
+            result.seat_sessions[2][1].session_result.session_profit == 75.0
+        )  # 20+50+5
+        assert (
+            result.seat_sessions[3][1].session_result.session_profit == 95.0
+        )  # 30+60+5
 
     def test_mixed_stop_conditions_same_round(self) -> None:
         """Verify different stop conditions can trigger for different seats in same round."""

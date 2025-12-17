@@ -9,12 +9,18 @@ from pathlib import Path
 
 import pytest
 
+from let_it_ride.analytics.chair_position import (
+    ChairPositionAnalysis,
+    SeatStatistics,
+)
 from let_it_ride.analytics.export_csv import (
     HAND_RECORD_FIELDS,
+    SEAT_AGGREGATE_FIELDS,
     SESSION_RESULT_FIELDS,
     CSVExporter,
     export_aggregate_csv,
     export_hands_csv,
+    export_seat_aggregate_csv,
     export_sessions_csv,
 )
 from let_it_ride.simulation.aggregation import AggregateStatistics, aggregate_results
@@ -784,3 +790,551 @@ class TestCSVExporter:
         assert exporter.output_dir == tmp_path
         assert exporter.prefix == "test"
         assert exporter.include_bom is False
+
+
+class TestSeatNumberInSessionResult:
+    """Tests for seat_number field in SessionResult and CSV export."""
+
+    def test_session_result_with_seat_number(self) -> None:
+        """Verify SessionResult can store seat_number."""
+        result = SessionResult(
+            outcome=SessionOutcome.WIN,
+            stop_reason=StopReason.WIN_LIMIT,
+            hands_played=25,
+            starting_bankroll=500.0,
+            final_bankroll=600.0,
+            session_profit=100.0,
+            total_wagered=750.0,
+            total_bonus_wagered=0.0,
+            peak_bankroll=620.0,
+            max_drawdown=50.0,
+            max_drawdown_pct=0.08,
+            seat_number=3,
+        )
+        assert result.seat_number == 3
+
+    def test_session_result_seat_number_defaults_none(self) -> None:
+        """Verify seat_number defaults to None for single-seat sessions."""
+        result = SessionResult(
+            outcome=SessionOutcome.WIN,
+            stop_reason=StopReason.WIN_LIMIT,
+            hands_played=25,
+            starting_bankroll=500.0,
+            final_bankroll=600.0,
+            session_profit=100.0,
+            total_wagered=750.0,
+            total_bonus_wagered=0.0,
+            peak_bankroll=620.0,
+            max_drawdown=50.0,
+            max_drawdown_pct=0.08,
+        )
+        assert result.seat_number is None
+
+    def test_with_seat_number_creates_copy(self) -> None:
+        """Verify with_seat_number returns new SessionResult with seat_number.
+
+        All 12 fields must be correctly copied to the new instance.
+        """
+        original = SessionResult(
+            outcome=SessionOutcome.WIN,
+            stop_reason=StopReason.WIN_LIMIT,
+            hands_played=25,
+            starting_bankroll=500.0,
+            final_bankroll=600.0,
+            session_profit=100.0,
+            total_wagered=750.0,
+            total_bonus_wagered=50.0,
+            peak_bankroll=620.0,
+            max_drawdown=50.0,
+            max_drawdown_pct=0.08,
+        )
+        with_seat = original.with_seat_number(2)
+
+        # Verify original is unchanged
+        assert original.seat_number is None
+
+        # Verify seat_number is set on copy
+        assert with_seat.seat_number == 2
+
+        # Verify ALL fields are correctly copied (all 12 fields)
+        assert with_seat.outcome == original.outcome
+        assert with_seat.stop_reason == original.stop_reason
+        assert with_seat.hands_played == original.hands_played
+        assert with_seat.starting_bankroll == original.starting_bankroll
+        assert with_seat.final_bankroll == original.final_bankroll
+        assert with_seat.session_profit == original.session_profit
+        assert with_seat.total_wagered == original.total_wagered
+        assert with_seat.total_bonus_wagered == original.total_bonus_wagered
+        assert with_seat.peak_bankroll == original.peak_bankroll
+        assert with_seat.max_drawdown == original.max_drawdown
+        assert with_seat.max_drawdown_pct == original.max_drawdown_pct
+
+    def test_to_dict_includes_seat_number(self) -> None:
+        """Verify to_dict includes seat_number field."""
+        result = SessionResult(
+            outcome=SessionOutcome.WIN,
+            stop_reason=StopReason.WIN_LIMIT,
+            hands_played=25,
+            starting_bankroll=500.0,
+            final_bankroll=600.0,
+            session_profit=100.0,
+            total_wagered=750.0,
+            total_bonus_wagered=0.0,
+            peak_bankroll=620.0,
+            max_drawdown=50.0,
+            max_drawdown_pct=0.08,
+            seat_number=4,
+        )
+        d = result.to_dict()
+        assert "seat_number" in d
+        assert d["seat_number"] == 4
+
+    def test_csv_export_includes_seat_number_column(self, tmp_path: Path) -> None:
+        """Verify CSV export includes seat_number column."""
+        results = [
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.WIN_LIMIT,
+                hands_played=25,
+                starting_bankroll=500.0,
+                final_bankroll=600.0,
+                session_profit=100.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=620.0,
+                max_drawdown=50.0,
+                max_drawdown_pct=0.08,
+                seat_number=1,
+            ),
+            SessionResult(
+                outcome=SessionOutcome.LOSS,
+                stop_reason=StopReason.LOSS_LIMIT,
+                hands_played=30,
+                starting_bankroll=500.0,
+                final_bankroll=300.0,
+                session_profit=-200.0,
+                total_wagered=900.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=520.0,
+                max_drawdown=220.0,
+                max_drawdown_pct=0.42,
+                seat_number=2,
+            ),
+        ]
+        path = tmp_path / "sessions.csv"
+        export_sessions_csv(results, path)
+
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert "seat_number" in rows[0]
+        assert rows[0]["seat_number"] == "1"
+        assert rows[1]["seat_number"] == "2"
+
+    def test_csv_export_seat_number_none_as_empty(self, tmp_path: Path) -> None:
+        """Verify CSV export shows empty string for None seat_number."""
+        results = [
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.WIN_LIMIT,
+                hands_played=25,
+                starting_bankroll=500.0,
+                final_bankroll=600.0,
+                session_profit=100.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=620.0,
+                max_drawdown=50.0,
+                max_drawdown_pct=0.08,
+                seat_number=None,
+            ),
+        ]
+        path = tmp_path / "sessions.csv"
+        export_sessions_csv(results, path)
+
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert rows[0]["seat_number"] == ""
+
+    def test_session_result_fields_includes_seat_number(self) -> None:
+        """Verify SESSION_RESULT_FIELDS list includes seat_number."""
+        assert "seat_number" in SESSION_RESULT_FIELDS
+        # Should be first for easy identification in CSV
+        assert SESSION_RESULT_FIELDS[0] == "seat_number"
+
+    @pytest.mark.parametrize(
+        "seat_number,expected",
+        [
+            (1, 1),  # Minimum valid seat
+            (6, 6),  # Maximum valid seat (TableConfig max)
+            (0, 0),  # Edge case: zero (no validation in with_seat_number)
+            (-1, -1),  # Edge case: negative (no validation in with_seat_number)
+            (100, 100),  # Edge case: large value (no validation in with_seat_number)
+        ],
+    )
+    def test_with_seat_number_boundary_values(
+        self, seat_number: int, expected: int
+    ) -> None:
+        """Verify with_seat_number accepts boundary values without error.
+
+        Note: with_seat_number() does not validate seat numbers. Validation
+        is handled at the TableConfig level (1-6 seats). This test documents
+        that behavior and ensures no runtime errors occur.
+        """
+        result = SessionResult(
+            outcome=SessionOutcome.WIN,
+            stop_reason=StopReason.WIN_LIMIT,
+            hands_played=25,
+            starting_bankroll=500.0,
+            final_bankroll=600.0,
+            session_profit=100.0,
+            total_wagered=750.0,
+            total_bonus_wagered=0.0,
+            peak_bankroll=620.0,
+            max_drawdown=50.0,
+            max_drawdown_pct=0.08,
+        )
+        with_seat = result.with_seat_number(seat_number)
+        assert with_seat.seat_number == expected
+
+    def test_csv_export_with_max_seat_number(self, tmp_path: Path) -> None:
+        """Verify CSV export works with maximum valid seat_number (6)."""
+        results = [
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.WIN_LIMIT,
+                hands_played=25,
+                starting_bankroll=500.0,
+                final_bankroll=600.0,
+                session_profit=100.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=620.0,
+                max_drawdown=50.0,
+                max_drawdown_pct=0.08,
+                seat_number=6,
+            ),
+        ]
+        path = tmp_path / "sessions.csv"
+        export_sessions_csv(results, path)
+
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert rows[0]["seat_number"] == "6"
+
+
+class TestExportSeatAggregateCsv:
+    """Tests for export_seat_aggregate_csv function."""
+
+    @pytest.fixture
+    def sample_chair_analysis(self) -> ChairPositionAnalysis:
+        """Create sample ChairPositionAnalysis for testing."""
+        seat_stats = (
+            SeatStatistics(
+                seat_number=1,
+                total_rounds=100,
+                wins=40,
+                losses=55,
+                pushes=5,
+                win_rate=0.40,
+                win_rate_ci_lower=0.31,
+                win_rate_ci_upper=0.50,
+                expected_value=-5.25,
+                total_profit=-525.0,
+            ),
+            SeatStatistics(
+                seat_number=2,
+                total_rounds=100,
+                wins=38,
+                losses=57,
+                pushes=5,
+                win_rate=0.38,
+                win_rate_ci_lower=0.29,
+                win_rate_ci_upper=0.48,
+                expected_value=-6.10,
+                total_profit=-610.0,
+            ),
+            SeatStatistics(
+                seat_number=3,
+                total_rounds=100,
+                wins=42,
+                losses=53,
+                pushes=5,
+                win_rate=0.42,
+                win_rate_ci_lower=0.33,
+                win_rate_ci_upper=0.52,
+                expected_value=-4.80,
+                total_profit=-480.0,
+            ),
+        )
+        return ChairPositionAnalysis(
+            seat_statistics=seat_stats,
+            chi_square_statistic=0.267,
+            chi_square_p_value=0.875,
+            is_position_independent=True,
+        )
+
+    def test_exports_seat_statistics(
+        self, tmp_path: Path, sample_chair_analysis: ChairPositionAnalysis
+    ) -> None:
+        """Verify seat aggregate statistics are exported to CSV."""
+        path = tmp_path / "seat_aggregate.csv"
+        export_seat_aggregate_csv(sample_chair_analysis, path)
+
+        assert path.exists()
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        # 3 seats + 1 summary row
+        assert len(rows) == 4
+        assert rows[0]["seat_number"] == "1"
+        assert rows[1]["seat_number"] == "2"
+        assert rows[2]["seat_number"] == "3"
+        assert rows[3]["seat_number"] == "SUMMARY"
+
+    def test_exports_per_seat_metrics(
+        self, tmp_path: Path, sample_chair_analysis: ChairPositionAnalysis
+    ) -> None:
+        """Verify per-seat metrics are correctly exported."""
+        path = tmp_path / "seat_aggregate.csv"
+        export_seat_aggregate_csv(sample_chair_analysis, path)
+
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        # Check seat 1 metrics
+        assert rows[0]["total_rounds"] == "100"
+        assert rows[0]["wins"] == "40"
+        assert rows[0]["losses"] == "55"
+        assert rows[0]["pushes"] == "5"
+        assert rows[0]["win_rate"] == "0.4"
+        assert rows[0]["total_profit"] == "-525.0"
+
+    def test_exports_chi_square_in_summary(
+        self, tmp_path: Path, sample_chair_analysis: ChairPositionAnalysis
+    ) -> None:
+        """Verify chi-square results are in summary row."""
+        path = tmp_path / "seat_aggregate.csv"
+        export_seat_aggregate_csv(sample_chair_analysis, path)
+
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        summary = rows[-1]
+        assert summary["chi_square_statistic"] == "0.267"
+        assert summary["chi_square_p_value"] == "0.875"
+        assert summary["is_position_independent"] == "True"
+
+    def test_summary_row_aggregates_totals(
+        self, tmp_path: Path, sample_chair_analysis: ChairPositionAnalysis
+    ) -> None:
+        """Verify summary row has aggregated totals."""
+        path = tmp_path / "seat_aggregate.csv"
+        export_seat_aggregate_csv(sample_chair_analysis, path)
+
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        summary = rows[-1]
+        assert summary["total_rounds"] == "300"  # 100 * 3 seats
+        assert summary["wins"] == "120"  # 40 + 38 + 42
+        assert summary["losses"] == "165"  # 55 + 57 + 53
+        assert summary["total_profit"] == "-1615.0"  # -525 + -610 + -480
+
+    def test_empty_seat_statistics_raises_error(self, tmp_path: Path) -> None:
+        """Verify empty seat statistics raises ValueError."""
+        empty_analysis = ChairPositionAnalysis(
+            seat_statistics=(),
+            chi_square_statistic=0.0,
+            chi_square_p_value=1.0,
+            is_position_independent=True,
+        )
+        path = tmp_path / "seat_aggregate.csv"
+        with pytest.raises(ValueError, match="Cannot export empty seat statistics"):
+            export_seat_aggregate_csv(empty_analysis, path)
+
+    def test_bom_included_by_default(
+        self, tmp_path: Path, sample_chair_analysis: ChairPositionAnalysis
+    ) -> None:
+        """Verify UTF-8 BOM is included by default."""
+        path = tmp_path / "seat_aggregate.csv"
+        export_seat_aggregate_csv(sample_chair_analysis, path)
+
+        with path.open("rb") as f:
+            bom = f.read(3)
+        assert bom == b"\xef\xbb\xbf"
+
+    def test_bom_excluded_when_disabled(
+        self, tmp_path: Path, sample_chair_analysis: ChairPositionAnalysis
+    ) -> None:
+        """Verify UTF-8 BOM is excluded when disabled."""
+        path = tmp_path / "seat_aggregate.csv"
+        export_seat_aggregate_csv(sample_chair_analysis, path, include_bom=False)
+
+        with path.open("rb") as f:
+            start = f.read(3)
+        assert start != b"\xef\xbb\xbf"
+
+    def test_seat_aggregate_fields_complete(self) -> None:
+        """Verify SEAT_AGGREGATE_FIELDS has all expected fields."""
+        expected_fields = [
+            "seat_number",
+            "total_rounds",
+            "wins",
+            "losses",
+            "pushes",
+            "win_rate",
+            "win_rate_ci_lower",
+            "win_rate_ci_upper",
+            "expected_value",
+            "total_profit",
+        ]
+        assert expected_fields == SEAT_AGGREGATE_FIELDS
+
+
+class TestSeatNumberE2EFlow:
+    """End-to-end tests for seat_number data flow from simulation to CSV export."""
+
+    def test_multi_seat_parallel_execution_to_csv_export(self, tmp_path: Path) -> None:
+        """Verify seat_number flows correctly: parallel execution -> CSV export.
+
+        This is an E2E test that:
+        1. Runs a multi-seat parallel simulation
+        2. Exports results to CSV
+        3. Verifies each seat_number is correctly preserved in the export
+        """
+        from let_it_ride.config.models import (
+            BankrollConfig,
+            BettingSystemConfig,
+            FullConfig,
+            SimulationConfig,
+            StopConditionsConfig,
+            StrategyConfig,
+            TableConfig,
+        )
+        from let_it_ride.simulation.controller import SimulationController
+
+        num_sessions = 5
+        num_seats = 3
+
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=num_sessions,
+                hands_per_session=20,
+                random_seed=12345,
+                workers=2,  # Parallel execution
+            ),
+            table=TableConfig(num_seats=num_seats),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+
+        # Run simulation
+        controller = SimulationController(config)
+        results = controller.run()
+
+        # Export to CSV
+        csv_path = tmp_path / "sessions.csv"
+        export_sessions_csv(results.session_results, csv_path)
+
+        # Read and verify CSV
+        with csv_path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        # Should have num_sessions * num_seats rows
+        assert len(rows) == num_sessions * num_seats
+
+        # Verify seat_number column exists and has valid values
+        seat_numbers = [int(row["seat_number"]) for row in rows]
+
+        # Each seat (1, 2, 3) should appear num_sessions times
+        for seat in range(1, num_seats + 1):
+            count = seat_numbers.count(seat)
+            assert count == num_sessions, (
+                f"Seat {seat} should appear {num_sessions} times, got {count}"
+            )
+
+        # Verify seat_number is the first column
+        assert next(iter(rows[0].keys())) == "seat_number"
+
+    def test_multi_seat_sequential_execution_to_csv_export(self, tmp_path: Path) -> None:
+        """Verify seat_number flows correctly: sequential execution -> CSV export."""
+        from let_it_ride.config.models import (
+            BankrollConfig,
+            BettingSystemConfig,
+            FullConfig,
+            SimulationConfig,
+            StopConditionsConfig,
+            StrategyConfig,
+            TableConfig,
+        )
+        from let_it_ride.simulation.controller import SimulationController
+
+        num_sessions = 3
+        num_seats = 4
+
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=num_sessions,
+                hands_per_session=15,
+                random_seed=67890,
+                workers=1,  # Sequential execution
+            ),
+            table=TableConfig(num_seats=num_seats),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+
+        # Run simulation
+        controller = SimulationController(config)
+        results = controller.run()
+
+        # Export to CSV
+        csv_path = tmp_path / "sessions.csv"
+        export_sessions_csv(results.session_results, csv_path)
+
+        # Read and verify CSV
+        with csv_path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        # Should have num_sessions * num_seats rows
+        assert len(rows) == num_sessions * num_seats
+
+        # Verify all seat numbers are valid (1 to num_seats)
+        for row in rows:
+            seat_num = int(row["seat_number"])
+            assert 1 <= seat_num <= num_seats, f"Invalid seat_number: {seat_num}"
+
+        # Each seat should appear exactly num_sessions times
+        seat_numbers = [int(row["seat_number"]) for row in rows]
+        for seat in range(1, num_seats + 1):
+            assert seat_numbers.count(seat) == num_sessions

@@ -18,6 +18,10 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
 
+    from let_it_ride.analytics.chair_position import (
+        ChairPositionAnalysis,
+        SeatStatistics,
+    )
     from let_it_ride.simulation.aggregation import AggregateStatistics
     from let_it_ride.simulation.controller import SimulationResults
     from let_it_ride.simulation.results import HandRecord
@@ -26,6 +30,7 @@ if TYPE_CHECKING:
 # Default fields for SessionResult export (all serializable fields)
 # NOTE: Must stay in sync with SessionResult dataclass in simulation/session.py
 SESSION_RESULT_FIELDS = [
+    "seat_number",
     "outcome",
     "stop_reason",
     "hands_played",
@@ -349,3 +354,109 @@ class CSVExporter:
             created_files.append(hands_path)
 
         return created_files
+
+
+# Label for summary row in seat aggregate CSV export
+SUMMARY_ROW_LABEL = "SUMMARY"
+
+# Seat aggregate export fields from SeatStatistics dataclass
+# NOTE: Must stay in sync with SeatStatistics dataclass in analytics/chair_position.py
+SEAT_AGGREGATE_FIELDS = [
+    "seat_number",
+    "total_rounds",
+    "wins",
+    "losses",
+    "pushes",
+    "win_rate",
+    "win_rate_ci_lower",
+    "win_rate_ci_upper",
+    "expected_value",
+    "total_profit",
+]
+
+
+def _seat_statistics_to_dict(stats: SeatStatistics) -> dict[str, Any]:
+    """Convert SeatStatistics to dictionary for CSV export.
+
+    Args:
+        stats: SeatStatistics to convert.
+
+    Returns:
+        Dictionary with all fields suitable for CSV export.
+    """
+    return {
+        "seat_number": stats.seat_number,
+        "total_rounds": stats.total_rounds,
+        "wins": stats.wins,
+        "losses": stats.losses,
+        "pushes": stats.pushes,
+        "win_rate": stats.win_rate,
+        "win_rate_ci_lower": stats.win_rate_ci_lower,
+        "win_rate_ci_upper": stats.win_rate_ci_upper,
+        "expected_value": stats.expected_value,
+        "total_profit": stats.total_profit,
+    }
+
+
+def export_seat_aggregate_csv(
+    analysis: ChairPositionAnalysis,
+    path: Path,
+    include_bom: bool = True,
+) -> None:
+    """Export per-seat aggregate statistics to CSV file.
+
+    Each row represents one seat with its statistics including win rate,
+    confidence intervals, and profit metrics. An additional row at the end
+    contains the chi-square test results for seat independence.
+
+    Args:
+        analysis: ChairPositionAnalysis from analyze_chair_positions().
+        path: Output file path.
+        include_bom: If True, include UTF-8 BOM for Excel compatibility.
+
+    Raises:
+        ValueError: If analysis has no seat statistics.
+    """
+    if not analysis.seat_statistics:
+        raise ValueError("Cannot export empty seat statistics")
+
+    encoding = "utf-8-sig" if include_bom else "utf-8"
+
+    # Add summary fields to the columns
+    extended_fields = [
+        *SEAT_AGGREGATE_FIELDS,
+        "chi_square_statistic",
+        "chi_square_p_value",
+        "is_position_independent",
+    ]
+
+    with path.open("w", encoding=encoding, newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=extended_fields, extrasaction="ignore")
+        writer.writeheader()
+
+        # Write per-seat rows
+        for seat_stats in analysis.seat_statistics:
+            row = _seat_statistics_to_dict(seat_stats)
+            # Leave summary fields empty for per-seat rows
+            row["chi_square_statistic"] = ""
+            row["chi_square_p_value"] = ""
+            row["is_position_independent"] = ""
+            writer.writerow(row)
+
+        # Write summary row with chi-square results
+        summary_row: dict[str, Any] = {
+            "seat_number": SUMMARY_ROW_LABEL,
+            "total_rounds": sum(s.total_rounds for s in analysis.seat_statistics),
+            "wins": sum(s.wins for s in analysis.seat_statistics),
+            "losses": sum(s.losses for s in analysis.seat_statistics),
+            "pushes": sum(s.pushes for s in analysis.seat_statistics),
+            "win_rate": "",
+            "win_rate_ci_lower": "",
+            "win_rate_ci_upper": "",
+            "expected_value": "",
+            "total_profit": sum(s.total_profit for s in analysis.seat_statistics),
+            "chi_square_statistic": analysis.chi_square_statistic,
+            "chi_square_p_value": analysis.chi_square_p_value,
+            "is_position_independent": analysis.is_position_independent,
+        }
+        writer.writerow(summary_row)

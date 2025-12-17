@@ -26,6 +26,7 @@ from let_it_ride.analytics.export_csv import (
     CSVExporter,
     export_aggregate_csv,
     export_hands_csv,
+    export_seat_aggregate_csv,
     export_sessions_csv,
 )
 from let_it_ride.analytics.export_html import (
@@ -91,6 +92,7 @@ __all__ = [
     "CSVExporter",
     "export_aggregate_csv",
     "export_hands_csv",
+    "export_seat_aggregate_csv",
     "export_sessions_csv",
     # HTML export
     "HTMLExporter",

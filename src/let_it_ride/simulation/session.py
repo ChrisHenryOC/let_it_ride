@@ -196,6 +196,8 @@ class SessionResult:
         peak_bankroll: Highest bankroll reached during session.
         max_drawdown: Maximum peak-to-trough decline.
         max_drawdown_pct: Maximum drawdown as percentage of peak.
+        seat_number: Seat position (1-based) for multi-seat table sessions.
+            None for single-seat sessions.
     """
 
     outcome: SessionOutcome
@@ -209,6 +211,7 @@ class SessionResult:
     peak_bankroll: float
     max_drawdown: float
     max_drawdown_pct: float
+    seat_number: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON/CSV export.
@@ -219,6 +222,7 @@ class SessionResult:
             Dictionary with all fields suitable for export.
         """
         return {
+            "seat_number": self.seat_number,
             "outcome": self.outcome.value,
             "stop_reason": self.stop_reason.value,
             "hands_played": self.hands_played,
@@ -231,6 +235,40 @@ class SessionResult:
             "max_drawdown": self.max_drawdown,
             "max_drawdown_pct": self.max_drawdown_pct,
         }
+
+    def with_seat_number(self, seat_number: int) -> "SessionResult":
+        """Return a copy of this result with the specified seat number.
+
+        This method is used when extracting individual SessionResult objects
+        from multi-seat TableSession results. The TableSession produces
+        SeatSessionResult objects which contain the seat number separately;
+        this method allows converting them to standalone SessionResult objects
+        with the seat number embedded.
+
+        Used by:
+        - SimulationController._run_sequential() for sequential multi-seat runs
+        - parallel._run_single_table_session() for parallel multi-seat runs
+
+        Args:
+            seat_number: The seat position (1-based) to assign.
+
+        Returns:
+            New SessionResult with seat_number set.
+        """
+        return SessionResult(
+            outcome=self.outcome,
+            stop_reason=self.stop_reason,
+            hands_played=self.hands_played,
+            starting_bankroll=self.starting_bankroll,
+            final_bankroll=self.final_bankroll,
+            session_profit=self.session_profit,
+            total_wagered=self.total_wagered,
+            total_bonus_wagered=self.total_bonus_wagered,
+            peak_bankroll=self.peak_bankroll,
+            max_drawdown=self.max_drawdown,
+            max_drawdown_pct=self.max_drawdown_pct,
+            seat_number=seat_number,
+        )
 
 
 class Session:
