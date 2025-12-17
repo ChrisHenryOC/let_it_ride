@@ -356,6 +356,9 @@ class CSVExporter:
         return created_files
 
 
+# Label for summary row in seat aggregate CSV export
+SUMMARY_ROW_LABEL = "SUMMARY"
+
 # Seat aggregate export fields from SeatStatistics dataclass
 # NOTE: Must stay in sync with SeatStatistics dataclass in analytics/chair_position.py
 SEAT_AGGREGATE_FIELDS = [
@@ -442,7 +445,7 @@ def export_seat_aggregate_csv(
 
         # Write summary row with chi-square results
         summary_row: dict[str, Any] = {
-            "seat_number": "SUMMARY",
+            "seat_number": SUMMARY_ROW_LABEL,
             "total_rounds": sum(s.total_rounds for s in analysis.seat_statistics),
             "wins": sum(s.wins for s in analysis.seat_statistics),
             "losses": sum(s.losses for s in analysis.seat_statistics),

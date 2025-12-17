@@ -239,6 +239,16 @@ class SessionResult:
     def with_seat_number(self, seat_number: int) -> "SessionResult":
         """Return a copy of this result with the specified seat number.
 
+        This method is used when extracting individual SessionResult objects
+        from multi-seat TableSession results. The TableSession produces
+        SeatSessionResult objects which contain the seat number separately;
+        this method allows converting them to standalone SessionResult objects
+        with the seat number embedded.
+
+        Used by:
+        - SimulationController._run_sequential() for sequential multi-seat runs
+        - parallel._run_single_table_session() for parallel multi-seat runs
+
         Args:
             seat_number: The seat position (1-based) to assign.
 

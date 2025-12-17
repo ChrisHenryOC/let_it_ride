@@ -831,7 +831,10 @@ class TestSeatNumberInSessionResult:
         assert result.seat_number is None
 
     def test_with_seat_number_creates_copy(self) -> None:
-        """Verify with_seat_number returns new SessionResult with seat_number."""
+        """Verify with_seat_number returns new SessionResult with seat_number.
+
+        All 12 fields must be correctly copied to the new instance.
+        """
         original = SessionResult(
             outcome=SessionOutcome.WIN,
             stop_reason=StopReason.WIN_LIMIT,
@@ -840,17 +843,31 @@ class TestSeatNumberInSessionResult:
             final_bankroll=600.0,
             session_profit=100.0,
             total_wagered=750.0,
-            total_bonus_wagered=0.0,
+            total_bonus_wagered=50.0,
             peak_bankroll=620.0,
             max_drawdown=50.0,
             max_drawdown_pct=0.08,
         )
         with_seat = original.with_seat_number(2)
 
+        # Verify original is unchanged
         assert original.seat_number is None
+
+        # Verify seat_number is set on copy
         assert with_seat.seat_number == 2
+
+        # Verify ALL fields are correctly copied (all 12 fields)
         assert with_seat.outcome == original.outcome
+        assert with_seat.stop_reason == original.stop_reason
+        assert with_seat.hands_played == original.hands_played
+        assert with_seat.starting_bankroll == original.starting_bankroll
+        assert with_seat.final_bankroll == original.final_bankroll
         assert with_seat.session_profit == original.session_profit
+        assert with_seat.total_wagered == original.total_wagered
+        assert with_seat.total_bonus_wagered == original.total_bonus_wagered
+        assert with_seat.peak_bankroll == original.peak_bankroll
+        assert with_seat.max_drawdown == original.max_drawdown
+        assert with_seat.max_drawdown_pct == original.max_drawdown_pct
 
     def test_to_dict_includes_seat_number(self) -> None:
         """Verify to_dict includes seat_number field."""
@@ -947,6 +964,68 @@ class TestSeatNumberInSessionResult:
         assert "seat_number" in SESSION_RESULT_FIELDS
         # Should be first for easy identification in CSV
         assert SESSION_RESULT_FIELDS[0] == "seat_number"
+
+    @pytest.mark.parametrize(
+        "seat_number,expected",
+        [
+            (1, 1),  # Minimum valid seat
+            (6, 6),  # Maximum valid seat (TableConfig max)
+            (0, 0),  # Edge case: zero (no validation in with_seat_number)
+            (-1, -1),  # Edge case: negative (no validation in with_seat_number)
+            (100, 100),  # Edge case: large value (no validation in with_seat_number)
+        ],
+    )
+    def test_with_seat_number_boundary_values(
+        self, seat_number: int, expected: int
+    ) -> None:
+        """Verify with_seat_number accepts boundary values without error.
+
+        Note: with_seat_number() does not validate seat numbers. Validation
+        is handled at the TableConfig level (1-6 seats). This test documents
+        that behavior and ensures no runtime errors occur.
+        """
+        result = SessionResult(
+            outcome=SessionOutcome.WIN,
+            stop_reason=StopReason.WIN_LIMIT,
+            hands_played=25,
+            starting_bankroll=500.0,
+            final_bankroll=600.0,
+            session_profit=100.0,
+            total_wagered=750.0,
+            total_bonus_wagered=0.0,
+            peak_bankroll=620.0,
+            max_drawdown=50.0,
+            max_drawdown_pct=0.08,
+        )
+        with_seat = result.with_seat_number(seat_number)
+        assert with_seat.seat_number == expected
+
+    def test_csv_export_with_max_seat_number(self, tmp_path: Path) -> None:
+        """Verify CSV export works with maximum valid seat_number (6)."""
+        results = [
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.WIN_LIMIT,
+                hands_played=25,
+                starting_bankroll=500.0,
+                final_bankroll=600.0,
+                session_profit=100.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=620.0,
+                max_drawdown=50.0,
+                max_drawdown_pct=0.08,
+                seat_number=6,
+            ),
+        ]
+        path = tmp_path / "sessions.csv"
+        export_sessions_csv(results, path)
+
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        assert rows[0]["seat_number"] == "6"
 
 
 class TestExportSeatAggregateCsv:
@@ -1120,3 +1199,142 @@ class TestExportSeatAggregateCsv:
             "total_profit",
         ]
         assert expected_fields == SEAT_AGGREGATE_FIELDS
+
+
+class TestSeatNumberE2EFlow:
+    """End-to-end tests for seat_number data flow from simulation to CSV export."""
+
+    def test_multi_seat_parallel_execution_to_csv_export(self, tmp_path: Path) -> None:
+        """Verify seat_number flows correctly: parallel execution -> CSV export.
+
+        This is an E2E test that:
+        1. Runs a multi-seat parallel simulation
+        2. Exports results to CSV
+        3. Verifies each seat_number is correctly preserved in the export
+        """
+        from let_it_ride.config.models import (
+            BankrollConfig,
+            BettingSystemConfig,
+            FullConfig,
+            SimulationConfig,
+            StopConditionsConfig,
+            StrategyConfig,
+            TableConfig,
+        )
+        from let_it_ride.simulation.controller import SimulationController
+
+        num_sessions = 5
+        num_seats = 3
+
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=num_sessions,
+                hands_per_session=20,
+                random_seed=12345,
+                workers=2,  # Parallel execution
+            ),
+            table=TableConfig(num_seats=num_seats),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+
+        # Run simulation
+        controller = SimulationController(config)
+        results = controller.run()
+
+        # Export to CSV
+        csv_path = tmp_path / "sessions.csv"
+        export_sessions_csv(results.session_results, csv_path)
+
+        # Read and verify CSV
+        with csv_path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        # Should have num_sessions * num_seats rows
+        assert len(rows) == num_sessions * num_seats
+
+        # Verify seat_number column exists and has valid values
+        seat_numbers = [int(row["seat_number"]) for row in rows]
+
+        # Each seat (1, 2, 3) should appear num_sessions times
+        for seat in range(1, num_seats + 1):
+            count = seat_numbers.count(seat)
+            assert count == num_sessions, (
+                f"Seat {seat} should appear {num_sessions} times, got {count}"
+            )
+
+        # Verify seat_number is the first column
+        assert next(iter(rows[0].keys())) == "seat_number"
+
+    def test_multi_seat_sequential_execution_to_csv_export(self, tmp_path: Path) -> None:
+        """Verify seat_number flows correctly: sequential execution -> CSV export."""
+        from let_it_ride.config.models import (
+            BankrollConfig,
+            BettingSystemConfig,
+            FullConfig,
+            SimulationConfig,
+            StopConditionsConfig,
+            StrategyConfig,
+            TableConfig,
+        )
+        from let_it_ride.simulation.controller import SimulationController
+
+        num_sessions = 3
+        num_seats = 4
+
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=num_sessions,
+                hands_per_session=15,
+                random_seed=67890,
+                workers=1,  # Sequential execution
+            ),
+            table=TableConfig(num_seats=num_seats),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+
+        # Run simulation
+        controller = SimulationController(config)
+        results = controller.run()
+
+        # Export to CSV
+        csv_path = tmp_path / "sessions.csv"
+        export_sessions_csv(results.session_results, csv_path)
+
+        # Read and verify CSV
+        with csv_path.open(encoding="utf-8-sig", newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        # Should have num_sessions * num_seats rows
+        assert len(rows) == num_sessions * num_seats
+
+        # Verify all seat numbers are valid (1 to num_seats)
+        for row in rows:
+            seat_num = int(row["seat_number"])
+            assert 1 <= seat_num <= num_seats, f"Invalid seat_number: {seat_num}"
+
+        # Each seat should appear exactly num_sessions times
+        seat_numbers = [int(row["seat_number"]) for row in rows]
+        for seat in range(1, num_seats + 1):
+            assert seat_numbers.count(seat) == num_sessions
