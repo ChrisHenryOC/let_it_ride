@@ -310,11 +310,27 @@ class CSVExporter:
         export_hands_csv(hands, path, fields_to_export, self._include_bom)
         return path
 
+    def export_seat_aggregate(self, analysis: ChairPositionAnalysis) -> Path:
+        """Export per-seat aggregate statistics to CSV.
+
+        Args:
+            analysis: ChairPositionAnalysis from analyze_session_results_by_seat().
+
+        Returns:
+            Path to the created file.
+        """
+        self._ensure_output_dir()
+        path = self._output_dir / f"{self._prefix}_seat_aggregate.csv"
+        export_seat_aggregate_csv(analysis, path, self._include_bom)
+        return path
+
     def export_all(
         self,
         results: SimulationResults,
         include_hands: bool = False,
         hands: Iterable[HandRecord] | None = None,
+        include_seat_aggregate: bool = False,
+        num_seats: int = 1,
     ) -> list[Path]:
         """Export all simulation results to CSV files.
 
@@ -322,6 +338,9 @@ class CSVExporter:
             results: SimulationResults containing session results.
             include_hands: If True and hands are provided, export hand records.
             hands: Optional iterable of HandRecord objects for per-hand export.
+            include_seat_aggregate: If True and num_seats > 1, export per-seat
+                aggregate statistics.
+            num_seats: Number of seats in the simulation (for seat aggregate).
 
         Returns:
             List of paths to created files.
@@ -330,6 +349,9 @@ class CSVExporter:
             ValueError: If include_hands is True but hands is None or empty,
                 or if session_results is empty (from export_sessions).
         """
+        from let_it_ride.analytics.chair_position import (
+            analyze_session_results_by_seat,
+        )
         from let_it_ride.simulation.aggregation import aggregate_results
 
         self._ensure_output_dir()
@@ -352,6 +374,12 @@ class CSVExporter:
                 )
             hands_path = self.export_hands(hands)
             created_files.append(hands_path)
+
+        # Optionally export seat aggregate (multi-seat only)
+        if include_seat_aggregate and num_seats > 1:
+            analysis = analyze_session_results_by_seat(results.session_results)
+            seat_aggregate_path = self.export_seat_aggregate(analysis)
+            created_files.append(seat_aggregate_path)
 
         return created_files
 

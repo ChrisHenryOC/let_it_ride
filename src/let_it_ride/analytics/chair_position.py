@@ -22,6 +22,7 @@ from let_it_ride.analytics.validation import calculate_wilson_confidence_interva
 from let_it_ride.simulation.session import SessionOutcome
 
 if TYPE_CHECKING:
+    from let_it_ride.simulation.session import SessionResult
     from let_it_ride.simulation.table_session import TableSessionResult
 
 
@@ -241,6 +242,95 @@ def analyze_chair_positions(
 
     # Aggregate data by seat
     aggregations = _aggregate_seat_data(results)
+
+    if not aggregations:
+        raise ValueError("No seat data found in results")
+
+    # Calculate statistics for each seat
+    seat_stats: list[SeatStatistics] = []
+    for seat_num in sorted(aggregations.keys()):
+        stats_for_seat = _calculate_seat_statistics(
+            seat_number=seat_num,
+            agg=aggregations[seat_num],
+            confidence_level=confidence_level,
+        )
+        seat_stats.append(stats_for_seat)
+
+    # Test for seat independence
+    chi_sq, p_val, is_independent = _test_seat_independence(
+        seat_stats, significance_level
+    )
+
+    return ChairPositionAnalysis(
+        seat_statistics=tuple(seat_stats),
+        chi_square_statistic=chi_sq,
+        chi_square_p_value=p_val,
+        is_position_independent=is_independent,
+    )
+
+
+def _aggregate_session_results_by_seat(
+    results: list[SessionResult],
+) -> dict[int, _SeatAggregation]:
+    """Aggregate session outcomes by seat number from flattened results.
+
+    Args:
+        results: List of SessionResult with seat_number populated.
+
+    Returns:
+        Dictionary mapping seat number to aggregated data.
+    """
+    aggregations: dict[int, _SeatAggregation] = {}
+
+    for result in results:
+        if result.seat_number is None:
+            continue
+
+        seat_num = result.seat_number
+        agg = aggregations.get(seat_num)
+        if agg is None:
+            agg = _SeatAggregation()
+            aggregations[seat_num] = agg
+
+        if result.outcome == SessionOutcome.WIN:
+            agg.wins += 1
+        elif result.outcome == SessionOutcome.LOSS:
+            agg.losses += 1
+        elif result.outcome == SessionOutcome.PUSH:
+            agg.pushes += 1
+
+        agg.total_profit += result.session_profit
+
+    return aggregations
+
+
+def analyze_session_results_by_seat(
+    results: list[SessionResult],
+    confidence_level: float = 0.95,
+    significance_level: float = 0.05,
+) -> ChairPositionAnalysis:
+    """Analyze outcomes by seat position from flattened SessionResult list.
+
+    This is an alternative to analyze_chair_positions() that works with
+    flattened SessionResult objects (as returned by SimulationResults)
+    instead of TableSessionResult objects.
+
+    Args:
+        results: List of SessionResult with seat_number populated.
+        confidence_level: Confidence level for Wilson CI (default 0.95).
+        significance_level: P-value threshold for chi-square test (default 0.05).
+
+    Returns:
+        ChairPositionAnalysis with per-seat statistics and independence test.
+
+    Raises:
+        ValueError: If results is empty or has no seat data.
+    """
+    if not results:
+        raise ValueError("Cannot analyze empty results list")
+
+    # Aggregate data by seat
+    aggregations = _aggregate_session_results_by_seat(results)
 
     if not aggregations:
         raise ValueError("No seat data found in results")

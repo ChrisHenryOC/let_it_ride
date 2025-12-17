@@ -8,10 +8,12 @@ from let_it_ride.analytics.chair_position import (
     ChairPositionAnalysis,
     SeatStatistics,
     _aggregate_seat_data,
+    _aggregate_session_results_by_seat,
     _calculate_seat_statistics,
     _SeatAggregation,
     _test_seat_independence,
     analyze_chair_positions,
+    analyze_session_results_by_seat,
 )
 from let_it_ride.simulation.session import SessionOutcome, SessionResult, StopReason
 from let_it_ride.simulation.table_session import SeatSessionResult, TableSessionResult
@@ -665,3 +667,126 @@ class TestChiSquareIntegration:
         # With biased outcomes, p-value should be low
         assert analysis.chi_square_p_value < 0.05
         assert analysis.is_position_independent == False  # noqa: E712
+
+
+class TestAggregateSessionResultsBySeat:
+    """Tests for _aggregate_session_results_by_seat function."""
+
+    def test_basic_aggregation(self) -> None:
+        """Test basic aggregation of flattened SessionResults."""
+        results = [
+            create_session_result(profit=100.0).with_seat_number(1),
+            create_session_result(profit=-50.0).with_seat_number(1),
+            create_session_result(profit=200.0).with_seat_number(2),
+        ]
+
+        aggregations = _aggregate_session_results_by_seat(results)
+
+        assert 1 in aggregations
+        assert 2 in aggregations
+        assert aggregations[1].wins == 1
+        assert aggregations[1].losses == 1
+        assert aggregations[1].total_profit == 50.0
+        assert aggregations[2].wins == 1
+        assert aggregations[2].losses == 0
+        assert aggregations[2].total_profit == 200.0
+
+    def test_skips_none_seat_numbers(self) -> None:
+        """Test that results without seat_number are skipped."""
+        results = [
+            create_session_result(profit=100.0),  # No seat number (single-seat)
+            create_session_result(profit=200.0).with_seat_number(1),
+        ]
+
+        aggregations = _aggregate_session_results_by_seat(results)
+
+        assert 1 in aggregations
+        assert len(aggregations) == 1  # Only seat 1, not the None
+
+    def test_empty_results(self) -> None:
+        """Test empty results list returns empty aggregations."""
+        aggregations = _aggregate_session_results_by_seat([])
+        assert len(aggregations) == 0
+
+
+class TestAnalyzeSessionResultsBySeat:
+    """Tests for analyze_session_results_by_seat function."""
+
+    def test_basic_analysis(self) -> None:
+        """Test basic analysis of flattened SessionResults."""
+        results = [
+            create_session_result(profit=100.0).with_seat_number(1),
+            create_session_result(profit=-50.0).with_seat_number(1),
+            create_session_result(profit=200.0).with_seat_number(2),
+            create_session_result(profit=-100.0).with_seat_number(2),
+        ]
+
+        analysis = analyze_session_results_by_seat(results)
+
+        assert len(analysis.seat_statistics) == 2
+        assert analysis.seat_statistics[0].seat_number == 1
+        assert analysis.seat_statistics[0].wins == 1
+        assert analysis.seat_statistics[0].losses == 1
+        assert analysis.seat_statistics[1].seat_number == 2
+        assert analysis.seat_statistics[1].wins == 1
+        assert analysis.seat_statistics[1].losses == 1
+
+    def test_empty_results_raises(self) -> None:
+        """Test that empty results raises ValueError."""
+        with pytest.raises(ValueError, match="Cannot analyze empty results list"):
+            analyze_session_results_by_seat([])
+
+    def test_no_seat_data_raises(self) -> None:
+        """Test that results without seat_number raises ValueError."""
+        results = [
+            create_session_result(profit=100.0),  # No seat number
+            create_session_result(profit=-50.0),  # No seat number
+        ]
+
+        with pytest.raises(ValueError, match="No seat data found in results"):
+            analyze_session_results_by_seat(results)
+
+    def test_consistent_with_analyze_chair_positions(self) -> None:
+        """Test that results match analyze_chair_positions for same data."""
+        # Create TableSessionResults
+        table_results = [
+            create_table_session_result([
+                (1, SessionOutcome.WIN, 100.0),
+                (2, SessionOutcome.LOSS, -50.0),
+            ]),
+            create_table_session_result([
+                (1, SessionOutcome.LOSS, -30.0),
+                (2, SessionOutcome.WIN, 80.0),
+            ]),
+        ]
+
+        # Create equivalent flattened SessionResults
+        flattened = [
+            create_session_result(profit=100.0).with_seat_number(1),
+            create_session_result(profit=-50.0).with_seat_number(2),
+            create_session_result(profit=-30.0).with_seat_number(1),
+            create_session_result(profit=80.0).with_seat_number(2),
+        ]
+
+        analysis_table = analyze_chair_positions(table_results)
+        analysis_flat = analyze_session_results_by_seat(flattened)
+
+        # Both should produce same statistics
+        assert len(analysis_table.seat_statistics) == len(analysis_flat.seat_statistics)
+        for i in range(len(analysis_table.seat_statistics)):
+            assert (
+                analysis_table.seat_statistics[i].seat_number
+                == analysis_flat.seat_statistics[i].seat_number
+            )
+            assert (
+                analysis_table.seat_statistics[i].wins
+                == analysis_flat.seat_statistics[i].wins
+            )
+            assert (
+                analysis_table.seat_statistics[i].losses
+                == analysis_flat.seat_statistics[i].losses
+            )
+            assert (
+                analysis_table.seat_statistics[i].win_rate
+                == analysis_flat.seat_statistics[i].win_rate
+            )

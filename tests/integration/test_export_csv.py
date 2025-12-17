@@ -1338,3 +1338,272 @@ class TestSeatNumberE2EFlow:
         seat_numbers = [int(row["seat_number"]) for row in rows]
         for seat in range(1, num_seats + 1):
             assert seat_numbers.count(seat) == num_sessions
+
+
+class TestSeatAggregateExportIntegration:
+    """Integration tests for seat aggregate CSV export via export_all."""
+
+    def test_export_all_with_seat_aggregate_multi_seat(
+        self, tmp_path: Path
+    ) -> None:
+        """Verify export_all creates seat_aggregate.csv for multi-seat tables."""
+        from datetime import datetime
+
+        from let_it_ride.config.models import (
+            BankrollConfig,
+            BettingSystemConfig,
+            FullConfig,
+            SimulationConfig,
+            StopConditionsConfig,
+            StrategyConfig,
+            TableConfig,
+        )
+        from let_it_ride.simulation.controller import SimulationResults
+
+        # Create multi-seat session results
+        session_results = [
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.MAX_HANDS,
+                hands_played=50,
+                starting_bankroll=500.0,
+                final_bankroll=600.0,
+                session_profit=100.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=620.0,
+                max_drawdown=50.0,
+                max_drawdown_pct=0.08,
+                seat_number=1,
+            ),
+            SessionResult(
+                outcome=SessionOutcome.LOSS,
+                stop_reason=StopReason.MAX_HANDS,
+                hands_played=50,
+                starting_bankroll=500.0,
+                final_bankroll=400.0,
+                session_profit=-100.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=520.0,
+                max_drawdown=120.0,
+                max_drawdown_pct=0.23,
+                seat_number=2,
+            ),
+            SessionResult(
+                outcome=SessionOutcome.LOSS,
+                stop_reason=StopReason.MAX_HANDS,
+                hands_played=50,
+                starting_bankroll=500.0,
+                final_bankroll=450.0,
+                session_profit=-50.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=510.0,
+                max_drawdown=60.0,
+                max_drawdown_pct=0.12,
+                seat_number=1,
+            ),
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.MAX_HANDS,
+                hands_played=50,
+                starting_bankroll=500.0,
+                final_bankroll=550.0,
+                session_profit=50.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=560.0,
+                max_drawdown=40.0,
+                max_drawdown_pct=0.07,
+                seat_number=2,
+            ),
+        ]
+
+        config = FullConfig(
+            simulation=SimulationConfig(num_sessions=2, hands_per_session=50),
+            table=TableConfig(num_seats=2),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+        results = SimulationResults(
+            config=config,
+            session_results=session_results,
+            start_time=datetime.now(),
+            end_time=datetime.now(),
+            total_hands=200,
+        )
+
+        exporter = CSVExporter(tmp_path, prefix="sim")
+        paths = exporter.export_all(
+            results, include_seat_aggregate=True, num_seats=2
+        )
+
+        # Should have sessions, aggregate, and seat_aggregate files
+        assert len(paths) == 3
+        assert (tmp_path / "sim_sessions.csv").exists()
+        assert (tmp_path / "sim_aggregate.csv").exists()
+        assert (tmp_path / "sim_seat_aggregate.csv").exists()
+
+        # Verify seat_aggregate CSV content
+        with (tmp_path / "sim_seat_aggregate.csv").open(
+            encoding="utf-8-sig", newline=""
+        ) as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        # Should have 2 seat rows + 1 summary row
+        assert len(rows) == 3
+
+        # First two rows are per-seat statistics
+        assert rows[0]["seat_number"] == "1"
+        assert rows[1]["seat_number"] == "2"
+
+        # Last row is summary
+        assert rows[2]["seat_number"] == "SUMMARY"
+        assert rows[2]["chi_square_statistic"] != ""
+        assert rows[2]["chi_square_p_value"] != ""
+
+    def test_export_all_with_seat_aggregate_single_seat_skipped(
+        self, tmp_path: Path
+    ) -> None:
+        """Verify export_all skips seat_aggregate.csv for single-seat tables."""
+        from datetime import datetime
+
+        from let_it_ride.config.models import (
+            BankrollConfig,
+            BettingSystemConfig,
+            FullConfig,
+            SimulationConfig,
+            StopConditionsConfig,
+            StrategyConfig,
+        )
+        from let_it_ride.simulation.controller import SimulationResults
+
+        session_results = [
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.MAX_HANDS,
+                hands_played=50,
+                starting_bankroll=500.0,
+                final_bankroll=600.0,
+                session_profit=100.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=620.0,
+                max_drawdown=50.0,
+                max_drawdown_pct=0.08,
+            ),
+        ]
+
+        config = FullConfig(
+            simulation=SimulationConfig(num_sessions=1, hands_per_session=50),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+        results = SimulationResults(
+            config=config,
+            session_results=session_results,
+            start_time=datetime.now(),
+            end_time=datetime.now(),
+            total_hands=50,
+        )
+
+        exporter = CSVExporter(tmp_path, prefix="sim")
+        paths = exporter.export_all(
+            results, include_seat_aggregate=True, num_seats=1
+        )
+
+        # Should only have sessions and aggregate files (no seat_aggregate)
+        assert len(paths) == 2
+        assert (tmp_path / "sim_sessions.csv").exists()
+        assert (tmp_path / "sim_aggregate.csv").exists()
+        assert not (tmp_path / "sim_seat_aggregate.csv").exists()
+
+    def test_export_all_without_seat_aggregate_flag(
+        self, tmp_path: Path
+    ) -> None:
+        """Verify export_all skips seat_aggregate.csv when flag is False."""
+        from datetime import datetime
+
+        from let_it_ride.config.models import (
+            BankrollConfig,
+            BettingSystemConfig,
+            FullConfig,
+            SimulationConfig,
+            StopConditionsConfig,
+            StrategyConfig,
+            TableConfig,
+        )
+        from let_it_ride.simulation.controller import SimulationResults
+
+        session_results = [
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.MAX_HANDS,
+                hands_played=50,
+                starting_bankroll=500.0,
+                final_bankroll=600.0,
+                session_profit=100.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=620.0,
+                max_drawdown=50.0,
+                max_drawdown_pct=0.08,
+                seat_number=1,
+            ),
+            SessionResult(
+                outcome=SessionOutcome.LOSS,
+                stop_reason=StopReason.MAX_HANDS,
+                hands_played=50,
+                starting_bankroll=500.0,
+                final_bankroll=400.0,
+                session_profit=-100.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=520.0,
+                max_drawdown=120.0,
+                max_drawdown_pct=0.23,
+                seat_number=2,
+            ),
+        ]
+
+        config = FullConfig(
+            simulation=SimulationConfig(num_sessions=1, hands_per_session=50),
+            table=TableConfig(num_seats=2),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+        results = SimulationResults(
+            config=config,
+            session_results=session_results,
+            start_time=datetime.now(),
+            end_time=datetime.now(),
+            total_hands=100,
+        )
+
+        exporter = CSVExporter(tmp_path, prefix="sim")
+        paths = exporter.export_all(
+            results, include_seat_aggregate=False, num_seats=2
+        )
+
+        # Should only have sessions and aggregate files
+        assert len(paths) == 2
+        assert (tmp_path / "sim_sessions.csv").exists()
+        assert (tmp_path / "sim_aggregate.csv").exists()
+        assert not (tmp_path / "sim_seat_aggregate.csv").exists()

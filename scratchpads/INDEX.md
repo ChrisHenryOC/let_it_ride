@@ -57,3 +57,4 @@ Quick reference for prior implementation work. Read full scratchpad only if dire
 | #138 | LIR-56: Table Configuration Integration with CLI |
 | #142 | LIR-58: Multi-Seat Stop Condition Behavior Options |
 | #146 | LIR-60: Seat-Level Statistics |
+| #148 | LIR-61: Integrate seat-level aggregate CSV export |

@@ -229,7 +229,11 @@ def run(
     output_dir = Path(cfg.output.directory)
     try:
         exporter = CSVExporter(output_dir, prefix=cfg.output.prefix)
-        exported_files = exporter.export_all(results)
+        exported_files = exporter.export_all(
+            results,
+            include_seat_aggregate=cfg.output.formats.csv.include_seat_aggregate,
+            num_seats=cfg.table.num_seats,
+        )
     except Exception as e:
         error_console.print(f"[red]Export error:[/red] {e}")
         if verbose:
