@@ -347,11 +347,11 @@ class CSVExporter:
 
         Raises:
             ValueError: If include_hands is True but hands is None or empty,
-                or if session_results is empty (from export_sessions).
+                if session_results is empty (from export_sessions), or if
+                include_seat_aggregate is True but results lack seat_number data.
         """
-        from let_it_ride.analytics.chair_position import (
-            analyze_session_results_by_seat,
-        )
+        # Deferred imports to avoid circular dependencies
+        from let_it_ride.analytics.chair_position import analyze_session_results_by_seat
         from let_it_ride.simulation.aggregation import aggregate_results
 
         self._ensure_output_dir()
@@ -438,7 +438,8 @@ def export_seat_aggregate_csv(
     contains the chi-square test results for seat independence.
 
     Args:
-        analysis: ChairPositionAnalysis from analyze_chair_positions().
+        analysis: ChairPositionAnalysis from analyze_chair_positions() or
+            analyze_session_results_by_seat().
         path: Output file path.
         include_bom: If True, include UTF-8 BOM for Excel compatibility.
 

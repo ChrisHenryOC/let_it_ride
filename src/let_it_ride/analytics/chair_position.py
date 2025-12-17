@@ -7,8 +7,9 @@ Key types:
 - SeatStatistics: Per-seat win rates, confidence intervals, and profit metrics
 - ChairPositionAnalysis: Complete analysis with chi-square independence test
 
-Main function:
-- analyze_chair_positions(): Analyze outcomes by seat position
+Main functions:
+- analyze_chair_positions(): Analyze outcomes from TableSessionResult list
+- analyze_session_results_by_seat(): Analyze outcomes from flattened SessionResult list
 """
 
 from __future__ import annotations
@@ -214,6 +215,47 @@ def _test_seat_independence(
     return float(statistic), float(p_value), is_independent
 
 
+def _build_analysis_from_aggregations(
+    aggregations: dict[int, _SeatAggregation],
+    confidence_level: float,
+    significance_level: float,
+) -> ChairPositionAnalysis:
+    """Build ChairPositionAnalysis from aggregated seat data.
+
+    Common logic shared by analyze_chair_positions() and
+    analyze_session_results_by_seat().
+
+    Args:
+        aggregations: Dictionary mapping seat number to aggregated data.
+        confidence_level: Confidence level for Wilson CI (e.g., 0.95).
+        significance_level: P-value threshold for chi-square test (e.g., 0.05).
+
+    Returns:
+        ChairPositionAnalysis with per-seat statistics and independence test.
+    """
+    # Calculate statistics for each seat
+    seat_stats: list[SeatStatistics] = []
+    for seat_num in sorted(aggregations.keys()):
+        stats_for_seat = _calculate_seat_statistics(
+            seat_number=seat_num,
+            agg=aggregations[seat_num],
+            confidence_level=confidence_level,
+        )
+        seat_stats.append(stats_for_seat)
+
+    # Test for seat independence
+    chi_sq, p_val, is_independent = _test_seat_independence(
+        seat_stats, significance_level
+    )
+
+    return ChairPositionAnalysis(
+        seat_statistics=tuple(seat_stats),
+        chi_square_statistic=chi_sq,
+        chi_square_p_value=p_val,
+        is_position_independent=is_independent,
+    )
+
+
 def analyze_chair_positions(
     results: list[TableSessionResult],
     confidence_level: float = 0.95,
@@ -246,26 +288,8 @@ def analyze_chair_positions(
     if not aggregations:
         raise ValueError("No seat data found in results")
 
-    # Calculate statistics for each seat
-    seat_stats: list[SeatStatistics] = []
-    for seat_num in sorted(aggregations.keys()):
-        stats_for_seat = _calculate_seat_statistics(
-            seat_number=seat_num,
-            agg=aggregations[seat_num],
-            confidence_level=confidence_level,
-        )
-        seat_stats.append(stats_for_seat)
-
-    # Test for seat independence
-    chi_sq, p_val, is_independent = _test_seat_independence(
-        seat_stats, significance_level
-    )
-
-    return ChairPositionAnalysis(
-        seat_statistics=tuple(seat_stats),
-        chi_square_statistic=chi_sq,
-        chi_square_p_value=p_val,
-        is_position_independent=is_independent,
+    return _build_analysis_from_aggregations(
+        aggregations, confidence_level, significance_level
     )
 
 
@@ -335,24 +359,6 @@ def analyze_session_results_by_seat(
     if not aggregations:
         raise ValueError("No seat data found in results")
 
-    # Calculate statistics for each seat
-    seat_stats: list[SeatStatistics] = []
-    for seat_num in sorted(aggregations.keys()):
-        stats_for_seat = _calculate_seat_statistics(
-            seat_number=seat_num,
-            agg=aggregations[seat_num],
-            confidence_level=confidence_level,
-        )
-        seat_stats.append(stats_for_seat)
-
-    # Test for seat independence
-    chi_sq, p_val, is_independent = _test_seat_independence(
-        seat_stats, significance_level
-    )
-
-    return ChairPositionAnalysis(
-        seat_statistics=tuple(seat_stats),
-        chi_square_statistic=chi_sq,
-        chi_square_p_value=p_val,
-        is_position_independent=is_independent,
+    return _build_analysis_from_aggregations(
+        aggregations, confidence_level, significance_level
     )

@@ -708,6 +708,22 @@ class TestAggregateSessionResultsBySeat:
         aggregations = _aggregate_session_results_by_seat([])
         assert len(aggregations) == 0
 
+    def test_push_outcome_aggregation(self) -> None:
+        """Test that PUSH outcomes are correctly aggregated."""
+        results = [
+            create_session_result(profit=0.0).with_seat_number(1),  # PUSH
+            create_session_result(profit=0.0).with_seat_number(1),  # PUSH
+            create_session_result(profit=100.0).with_seat_number(1),  # WIN
+        ]
+
+        aggregations = _aggregate_session_results_by_seat(results)
+
+        assert 1 in aggregations
+        assert aggregations[1].wins == 1
+        assert aggregations[1].losses == 0
+        assert aggregations[1].pushes == 2
+        assert aggregations[1].total_profit == 100.0
+
 
 class TestAnalyzeSessionResultsBySeat:
     """Tests for analyze_session_results_by_seat function."""
@@ -745,6 +761,42 @@ class TestAnalyzeSessionResultsBySeat:
 
         with pytest.raises(ValueError, match="No seat data found in results"):
             analyze_session_results_by_seat(results)
+
+    def test_confidence_level_parameter(self) -> None:
+        """Custom confidence level should affect CI width."""
+        results = [
+            create_session_result(profit=100.0).with_seat_number(1),
+            create_session_result(profit=-50.0).with_seat_number(1),
+        ] * 25  # 50 sessions at seat 1
+
+        analysis_95 = analyze_session_results_by_seat(results, confidence_level=0.95)
+        analysis_99 = analyze_session_results_by_seat(results, confidence_level=0.99)
+
+        # 99% CI should be wider than 95% CI
+        ci_width_95 = (
+            analysis_95.seat_statistics[0].win_rate_ci_upper
+            - analysis_95.seat_statistics[0].win_rate_ci_lower
+        )
+        ci_width_99 = (
+            analysis_99.seat_statistics[0].win_rate_ci_upper
+            - analysis_99.seat_statistics[0].win_rate_ci_lower
+        )
+        assert ci_width_99 > ci_width_95
+
+    def test_significance_level_parameter(self) -> None:
+        """Custom significance level should affect independence determination."""
+        # Create moderately biased distribution
+        results = []
+        for _ in range(50):
+            results.append(create_session_result(profit=100.0).with_seat_number(1))
+            results.append(create_session_result(profit=-50.0).with_seat_number(2))
+
+        # Both should have the same chi-square statistic
+        analysis_01 = analyze_session_results_by_seat(results, significance_level=0.01)
+        analysis_10 = analyze_session_results_by_seat(results, significance_level=0.10)
+
+        assert analysis_01.chi_square_statistic == analysis_10.chi_square_statistic
+        # May differ in independence determination based on threshold
 
     def test_consistent_with_analyze_chair_positions(self) -> None:
         """Test that results match analyze_chair_positions for same data."""

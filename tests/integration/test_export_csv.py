@@ -791,6 +791,184 @@ class TestCSVExporter:
         assert exporter.prefix == "test"
         assert exporter.include_bom is False
 
+    def test_export_seat_aggregate(self, tmp_path: Path) -> None:
+        """Verify export_seat_aggregate creates expected file."""
+        analysis = ChairPositionAnalysis(
+            seat_statistics=(
+                SeatStatistics(
+                    seat_number=1,
+                    total_rounds=100,
+                    wins=30,
+                    losses=65,
+                    pushes=5,
+                    win_rate=0.30,
+                    win_rate_ci_lower=0.21,
+                    win_rate_ci_upper=0.40,
+                    expected_value=-5.0,
+                    total_profit=-500.0,
+                ),
+                SeatStatistics(
+                    seat_number=2,
+                    total_rounds=100,
+                    wins=35,
+                    losses=60,
+                    pushes=5,
+                    win_rate=0.35,
+                    win_rate_ci_lower=0.26,
+                    win_rate_ci_upper=0.45,
+                    expected_value=2.5,
+                    total_profit=250.0,
+                ),
+            ),
+            chi_square_statistic=1.5,
+            chi_square_p_value=0.22,
+            is_position_independent=True,
+        )
+        exporter = CSVExporter(tmp_path, prefix="test")
+        path = exporter.export_seat_aggregate(analysis)
+
+        assert path == tmp_path / "test_seat_aggregate.csv"
+        assert path.exists()
+
+    def test_export_seat_aggregate_with_custom_prefix(self, tmp_path: Path) -> None:
+        """Verify export_seat_aggregate uses custom prefix in filename."""
+        analysis = ChairPositionAnalysis(
+            seat_statistics=(
+                SeatStatistics(
+                    seat_number=1,
+                    total_rounds=50,
+                    wins=20,
+                    losses=30,
+                    pushes=0,
+                    win_rate=0.40,
+                    win_rate_ci_lower=0.27,
+                    win_rate_ci_upper=0.54,
+                    expected_value=10.0,
+                    total_profit=500.0,
+                ),
+            ),
+            chi_square_statistic=0.0,
+            chi_square_p_value=1.0,
+            is_position_independent=True,
+        )
+        exporter = CSVExporter(tmp_path, prefix="my_sim")
+        path = exporter.export_seat_aggregate(analysis)
+
+        assert path.name == "my_sim_seat_aggregate.csv"
+
+    def test_export_seat_aggregate_bom_setting(self, tmp_path: Path) -> None:
+        """Verify export_seat_aggregate respects BOM setting."""
+        analysis = ChairPositionAnalysis(
+            seat_statistics=(
+                SeatStatistics(
+                    seat_number=1,
+                    total_rounds=50,
+                    wins=20,
+                    losses=30,
+                    pushes=0,
+                    win_rate=0.40,
+                    win_rate_ci_lower=0.27,
+                    win_rate_ci_upper=0.54,
+                    expected_value=10.0,
+                    total_profit=500.0,
+                ),
+            ),
+            chi_square_statistic=0.0,
+            chi_square_p_value=1.0,
+            is_position_independent=True,
+        )
+        # Without BOM
+        exporter_no_bom = CSVExporter(tmp_path, prefix="no_bom", include_bom=False)
+        path_no_bom = exporter_no_bom.export_seat_aggregate(analysis)
+
+        with path_no_bom.open("rb") as f:
+            start = f.read(3)
+        assert start != b"\xef\xbb\xbf"
+
+        # With BOM (default)
+        exporter_bom = CSVExporter(tmp_path, prefix="with_bom", include_bom=True)
+        path_bom = exporter_bom.export_seat_aggregate(analysis)
+
+        with path_bom.open("rb") as f:
+            start = f.read(3)
+        assert start == b"\xef\xbb\xbf"
+
+    def test_export_all_seat_aggregate_no_seat_data_raises(
+        self, tmp_path: Path
+    ) -> None:
+        """Verify export_all raises ValueError when seat aggregate requested but no seat data."""
+        from datetime import datetime
+
+        from let_it_ride.config.models import (
+            BankrollConfig,
+            BettingSystemConfig,
+            FullConfig,
+            SimulationConfig,
+            StopConditionsConfig,
+            StrategyConfig,
+            TableConfig,
+        )
+        from let_it_ride.simulation.controller import SimulationResults
+
+        # Create session results WITHOUT seat_number (all None)
+        session_results = [
+            SessionResult(
+                outcome=SessionOutcome.WIN,
+                stop_reason=StopReason.MAX_HANDS,
+                hands_played=50,
+                starting_bankroll=500.0,
+                final_bankroll=600.0,
+                session_profit=100.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=620.0,
+                max_drawdown=50.0,
+                max_drawdown_pct=0.08,
+                # seat_number is None by default
+            ),
+            SessionResult(
+                outcome=SessionOutcome.LOSS,
+                stop_reason=StopReason.MAX_HANDS,
+                hands_played=50,
+                starting_bankroll=500.0,
+                final_bankroll=400.0,
+                session_profit=-100.0,
+                total_wagered=750.0,
+                total_bonus_wagered=0.0,
+                peak_bankroll=520.0,
+                max_drawdown=120.0,
+                max_drawdown_pct=0.23,
+                # seat_number is None by default
+            ),
+        ]
+
+        config = FullConfig(
+            simulation=SimulationConfig(num_sessions=2, hands_per_session=50),
+            table=TableConfig(num_seats=2),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+        results = SimulationResults(
+            config=config,
+            session_results=session_results,
+            start_time=datetime.now(),
+            end_time=datetime.now(),
+            total_hands=100,
+        )
+
+        exporter = CSVExporter(tmp_path, prefix="sim")
+
+        # Should raise ValueError because no seat_number data in results
+        with pytest.raises(ValueError, match="No seat data found"):
+            exporter.export_all(
+                results, include_seat_aggregate=True, num_seats=2
+            )
+
 
 class TestSeatNumberInSessionResult:
     """Tests for seat_number field in SessionResult and CSV export."""
