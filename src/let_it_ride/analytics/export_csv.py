@@ -310,11 +310,27 @@ class CSVExporter:
         export_hands_csv(hands, path, fields_to_export, self._include_bom)
         return path
 
+    def export_seat_aggregate(self, analysis: ChairPositionAnalysis) -> Path:
+        """Export per-seat aggregate statistics to CSV.
+
+        Args:
+            analysis: ChairPositionAnalysis from analyze_session_results_by_seat().
+
+        Returns:
+            Path to the created file.
+        """
+        self._ensure_output_dir()
+        path = self._output_dir / f"{self._prefix}_seat_aggregate.csv"
+        export_seat_aggregate_csv(analysis, path, self._include_bom)
+        return path
+
     def export_all(
         self,
         results: SimulationResults,
         include_hands: bool = False,
         hands: Iterable[HandRecord] | None = None,
+        include_seat_aggregate: bool = False,
+        num_seats: int = 1,
     ) -> list[Path]:
         """Export all simulation results to CSV files.
 
@@ -322,25 +338,59 @@ class CSVExporter:
             results: SimulationResults containing session results.
             include_hands: If True and hands are provided, export hand records.
             hands: Optional iterable of HandRecord objects for per-hand export.
+            include_seat_aggregate: If True and num_seats > 1, export per-seat
+                aggregate statistics.
+            num_seats: Number of seats in the simulation (for seat aggregate).
 
         Returns:
             List of paths to created files.
 
         Raises:
             ValueError: If include_hands is True but hands is None or empty,
-                or if session_results is empty (from export_sessions).
+                if session_results is empty (from export_sessions), or if
+                include_seat_aggregate is True but results lack seat_number data.
         """
-        from let_it_ride.simulation.aggregation import aggregate_results
+        # Deferred imports to avoid circular dependencies
+        from let_it_ride.analytics.chair_position import (
+            _build_analysis_from_aggregations,
+        )
+        from let_it_ride.analytics.chair_position import (
+            _SeatAggregation as ChairSeatAggregation,
+        )
+        from let_it_ride.simulation.aggregation import (
+            aggregate_results,
+            aggregate_with_seats,
+        )
 
         self._ensure_output_dir()
         created_files: list[Path] = []
 
-        # Export sessions
+        # Export sessions (first iteration over results)
         sessions_path = self.export_sessions(results.session_results)
         created_files.append(sessions_path)
 
-        # Export aggregate statistics
-        stats = aggregate_results(results.session_results)
+        # Compute aggregate statistics and optionally seat aggregations in one pass
+        # This combines what was previously two separate iterations
+        need_seat_aggregate = include_seat_aggregate and num_seats > 1
+
+        seat_aggregations: dict[int, ChairSeatAggregation] | None = None
+
+        if need_seat_aggregate:
+            # Single pass: compute both aggregate stats and seat aggregations
+            stats, seat_aggregations_raw = aggregate_with_seats(results.session_results)
+            # Convert to chair_position's _SeatAggregation type for compatibility
+            seat_aggregations = {}
+            for seat_num, agg in seat_aggregations_raw.items():
+                chair_agg = ChairSeatAggregation()
+                chair_agg.wins = agg.wins
+                chair_agg.losses = agg.losses
+                chair_agg.pushes = agg.pushes
+                chair_agg.total_profit = agg.total_profit
+                seat_aggregations[seat_num] = chair_agg
+        else:
+            # Standard path: just compute aggregate stats
+            stats = aggregate_results(results.session_results)
+
         aggregate_path = self.export_aggregate(stats)
         created_files.append(aggregate_path)
 
@@ -352,6 +402,18 @@ class CSVExporter:
                 )
             hands_path = self.export_hands(hands)
             created_files.append(hands_path)
+
+        # Optionally export seat aggregate (multi-seat only)
+        if need_seat_aggregate:
+            if not seat_aggregations:
+                raise ValueError("No seat data found in results")
+            analysis = _build_analysis_from_aggregations(
+                seat_aggregations,
+                confidence_level=0.95,
+                significance_level=0.05,
+            )
+            seat_aggregate_path = self.export_seat_aggregate(analysis)
+            created_files.append(seat_aggregate_path)
 
         return created_files
 
@@ -410,7 +472,8 @@ def export_seat_aggregate_csv(
     contains the chi-square test results for seat independence.
 
     Args:
-        analysis: ChairPositionAnalysis from analyze_chair_positions().
+        analysis: ChairPositionAnalysis from analyze_chair_positions() or
+            analyze_session_results_by_seat().
         path: Output file path.
         include_bom: If True, include UTF-8 BOM for Excel compatibility.
 

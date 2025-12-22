@@ -317,3 +317,143 @@ def aggregate_with_hand_frequencies(
         hand_frequencies=hand_frequencies,
         hand_frequency_pct=hand_frequency_pct,
     )
+
+
+class _SeatAggregation:
+    """Mutable accumulator for per-seat data during aggregation.
+
+    This is a lightweight class used internally by aggregate_with_seats().
+    """
+
+    __slots__ = ("wins", "losses", "pushes", "total_profit")
+
+    def __init__(self) -> None:
+        self.wins: int = 0
+        self.losses: int = 0
+        self.pushes: int = 0
+        self.total_profit: float = 0.0
+
+    @property
+    def total_rounds(self) -> int:
+        """Total rounds (sessions) played at this seat."""
+        return self.wins + self.losses + self.pushes
+
+
+def aggregate_with_seats(
+    results: list[SessionResult],
+) -> tuple[AggregateStatistics, dict[int, _SeatAggregation]]:
+    """Aggregate session results and seat data in a single pass.
+
+    This combines the logic of aggregate_results() and seat aggregation
+    to avoid multiple iterations over large result sets.
+
+    Args:
+        results: List of SessionResult objects to aggregate.
+
+    Returns:
+        Tuple of (AggregateStatistics, seat_aggregations_dict).
+        The seat aggregations dict maps seat_number to _SeatAggregation.
+        Empty dict if no seat data found.
+
+    Raises:
+        ValueError: If results list is empty.
+    """
+    if not results:
+        raise ValueError("Cannot aggregate empty results list")
+
+    # Initialize accumulators
+    winning_sessions = 0
+    losing_sessions = 0
+    push_sessions = 0
+    total_hands = 0
+    main_wagered = 0.0
+    bonus_wagered = 0.0
+    net_result = 0.0
+    session_profits: list[float] = []
+    seat_aggregations: dict[int, _SeatAggregation] = {}
+
+    # Single pass over results
+    for r in results:
+        # Session outcome counts
+        if r.outcome == SessionOutcome.WIN:
+            winning_sessions += 1
+        elif r.outcome == SessionOutcome.LOSS:
+            losing_sessions += 1
+        elif r.outcome == SessionOutcome.PUSH:
+            push_sessions += 1
+
+        # Accumulate metrics
+        total_hands += r.hands_played
+        main_wagered += r.total_wagered
+        bonus_wagered += r.total_bonus_wagered
+        net_result += r.session_profit
+        session_profits.append(r.session_profit)
+
+        # Seat aggregation (if seat_number is set)
+        if r.seat_number is not None:
+            seat_num = r.seat_number
+            agg = seat_aggregations.get(seat_num)
+            if agg is None:
+                agg = _SeatAggregation()
+                seat_aggregations[seat_num] = agg
+
+            if r.outcome == SessionOutcome.WIN:
+                agg.wins += 1
+            elif r.outcome == SessionOutcome.LOSS:
+                agg.losses += 1
+            elif r.outcome == SessionOutcome.PUSH:
+                agg.pushes += 1
+            agg.total_profit += r.session_profit
+
+    # Compute derived statistics
+    total_sessions = len(results)
+    session_win_rate = winning_sessions / total_sessions
+    total_wagered = main_wagered + bonus_wagered
+    total_won = net_result + total_wagered
+
+    # Main/bonus breakdown (bonus break-even assumption)
+    bonus_won = bonus_wagered
+    main_won = total_won - bonus_won
+
+    # Expected value per hand
+    expected_value_per_hand = net_result / total_hands if total_hands > 0 else 0.0
+    main_profit = main_won - main_wagered
+    main_ev_per_hand = main_profit / total_hands if total_hands > 0 else 0.0
+    bonus_ev_per_hand = 0.0
+
+    # Session profit statistics
+    session_profits_tuple = tuple(session_profits)
+    session_profit_mean = mean(session_profits) if session_profits else 0.0
+    session_profit_std = stdev(session_profits) if len(session_profits) > 1 else 0.0
+    session_profit_median = median(session_profits) if session_profits else 0.0
+    session_profit_min = min(session_profits) if session_profits else 0.0
+    session_profit_max = max(session_profits) if session_profits else 0.0
+
+    stats = AggregateStatistics(
+        total_sessions=total_sessions,
+        winning_sessions=winning_sessions,
+        losing_sessions=losing_sessions,
+        push_sessions=push_sessions,
+        session_win_rate=session_win_rate,
+        total_hands=total_hands,
+        total_wagered=total_wagered,
+        total_won=total_won,
+        net_result=net_result,
+        expected_value_per_hand=expected_value_per_hand,
+        main_wagered=main_wagered,
+        main_won=main_won,
+        main_ev_per_hand=main_ev_per_hand,
+        bonus_wagered=bonus_wagered,
+        bonus_won=bonus_won,
+        bonus_ev_per_hand=bonus_ev_per_hand,
+        hand_frequencies={},
+        hand_frequency_pct={},
+        session_profit_mean=session_profit_mean,
+        session_profit_std=session_profit_std,
+        session_profit_median=session_profit_median,
+        session_profit_min=session_profit_min,
+        session_profit_max=session_profit_max,
+        session_profits=session_profits_tuple,
+    )
+
+    return stats, seat_aggregations

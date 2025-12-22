@@ -973,6 +973,7 @@ class CsvOutputConfig(BaseModel):
         include_hands: Include per-hand details.
         include_sessions: Include per-session summaries.
         include_aggregate: Include aggregate statistics.
+        include_seat_aggregate: Include per-seat aggregate statistics (multi-seat only).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -981,6 +982,7 @@ class CsvOutputConfig(BaseModel):
     include_hands: bool = False
     include_sessions: bool = True
     include_aggregate: bool = True
+    include_seat_aggregate: bool = False
 
 
 class JsonOutputConfig(BaseModel):

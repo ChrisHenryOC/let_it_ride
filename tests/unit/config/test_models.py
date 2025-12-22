@@ -12,6 +12,7 @@ from let_it_ride.config.models import (
     BonusLimitsConfig,
     BonusStrategyConfig,
     ConservativeStrategyConfig,
+    CsvOutputConfig,
     CustomBettingConfig,
     CustomBonusStrategyConfig,
     CustomStrategyConfig,
@@ -595,6 +596,30 @@ class TestPaytablesConfig:
         config = PaytablesConfig()
         assert config.main_game.type == "standard"
         assert config.bonus.type == "paytable_b"
+
+
+class TestCsvOutputConfig:
+    """Tests for CsvOutputConfig model."""
+
+    def test_default_values(self) -> None:
+        """Test default CSV output configuration."""
+        config = CsvOutputConfig()
+        assert config.enabled is True
+        assert config.include_hands is False
+        assert config.include_sessions is True
+        assert config.include_aggregate is True
+        assert config.include_seat_aggregate is False
+
+    def test_include_seat_aggregate_enabled(self) -> None:
+        """Test enabling seat aggregate export."""
+        config = CsvOutputConfig(include_seat_aggregate=True)
+        assert config.include_seat_aggregate is True
+
+    def test_extra_fields_forbidden(self) -> None:
+        """Test that extra fields raise error."""
+        with pytest.raises(ValidationError) as exc_info:
+            CsvOutputConfig(unknown_field="value")  # type: ignore[call-arg]
+        assert "extra_forbidden" in str(exc_info.value)
 
 
 class TestOutputConfig:
