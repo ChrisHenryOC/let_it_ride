@@ -215,13 +215,13 @@ To compare strategies, run simulations with different configurations and compare
 
 ```bash
 # Run basic strategy
-poetry run let-it-ride run configs/basic_strategy.yaml --output ./results/basic
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --output ./results/basic
 
 # Run conservative strategy
-poetry run let-it-ride run configs/conservative.yaml --output ./results/conservative
+poetry run let-it-ride run configs/examples/conservative.yaml --output ./results/conservative
 
 # Run aggressive strategy
-poetry run let-it-ride run configs/aggressive.yaml --output ./results/aggressive
+poetry run let-it-ride run configs/examples/aggressive.yaml --output ./results/aggressive
 ```
 
 Compare session win rates, average profits, and variance across strategies.

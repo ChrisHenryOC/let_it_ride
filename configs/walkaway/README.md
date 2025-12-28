@@ -93,9 +93,10 @@ Configurations that include bonus betting:
 
 | Pattern | Description | Count |
 |---------|-------------|-------|
-| `bonus_5_*.yaml` | $5 bonus bet strategies | 11 |
-| `bonus_15_*.yaml` | $15 bonus bet strategies | 11 |
-| `bonus_30_*.yaml` | $30 bonus bet strategies | 11 |
+| `bonus_5_*.yaml` | $5 bonus bet strategies | 10 |
+| `bonus_15_*.yaml` | $15 bonus bet strategies | 10 |
+| `bonus_30_*.yaml` | $30 bonus bet strategies | 10 |
+| `bonus_*_paroli.yaml` | Paroli betting with bonus ($5/$15/$30) | 3 |
 
 Strategy variations:
 - `*_tight.yaml` - $100/$100 win/loss limits
@@ -137,9 +138,10 @@ Results are written to `results/walkaway/` with subdirectories matching config n
 
 ```
 results/walkaway/
-├── ANALYSIS_SUMMARY.md          # Complete analysis
-├── with_bonus/bonus_5_tight/    # Results for each config
-├── no_bonus/no_bonus_tight_100/
+├── ANALYSIS_SUMMARY.md          # Complete analysis (generated after running)
+├── bonus_5_tight/               # Results for each config
+├── no_bonus_tight_100/
+├── martingale_nobonus_tight/
 └── ...
 ```
 

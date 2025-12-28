@@ -325,7 +325,7 @@ Test a hypothesis with minimal setup:
 
 ```bash
 # Test A: Standard config
-poetry run let-it-ride run configs/basic_strategy.yaml --sessions 50000 --seed 42 --output ./test_a
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --sessions 50000 --seed 42 --output ./test_a
 
 # Test B: Modified config
 poetry run let-it-ride run modified.yaml --sessions 50000 --seed 42 --output ./test_b

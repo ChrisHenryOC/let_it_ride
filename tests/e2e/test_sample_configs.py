@@ -23,11 +23,11 @@ CONFIGS_DIR = Path(__file__).parent.parent.parent / "configs"
 
 # All sample configuration files to test
 SAMPLE_CONFIG_FILES = [
-    "basic_strategy.yaml",
-    "conservative.yaml",
-    "aggressive.yaml",
-    "bonus_comparison.yaml",
-    "progressive_betting.yaml",
+    "examples/basic_strategy.yaml",
+    "examples/conservative.yaml",
+    "examples/aggressive.yaml",
+    "examples/bonus_comparison.yaml",
+    "examples/progressive_betting.yaml",
     "sample_config.yaml",
 ]
 
@@ -192,7 +192,7 @@ class TestSpecificConfigValidation:
 
     def test_basic_strategy_uses_flat_betting(self) -> None:
         """Verify basic_strategy.yaml uses flat betting system."""
-        config = load_config(CONFIGS_DIR / "basic_strategy.yaml")
+        config = load_config(CONFIGS_DIR / "examples/basic_strategy.yaml")
 
         config.simulation.num_sessions = 20
         config.simulation.hands_per_session = 20
@@ -206,7 +206,7 @@ class TestSpecificConfigValidation:
 
     def test_progressive_betting_martingale_behavior(self) -> None:
         """Verify progressive_betting.yaml uses Martingale system."""
-        config = load_config(CONFIGS_DIR / "progressive_betting.yaml")
+        config = load_config(CONFIGS_DIR / "examples/progressive_betting.yaml")
 
         # Verify config is Martingale
         assert config.bankroll.betting_system.type == "martingale"
@@ -223,7 +223,7 @@ class TestSpecificConfigValidation:
 
     def test_bonus_comparison_has_bonus_enabled(self) -> None:
         """Verify bonus_comparison.yaml has bonus betting enabled."""
-        config = load_config(CONFIGS_DIR / "bonus_comparison.yaml")
+        config = load_config(CONFIGS_DIR / "examples/bonus_comparison.yaml")
 
         # Verify bonus is enabled
         assert config.bonus_strategy.enabled is True
@@ -237,7 +237,7 @@ class TestSpecificConfigValidation:
 
     def test_conservative_strategy_characteristics(self) -> None:
         """Verify conservative.yaml uses conservative strategy settings."""
-        config = load_config(CONFIGS_DIR / "conservative.yaml")
+        config = load_config(CONFIGS_DIR / "examples/conservative.yaml")
 
         assert config.strategy.type == "conservative"
         assert config.strategy.conservative is not None
@@ -252,7 +252,7 @@ class TestSpecificConfigValidation:
 
     def test_aggressive_strategy_characteristics(self) -> None:
         """Verify aggressive.yaml uses aggressive strategy settings."""
-        config = load_config(CONFIGS_DIR / "aggressive.yaml")
+        config = load_config(CONFIGS_DIR / "examples/aggressive.yaml")
 
         assert config.strategy.type == "aggressive"
         assert config.strategy.aggressive is not None
@@ -271,7 +271,7 @@ class TestSampleConfigsLargeScale:
 
     def test_basic_strategy_thousand_sessions(self) -> None:
         """Verify basic_strategy handles 1000 sessions."""
-        config = load_config(CONFIGS_DIR / "basic_strategy.yaml")
+        config = load_config(CONFIGS_DIR / "examples/basic_strategy.yaml")
 
         # Create a deep copy to avoid mutating the original config
         config = config.model_copy(deep=True)
