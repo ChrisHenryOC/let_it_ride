@@ -1,0 +1,86 @@
+# =============================================================================
+# Walk-Away Strategy: $5 Bonus - Very Tight $50
+# =============================================================================
+# $5 bonus bet with very tight walk-away: $50 up / $50 down
+# Testing if tighter limits than $100/$100 perform better.
+# =============================================================================
+
+metadata:
+  name: "Bonus $5 - Very Tight $50 Walk-Away"
+  description: "$5 bonus, very tight: $50 up / $50 down"
+  version: "1.0"
+
+simulation:
+  num_sessions: 100000
+  hands_per_session: 200
+  random_seed: 42
+  workers: "auto"
+  progress_interval: 10000
+
+deck:
+  shuffle_algorithm: "fisher_yates"
+
+bankroll:
+  starting_amount: 500.00
+  base_bet: 5.00
+  stop_conditions:
+    win_limit: 50.00
+    loss_limit: 50.00
+    max_hands: 200
+    stop_on_insufficient_funds: true
+  betting_system:
+    type: "flat"
+
+strategy:
+  type: "basic"
+
+table:
+  num_seats: 1
+
+bonus_strategy:
+  enabled: true
+  paytable: "paytable_b"
+  limits:
+    min_bet: 1.00
+    max_bet: 50.00
+    increment: 1.00
+  type: "static"
+  static:
+    amount: 5.00
+
+paytables:
+  main_game:
+    type: "standard"
+  bonus:
+    type: "paytable_b"
+
+output:
+  directory: "./results/walkaway/bonus_5_verytight_50"
+  prefix: "bonus_5_verytight_50"
+  formats:
+    csv:
+      enabled: true
+      include_hands: false
+      include_sessions: true
+      include_aggregate: true
+      include_seat_aggregate: true
+    json:
+      enabled: true
+      pretty: true
+      include_config: true
+    html:
+      enabled: false
+  visualizations:
+    enabled: true
+    charts:
+      - type: "session_outcomes_histogram"
+        title: "$5 Bonus VeryTight $50 - Session Outcomes"
+      - type: "bankroll_trajectory"
+        title: "$5 Bonus VeryTight $50 - Bankroll Trajectories"
+        sample_sessions: 50
+    format: "png"
+    dpi: 150
+  console:
+    progress_bar: true
+    verbosity: 1
+    show_summary: true
