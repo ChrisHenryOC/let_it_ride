@@ -220,7 +220,7 @@ To compare bonus strategies:
 
 ```bash
 # No bonus betting
-poetry run let-it-ride run configs/basic_strategy.yaml --output ./results/no_bonus
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --output ./results/no_bonus
 
 # Always bet bonus
 poetry run let-it-ride run configs/bonus_always.yaml --output ./results/bonus_always

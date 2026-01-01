@@ -30,9 +30,9 @@ poetry run ruff format src/ tests/
 
 # CLI commands
 poetry run let-it-ride --version
-poetry run let-it-ride run configs/basic_strategy.yaml
-poetry run let-it-ride run configs/basic_strategy.yaml --quiet
-poetry run let-it-ride run configs/basic_strategy.yaml --seed 42 --sessions 100
+poetry run let-it-ride run configs/examples/basic_strategy.yaml
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --quiet
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --seed 42 --sessions 100
 poetry run let-it-ride validate configs/sample_config.yaml
 ```
 

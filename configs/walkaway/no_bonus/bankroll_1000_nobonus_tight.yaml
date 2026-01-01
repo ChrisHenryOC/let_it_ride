@@ -1,0 +1,71 @@
+# =============================================================================
+# Walk-Away Strategy: $1000 Bankroll - No Bonus - Tight
+# =============================================================================
+# Higher starting bankroll ($1000 instead of $500)
+# Testing if larger bankroll-to-limit ratio affects outcomes
+# =============================================================================
+
+metadata:
+  name: "$1000 Bankroll No Bonus - Tight Walk-Away"
+  description: "$1000 bankroll, no bonus, $100/$100"
+  version: "1.0"
+
+simulation:
+  num_sessions: 100000
+  hands_per_session: 200
+  random_seed: 42
+  workers: "auto"
+  progress_interval: 10000
+
+deck:
+  shuffle_algorithm: "fisher_yates"
+
+bankroll:
+  starting_amount: 1000.00
+  base_bet: 5.00
+  stop_conditions:
+    win_limit: 100.00
+    loss_limit: 100.00
+    max_hands: 200
+    stop_on_insufficient_funds: true
+  betting_system:
+    type: "flat"
+
+strategy:
+  type: "basic"
+
+table:
+  num_seats: 1
+
+bonus_strategy:
+  enabled: false
+  type: "never"
+
+paytables:
+  main_game:
+    type: "standard"
+  bonus:
+    type: "paytable_b"
+
+output:
+  directory: "./results/walkaway/bankroll_1000_nobonus_tight"
+  prefix: "bankroll_1000_nobonus_tight"
+  formats:
+    csv:
+      enabled: true
+      include_hands: false
+      include_sessions: true
+      include_aggregate: true
+      include_seat_aggregate: true
+    json:
+      enabled: true
+      pretty: true
+      include_config: true
+    html:
+      enabled: false
+  visualizations:
+    enabled: false
+  console:
+    progress_bar: true
+    verbosity: 1
+    show_summary: true

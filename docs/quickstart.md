@@ -11,7 +11,7 @@ Ensure the simulator is installed ([Installation Guide](installation.md)).
 ### 1. Run a Basic Simulation
 
 ```bash
-poetry run let-it-ride run configs/basic_strategy.yaml
+poetry run let-it-ride run configs/examples/basic_strategy.yaml
 ```
 
 This runs 100,000 sessions using basic (optimal) strategy with default settings.
@@ -39,16 +39,16 @@ Override settings from command line:
 
 ```bash
 # Run fewer sessions for testing
-poetry run let-it-ride run configs/basic_strategy.yaml --sessions 1000
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --sessions 1000
 
 # Set specific random seed for reproducibility
-poetry run let-it-ride run configs/basic_strategy.yaml --seed 42
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --seed 42
 
 # Output to custom directory
-poetry run let-it-ride run configs/basic_strategy.yaml --output ./my_results
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --output ./my_results
 
 # Quiet mode (minimal output)
-poetry run let-it-ride run configs/basic_strategy.yaml --quiet
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --quiet
 ```
 
 ## Sample Configurations
@@ -57,11 +57,11 @@ The `configs/` directory contains pre-built configurations:
 
 | File | Description |
 |------|-------------|
-| `basic_strategy.yaml` | Optimal basic strategy, flat betting |
-| `conservative.yaml` | Conservative strategy, lower variance |
-| `aggressive.yaml` | Aggressive strategy, higher variance |
-| `bonus_comparison.yaml` | Bonus betting strategy comparison |
-| `progressive_betting.yaml` | Progressive betting systems |
+| `examples/basic_strategy.yaml` | Optimal basic strategy, flat betting |
+| `examples/conservative.yaml` | Conservative strategy, lower variance |
+| `examples/aggressive.yaml` | Aggressive strategy, higher variance |
+| `examples/bonus_comparison.yaml` | Bonus betting strategy comparison |
+| `examples/progressive_betting.yaml` | Progressive betting systems |
 | `sample_config.yaml` | Full configuration with all options |
 
 ## Creating Your Own Configuration

@@ -49,19 +49,19 @@ poetry install --with viz
 poetry run let-it-ride --version
 
 # Run a simulation
-poetry run let-it-ride run configs/basic_strategy.yaml
+poetry run let-it-ride run configs/examples/basic_strategy.yaml
 
 # Run with options
-poetry run let-it-ride run configs/basic_strategy.yaml --output ./results --seed 42
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --output ./results --seed 42
 
 # Quiet mode (minimal output, no progress bar)
-poetry run let-it-ride run configs/basic_strategy.yaml --quiet
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --quiet
 
 # Verbose mode (include per-session details)
-poetry run let-it-ride run configs/basic_strategy.yaml --verbose
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --verbose
 
 # Override session count
-poetry run let-it-ride run configs/basic_strategy.yaml --sessions 1000
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --sessions 1000
 
 # Validate a configuration file
 poetry run let-it-ride validate configs/sample_config.yaml

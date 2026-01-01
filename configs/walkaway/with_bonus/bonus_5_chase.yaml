@@ -1,0 +1,114 @@
+# =============================================================================
+# Walk-Away Strategy: $5 Bonus - Chase Wins
+# =============================================================================
+# $5 bonus bet with chase wins walk-away: $400 up / $150 down
+# Part of walk-away strategy comparison study.
+# =============================================================================
+
+metadata:
+  name: "Bonus $5 - Chase Wins Walk-Away"
+  description: "$5 bonus, chase wins: $400 up / $150 down"
+  version: "1.0"
+
+# -----------------------------------------------------------------------------
+# Simulation Parameters
+# -----------------------------------------------------------------------------
+simulation:
+  num_sessions: 100000
+  hands_per_session: 200
+  random_seed: 42
+  workers: "auto"
+  progress_interval: 10000
+
+# -----------------------------------------------------------------------------
+# Deck Configuration
+# -----------------------------------------------------------------------------
+deck:
+  shuffle_algorithm: "fisher_yates"
+
+# -----------------------------------------------------------------------------
+# Bankroll Configuration
+# -----------------------------------------------------------------------------
+bankroll:
+  starting_amount: 500.00
+  base_bet: 5.00
+
+  stop_conditions:
+    win_limit: 400.00
+    loss_limit: 150.00
+    max_hands: 200
+    stop_on_insufficient_funds: true
+
+  betting_system:
+    type: "flat"
+
+# -----------------------------------------------------------------------------
+# Strategy Configuration
+# -----------------------------------------------------------------------------
+strategy:
+  type: "basic"
+
+table:
+  num_seats: 1
+
+# -----------------------------------------------------------------------------
+# Bonus Strategy Configuration
+# -----------------------------------------------------------------------------
+bonus_strategy:
+  enabled: true
+  paytable: "paytable_b"
+
+  limits:
+    min_bet: 1.00
+    max_bet: 50.00
+    increment: 1.00
+
+  type: "static"
+  static:
+    amount: 5.00
+
+# -----------------------------------------------------------------------------
+# Paytables
+# -----------------------------------------------------------------------------
+paytables:
+  main_game:
+    type: "standard"
+  bonus:
+    type: "paytable_b"
+
+# -----------------------------------------------------------------------------
+# Output Configuration
+# -----------------------------------------------------------------------------
+output:
+  directory: "./results/walkaway/bonus_5_chase"
+  prefix: "bonus_5_chase"
+
+  formats:
+    csv:
+      enabled: true
+      include_hands: false
+      include_sessions: true
+      include_aggregate: true
+      include_seat_aggregate: true
+    json:
+      enabled: true
+      pretty: true
+      include_config: true
+    html:
+      enabled: false
+
+  visualizations:
+    enabled: true
+    charts:
+      - type: "session_outcomes_histogram"
+        title: "$5 Bonus Chase - Session Outcomes"
+      - type: "bankroll_trajectory"
+        title: "$5 Bonus Chase - Bankroll Trajectories"
+        sample_sessions: 50
+    format: "png"
+    dpi: 150
+
+  console:
+    progress_bar: true
+    verbosity: 1
+    show_summary: true

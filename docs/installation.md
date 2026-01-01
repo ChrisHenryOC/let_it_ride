@@ -87,7 +87,7 @@ poetry run let-it-ride --version
 poetry run let-it-ride validate configs/sample_config.yaml
 
 # Run a quick simulation
-poetry run let-it-ride run configs/basic_strategy.yaml --sessions 100
+poetry run let-it-ride run configs/examples/basic_strategy.yaml --sessions 100
 ```
 
 ## Troubleshooting Installation

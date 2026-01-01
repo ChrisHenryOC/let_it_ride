@@ -259,7 +259,7 @@ from let_it_ride.simulation import SimulationController, SimulationResults
 from let_it_ride.config import load_config
 
 # Load configuration
-config = load_config("configs/basic_strategy.yaml")
+config = load_config("configs/examples/basic_strategy.yaml")
 
 # Create controller
 controller = SimulationController(config)
@@ -340,7 +340,7 @@ betting.record_result(-15.0)
 from let_it_ride.config import load_config, SimulationConfig
 
 # Load from YAML file
-config: SimulationConfig = load_config("configs/basic_strategy.yaml")
+config: SimulationConfig = load_config("configs/examples/basic_strategy.yaml")
 
 # Access configuration values
 print(config.simulation.num_sessions)

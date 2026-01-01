@@ -28,11 +28,11 @@ CONFIGS_DIR = Path(__file__).parent.parent.parent / "configs"
 
 # List of all sample configuration files that should be validated
 SAMPLE_CONFIG_FILES = [
-    "basic_strategy.yaml",
-    "conservative.yaml",
-    "aggressive.yaml",
-    "bonus_comparison.yaml",
-    "progressive_betting.yaml",
+    "examples/basic_strategy.yaml",
+    "examples/conservative.yaml",
+    "examples/aggressive.yaml",
+    "examples/bonus_comparison.yaml",
+    "examples/progressive_betting.yaml",
     "sample_config.yaml",
 ]
 
@@ -94,7 +94,7 @@ class TestBasicStrategyConfig:
     @pytest.fixture(scope="class")
     def config(self) -> FullConfig:
         """Load basic_strategy.yaml once per test class."""
-        return load_config(CONFIGS_DIR / "basic_strategy.yaml")
+        return load_config(CONFIGS_DIR / "examples/basic_strategy.yaml")
 
     def test_uses_basic_strategy(self, config: FullConfig) -> None:
         """Test that basic_strategy.yaml uses basic strategy."""
@@ -120,7 +120,7 @@ class TestConservativeConfig:
     @pytest.fixture(scope="class")
     def config(self) -> FullConfig:
         """Load conservative.yaml once per test class."""
-        return load_config(CONFIGS_DIR / "conservative.yaml")
+        return load_config(CONFIGS_DIR / "examples/conservative.yaml")
 
     def test_uses_conservative_strategy(self, config: FullConfig) -> None:
         """Test that conservative.yaml uses conservative strategy."""
@@ -144,7 +144,7 @@ class TestAggressiveConfig:
     @pytest.fixture(scope="class")
     def config(self) -> FullConfig:
         """Load aggressive.yaml once per test class."""
-        return load_config(CONFIGS_DIR / "aggressive.yaml")
+        return load_config(CONFIGS_DIR / "examples/aggressive.yaml")
 
     def test_uses_aggressive_strategy(self, config: FullConfig) -> None:
         """Test that aggressive.yaml uses aggressive strategy."""
@@ -166,7 +166,7 @@ class TestBonusComparisonConfig:
     @pytest.fixture(scope="class")
     def config(self) -> FullConfig:
         """Load bonus_comparison.yaml once per test class."""
-        return load_config(CONFIGS_DIR / "bonus_comparison.yaml")
+        return load_config(CONFIGS_DIR / "examples/bonus_comparison.yaml")
 
     def test_bonus_enabled(self, config: FullConfig) -> None:
         """Test that bonus betting is enabled."""
@@ -213,7 +213,7 @@ class TestProgressiveBettingConfig:
     @pytest.fixture(scope="class")
     def config(self) -> FullConfig:
         """Load progressive_betting.yaml once per test class."""
-        return load_config(CONFIGS_DIR / "progressive_betting.yaml")
+        return load_config(CONFIGS_DIR / "examples/progressive_betting.yaml")
 
     def test_uses_martingale(self, config: FullConfig) -> None:
         """Test that Martingale betting system is configured."""
@@ -284,7 +284,7 @@ class TestSampleConfigsRunSimulation:
 
     def test_basic_strategy_produces_consistent_results(self) -> None:
         """Test that basic_strategy.yaml produces deterministic results with same seed."""
-        config = load_config(CONFIGS_DIR / "basic_strategy.yaml")
+        config = load_config(CONFIGS_DIR / "examples/basic_strategy.yaml")
         config.simulation.num_sessions = 5
         config.simulation.hands_per_session = 20
         config.simulation.random_seed = 12345
@@ -310,7 +310,7 @@ class TestMalformedConfigs:
 
     def test_invalid_strategy_type_raises_error(self) -> None:
         """Test that invalid strategy type produces a clear error."""
-        config_path = CONFIGS_DIR / "basic_strategy.yaml"
+        config_path = CONFIGS_DIR / "examples/basic_strategy.yaml"
         content = config_path.read_text()
 
         # Replace valid strategy with invalid one
@@ -325,7 +325,7 @@ class TestMalformedConfigs:
 
     def test_negative_bankroll_raises_error(self) -> None:
         """Test that negative starting bankroll produces a clear error."""
-        config_path = CONFIGS_DIR / "basic_strategy.yaml"
+        config_path = CONFIGS_DIR / "examples/basic_strategy.yaml"
         content = config_path.read_text()
 
         # Replace valid bankroll with negative value
@@ -340,7 +340,7 @@ class TestMalformedConfigs:
 
     def test_invalid_betting_system_raises_error(self) -> None:
         """Test that invalid betting system type produces clear error."""
-        config_path = CONFIGS_DIR / "basic_strategy.yaml"
+        config_path = CONFIGS_DIR / "examples/basic_strategy.yaml"
         content = config_path.read_text()
 
         # Replace valid betting system with invalid one
@@ -359,8 +359,8 @@ class TestConfigRelationships:
 
     def test_aggressive_has_wider_limits_than_basic(self) -> None:
         """Test that aggressive config allows wider stop limits than basic."""
-        basic = load_config(CONFIGS_DIR / "basic_strategy.yaml")
-        aggressive = load_config(CONFIGS_DIR / "aggressive.yaml")
+        basic = load_config(CONFIGS_DIR / "examples/basic_strategy.yaml")
+        aggressive = load_config(CONFIGS_DIR / "examples/aggressive.yaml")
 
         # Aggressive should have higher or equal limits to allow more variance
         assert (
@@ -374,7 +374,7 @@ class TestConfigRelationships:
 
     def test_conservative_is_more_restrictive(self) -> None:
         """Test that conservative strategy has more restrictive settings."""
-        conservative = load_config(CONFIGS_DIR / "conservative.yaml")
+        conservative = load_config(CONFIGS_DIR / "examples/conservative.yaml")
 
         # Conservative should require made hands only
         assert conservative.strategy.conservative is not None
@@ -382,8 +382,8 @@ class TestConfigRelationships:
 
     def test_progressive_betting_has_larger_bankroll(self) -> None:
         """Test that progressive betting config has larger bankroll."""
-        basic = load_config(CONFIGS_DIR / "basic_strategy.yaml")
-        progressive = load_config(CONFIGS_DIR / "progressive_betting.yaml")
+        basic = load_config(CONFIGS_DIR / "examples/basic_strategy.yaml")
+        progressive = load_config(CONFIGS_DIR / "examples/progressive_betting.yaml")
 
         # Progressive betting needs larger bankroll to survive losing streaks
         assert (

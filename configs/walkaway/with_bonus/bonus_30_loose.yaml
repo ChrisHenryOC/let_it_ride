@@ -1,0 +1,114 @@
+# =============================================================================
+# Walk-Away Strategy: $30 Bonus - Loose
+# =============================================================================
+# $30 bonus bet with loose walk-away: $500 up / $400 down
+# Part of walk-away strategy comparison study.
+# =============================================================================
+
+metadata:
+  name: "Bonus $30 - Loose Walk-Away"
+  description: "$30 bonus, loose stop: $500 up / $400 down"
+  version: "1.0"
+
+# -----------------------------------------------------------------------------
+# Simulation Parameters
+# -----------------------------------------------------------------------------
+simulation:
+  num_sessions: 100000
+  hands_per_session: 200
+  random_seed: 42
+  workers: "auto"
+  progress_interval: 10000
+
+# -----------------------------------------------------------------------------
+# Deck Configuration
+# -----------------------------------------------------------------------------
+deck:
+  shuffle_algorithm: "fisher_yates"
+
+# -----------------------------------------------------------------------------
+# Bankroll Configuration
+# -----------------------------------------------------------------------------
+bankroll:
+  starting_amount: 500.00
+  base_bet: 5.00
+
+  stop_conditions:
+    win_limit: 500.00
+    loss_limit: 400.00
+    max_hands: 200
+    stop_on_insufficient_funds: true
+
+  betting_system:
+    type: "flat"
+
+# -----------------------------------------------------------------------------
+# Strategy Configuration
+# -----------------------------------------------------------------------------
+strategy:
+  type: "basic"
+
+table:
+  num_seats: 1
+
+# -----------------------------------------------------------------------------
+# Bonus Strategy Configuration
+# -----------------------------------------------------------------------------
+bonus_strategy:
+  enabled: true
+  paytable: "paytable_b"
+
+  limits:
+    min_bet: 1.00
+    max_bet: 50.00
+    increment: 1.00
+
+  type: "static"
+  static:
+    amount: 30.00
+
+# -----------------------------------------------------------------------------
+# Paytables
+# -----------------------------------------------------------------------------
+paytables:
+  main_game:
+    type: "standard"
+  bonus:
+    type: "paytable_b"
+
+# -----------------------------------------------------------------------------
+# Output Configuration
+# -----------------------------------------------------------------------------
+output:
+  directory: "./results/walkaway/bonus_30_loose"
+  prefix: "bonus_30_loose"
+
+  formats:
+    csv:
+      enabled: true
+      include_hands: false
+      include_sessions: true
+      include_aggregate: true
+      include_seat_aggregate: true
+    json:
+      enabled: true
+      pretty: true
+      include_config: true
+    html:
+      enabled: false
+
+  visualizations:
+    enabled: true
+    charts:
+      - type: "session_outcomes_histogram"
+        title: "$30 Bonus Loose - Session Outcomes"
+      - type: "bankroll_trajectory"
+        title: "$30 Bonus Loose - Bankroll Trajectories"
+        sample_sessions: 50
+    format: "png"
+    dpi: 150
+
+  console:
+    progress_bar: true
+    verbosity: 1
+    show_summary: true

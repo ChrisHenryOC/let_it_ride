@@ -1,114 +1,70 @@
 # Let It Ride Strategy Simulator - Configuration Files
 
-This directory contains sample configuration files for the Let It Ride Strategy Simulator. Each file demonstrates different strategies, betting systems, and features.
+This directory contains configuration files for the Let It Ride Strategy Simulator.
+
+## Directory Structure
+
+```
+configs/
+├── README.md              # This file
+├── sample_config.yaml     # Complete reference with all options
+├── examples/              # Demo configs for getting started
+└── walkaway/              # Walk-away strategy research configs
+    ├── with_bonus/        # Strategies using bonus bets
+    ├── no_bonus/          # Strategies without bonus bets
+    └── betting_systems/   # Alternative betting progressions
+```
 
 ## Quick Start
 
 Run a simulation with any configuration file:
 
 ```bash
-poetry run let-it-ride run configs/basic_strategy.yaml
+poetry run let-it-ride run configs/examples/basic_strategy.yaml
 ```
 
 Validate a configuration file without running:
 
 ```bash
-poetry run let-it-ride validate configs/basic_strategy.yaml
+poetry run let-it-ride validate configs/examples/basic_strategy.yaml
 ```
 
-## Configuration Files
+## Example Configurations
 
-### basic_strategy.yaml
+Located in `examples/`:
 
-**Purpose:** Baseline configuration using mathematically optimal play
+| File | Description |
+|------|-------------|
+| `basic_strategy.yaml` | Baseline config using optimal play (basic strategy) |
+| `conservative.yaml` | Low-risk approach, pulls bets more often |
+| `aggressive.yaml` | High-variance play, rides on drawing hands |
+| `bonus_comparison.yaml` | Demonstrates bonus betting with profit-based scaling |
+| `progressive_betting.yaml` | Shows Martingale and other betting systems |
+| `multi_seat_example.yaml` | Multi-player table simulation (4 seats) |
+| `bonus_5_dollar.yaml` | $5 static bonus bet configuration |
+| `bonus_15_dollar.yaml` | $15 static bonus bet configuration |
+| `bonus_30_dollar.yaml` | $30 static bonus bet configuration |
 
-- **Strategy:** Basic (optimal pull/ride decisions based on hand strength)
-- **Betting:** Flat betting ($5 per circle)
-- **Bonus:** Disabled
-- **Use case:** Establish a baseline for comparing other strategies
+## Walk-Away Strategy Research
 
-This configuration represents the theoretical best play for Let It Ride. Use it as a reference point when evaluating alternative strategies.
+Located in `walkaway/`. See [walkaway/README.md](walkaway/README.md) for details.
 
-### conservative.yaml
+These configs were used to research optimal walk-away strategies (win/loss limits). Key findings:
+- **Best win rate**: Fibonacci betting + no bonus + $100/$100 limits (36% win rate)
+- **Lowest losses**: No bonus + $25/$25 limits (-$1.44 avg loss)
 
-**Purpose:** Low-risk, conservative approach for risk-averse players
+## Reference Configuration
 
-- **Strategy:** Conservative (only ride on strong made hands)
-- **Betting:** Flat betting with tight stop conditions
-- **Bonus:** Disabled
-- **Use case:** Minimize variance, protect bankroll
-
-The conservative strategy pulls bets more often, reducing both upside and downside variance. Suitable for players who prioritize session longevity over big wins.
-
-### aggressive.yaml
-
-**Purpose:** High-variance play chasing bigger payouts
-
-- **Strategy:** Aggressive (ride on draws including gutshots)
-- **Betting:** Flat betting with wider stop limits
-- **Bonus:** Disabled
-- **Use case:** Maximize winning potential at the cost of higher variance
-
-The aggressive strategy lets bets ride on drawing hands, accepting more volatility in exchange for higher potential payouts.
-
-### bonus_comparison.yaml
-
-**Purpose:** Demonstrate Three Card Bonus betting strategies
-
-- **Strategy:** Basic (optimal main game decisions)
-- **Betting:** Flat betting
-- **Bonus:** Bankroll-conditional with profit-based scaling tiers
-- **Use case:** Analyze bonus bet impact on session outcomes
-
-This configuration shows how to use conditional bonus betting that increases bet size as session profit grows. Useful for evaluating whether bonus betting is +EV for your bankroll.
-
-### progressive_betting.yaml
-
-**Purpose:** Demonstrate progressive betting systems
-
-- **Strategy:** Basic
-- **Betting:** Martingale progression (configurable)
-- **Bonus:** Disabled
-- **Use case:** Compare betting systems impact on session outcomes
-
-Includes commented examples for multiple betting systems:
-- Martingale (double after loss)
-- Paroli (increase after win)
-- D'Alembert (linear progression)
-- Fibonacci sequence
-
-### multi_seat_example.yaml
-
-**Purpose:** Demonstrate multi-seat table simulation
-
-- **Strategy:** Basic
-- **Betting:** Flat betting
-- **Table:** 4 seats (multi-player simulation)
-- **Bonus:** Static $5 bonus bet
-- **Use case:** Simulate multiple players at the same table sharing community cards
-
-Multi-seat simulations share community cards among all seats while each seat has independent bankroll tracking. Useful for analyzing how shared cards affect outcomes across multiple players.
-
-### sample_config.yaml
-
-**Purpose:** Reference showing all available configuration options
-
-This file contains every configurable option with extensive comments. Use it as a reference when creating custom configurations.
+`sample_config.yaml` contains every available option with documentation. Use it as a reference when creating custom configurations.
 
 ## Creating Custom Configurations
 
-Start with the closest sample file and modify as needed:
-
-1. Copy a sample file: `cp configs/basic_strategy.yaml configs/my_strategy.yaml`
+1. Copy a sample file: `cp configs/examples/basic_strategy.yaml configs/my_strategy.yaml`
 2. Edit the configuration
 3. Validate: `poetry run let-it-ride validate configs/my_strategy.yaml`
 4. Run: `poetry run let-it-ride run configs/my_strategy.yaml`
 
-## Configuration Schema Reference
-
-See `sample_config.yaml` for complete documentation of all options, or refer to `docs/let_it_ride_requirements.md` Section 5 for the full specification.
-
-### Key Sections
+## Configuration Sections
 
 | Section | Description |
 |---------|-------------|
@@ -124,7 +80,7 @@ See `sample_config.yaml` for complete documentation of all options, or refer to 
 
 ## Defaults
 
-Most configuration options have sensible defaults. An empty YAML file is valid and will use:
+Most options have sensible defaults. A minimal config will use:
 
 - 10,000 sessions of 200 hands each
 - $500 starting bankroll with $5 base bet

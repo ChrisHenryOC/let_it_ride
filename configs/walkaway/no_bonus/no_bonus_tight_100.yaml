@@ -1,0 +1,79 @@
+# =============================================================================
+# Walk-Away Strategy: No Bonus - Tight $100
+# =============================================================================
+# Main game only (no bonus bets) with tight walk-away: $100 up / $100 down
+# Testing if removing bonus bets improves outcomes.
+# =============================================================================
+
+metadata:
+  name: "No Bonus - Tight $100 Walk-Away"
+  description: "No bonus betting, tight: $100 up / $100 down"
+  version: "1.0"
+
+simulation:
+  num_sessions: 100000
+  hands_per_session: 200
+  random_seed: 42
+  workers: "auto"
+  progress_interval: 10000
+
+deck:
+  shuffle_algorithm: "fisher_yates"
+
+bankroll:
+  starting_amount: 500.00
+  base_bet: 5.00
+  stop_conditions:
+    win_limit: 100.00
+    loss_limit: 100.00
+    max_hands: 200
+    stop_on_insufficient_funds: true
+  betting_system:
+    type: "flat"
+
+strategy:
+  type: "basic"
+
+table:
+  num_seats: 1
+
+bonus_strategy:
+  enabled: false
+  type: "never"
+
+paytables:
+  main_game:
+    type: "standard"
+  bonus:
+    type: "paytable_b"
+
+output:
+  directory: "./results/walkaway/no_bonus_tight_100"
+  prefix: "no_bonus_tight_100"
+  formats:
+    csv:
+      enabled: true
+      include_hands: false
+      include_sessions: true
+      include_aggregate: true
+      include_seat_aggregate: true
+    json:
+      enabled: true
+      pretty: true
+      include_config: true
+    html:
+      enabled: false
+  visualizations:
+    enabled: true
+    charts:
+      - type: "session_outcomes_histogram"
+        title: "No Bonus Tight $100 - Session Outcomes"
+      - type: "bankroll_trajectory"
+        title: "No Bonus Tight $100 - Bankroll Trajectories"
+        sample_sessions: 50
+    format: "png"
+    dpi: 150
+  console:
+    progress_bar: true
+    verbosity: 1
+    show_summary: true
