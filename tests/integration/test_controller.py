@@ -201,6 +201,27 @@ class TestSimulationController:
         assert results.end_time is not None
         assert results.start_time <= results.end_time
 
+    def test_single_seat_mode_leaves_table_session_id_none(self) -> None:
+        """Test that single-seat sessions have table_session_id and seat_number as None.
+
+        In single-seat mode (the default), there is no table session grouping
+        needed since each session has only one seat. Both table_session_id
+        and seat_number should remain None.
+        """
+        config = create_test_config(num_sessions=5)
+        controller = SimulationController(config)
+
+        results = controller.run()
+
+        assert len(results.session_results) == 5
+        for result in results.session_results:
+            assert result.table_session_id is None, (
+                "table_session_id should be None in single-seat mode"
+            )
+            assert result.seat_number is None, (
+                "seat_number should be None in single-seat mode"
+            )
+
 
 class TestProgressCallback:
     """Tests for progress reporting."""

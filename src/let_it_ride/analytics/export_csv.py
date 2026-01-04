@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 # Default fields for SessionResult export (all serializable fields)
 # NOTE: Must stay in sync with SessionResult dataclass in simulation/session.py
 SESSION_RESULT_FIELDS = [
+    "table_session_id",
     "seat_number",
     "outcome",
     "stop_reason",

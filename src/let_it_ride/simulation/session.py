@@ -196,6 +196,8 @@ class SessionResult:
         peak_bankroll: Highest bankroll reached during session.
         max_drawdown: Maximum peak-to-trough decline.
         max_drawdown_pct: Maximum drawdown as percentage of peak.
+        table_session_id: Identifies which table session this result belongs to.
+            Used to group seats that shared community cards. None for single-seat.
         seat_number: Seat position (1-based) for multi-seat table sessions.
             None for single-seat sessions.
     """
@@ -211,6 +213,7 @@ class SessionResult:
     peak_bankroll: float
     max_drawdown: float
     max_drawdown_pct: float
+    table_session_id: int | None = None
     seat_number: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -222,6 +225,7 @@ class SessionResult:
             Dictionary with all fields suitable for export.
         """
         return {
+            "table_session_id": self.table_session_id,
             "seat_number": self.seat_number,
             "outcome": self.outcome.value,
             "stop_reason": self.stop_reason.value,
@@ -236,25 +240,40 @@ class SessionResult:
             "max_drawdown_pct": self.max_drawdown_pct,
         }
 
-    def with_seat_number(self, seat_number: int) -> "SessionResult":
-        """Return a copy of this result with the specified seat number.
+    def with_table_session_info(
+        self, table_session_id: int, seat_number: int
+    ) -> "SessionResult":
+        """Return a copy of this result with table session info attached.
 
         This method is used when extracting individual SessionResult objects
         from multi-seat TableSession results. The TableSession produces
         SeatSessionResult objects which contain the seat number separately;
         this method allows converting them to standalone SessionResult objects
-        with the seat number embedded.
+        with the table session ID and seat number embedded.
 
         Used by:
         - SimulationController._run_sequential() for sequential multi-seat runs
-        - parallel._run_single_table_session() for parallel multi-seat runs
+        - parallel.run_worker_sessions() for parallel multi-seat runs
 
         Args:
-            seat_number: The seat position (1-based) to assign.
+            table_session_id: The table session ID (0-based) to assign.
+                Groups seats that shared community cards. Must be non-negative.
+            seat_number: The seat position (1-based) to assign. Must be 1-6.
 
         Returns:
-            New SessionResult with seat_number set.
+            New SessionResult with table_session_id and seat_number set.
+
+        Raises:
+            ValueError: If table_session_id is negative or seat_number is not 1-6.
         """
+        if table_session_id < 0:
+            raise ValueError(
+                f"table_session_id must be non-negative, got {table_session_id}"
+            )
+        if not 1 <= seat_number <= 6:
+            raise ValueError(
+                f"seat_number must be between 1 and 6, got {seat_number}"
+            )
         return SessionResult(
             outcome=self.outcome,
             stop_reason=self.stop_reason,
@@ -267,6 +286,7 @@ class SessionResult:
             peak_bankroll=self.peak_bankroll,
             max_drawdown=self.max_drawdown,
             max_drawdown_pct=self.max_drawdown_pct,
+            table_session_id=table_session_id,
             seat_number=seat_number,
         )
 

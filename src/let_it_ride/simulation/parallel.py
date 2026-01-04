@@ -29,7 +29,11 @@ from let_it_ride.simulation.controller import (
 )
 from let_it_ride.simulation.rng import RNGManager
 from let_it_ride.simulation.session import Session, SessionConfig, SessionResult
-from let_it_ride.simulation.table_session import TableSession, TableSessionConfig
+from let_it_ride.simulation.table_session import (
+    SeatSessionResult,
+    TableSession,
+    TableSessionConfig,
+)
 from let_it_ride.simulation.utils import (
     calculate_bonus_bet,
     create_session_config,
@@ -139,7 +143,7 @@ def _run_single_table_session(
     bonus_paytable: BonusPaytable | None,
     betting_system_factory: Callable[[], BettingSystem],
     table_session_config: TableSessionConfig,
-) -> list[SessionResult]:
+) -> list[SeatSessionResult]:
     """Run a single multi-seat table session with the given seed.
 
     Args:
@@ -152,7 +156,8 @@ def _run_single_table_session(
         table_session_config: Pre-computed config (constant across all sessions).
 
     Returns:
-        List of SessionResult, one per seat.
+        List of SeatSessionResult, one per seat. The caller will convert these
+        to SessionResult with table_session_id attached.
     """
     session_rng = random.Random(seed)
     deck = Deck()
@@ -175,11 +180,9 @@ def _run_single_table_session(
     )
 
     table_result = table_session.run_to_completion()
-    # Preserve seat_number in each SessionResult
-    return [
-        seat_result.session_result.with_seat_number(seat_result.seat_number)
-        for seat_result in table_result.seat_results
-    ]
+    # Return raw seat results - table_session_id will be set by the caller
+    # which knows the session_id context
+    return list(table_result.seat_results)
 
 
 def run_worker_sessions(task: WorkerTask) -> WorkerResult:
@@ -243,7 +246,14 @@ def run_worker_sessions(task: WorkerTask) -> WorkerResult:
                 # Total results = num_sessions * num_seats
                 for seat_idx, seat_result in enumerate(seat_results):
                     composite_id = session_id * num_seats + seat_idx
-                    results.append((composite_id, seat_result))
+                    # Attach table_session_id and seat_number to the result
+                    result_with_info = (
+                        seat_result.session_result.with_table_session_info(
+                            table_session_id=session_id,
+                            seat_number=seat_result.seat_number,
+                        )
+                    )
+                    results.append((composite_id, result_with_info))
             else:
                 # Single-seat: use Session for efficiency
                 result = _run_single_session(

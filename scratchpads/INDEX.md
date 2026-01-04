@@ -58,3 +58,4 @@ Quick reference for prior implementation work. Read full scratchpad only if dire
 | #142 | LIR-58: Multi-Seat Stop Condition Behavior Options |
 | #146 | LIR-60: Seat-Level Statistics |
 | #148 | LIR-61: Integrate seat-level aggregate CSV export |
+| #141 | LIR-57: Add table_session_id to SessionResult |
