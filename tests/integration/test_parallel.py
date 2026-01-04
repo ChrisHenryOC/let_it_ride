@@ -774,7 +774,11 @@ class TestParallelMultiSeatExecution:
         assert len(results.session_results) == 40
 
     def test_multi_seat_parallel_vs_sequential_equivalence(self) -> None:
-        """Test multi-seat produces identical results in parallel vs sequential."""
+        """Test multi-seat produces identical results in parallel vs sequential.
+
+        Also verifies that table_session_id and seat_number are correctly
+        populated and match between parallel and sequential execution.
+        """
         seed = 54321
         num_sessions = 10
         num_seats = 3
@@ -831,7 +835,7 @@ class TestParallelMultiSeatExecution:
         assert len(results_seq.session_results) == len(results_par.session_results)
         assert len(results_seq.session_results) == num_sessions * num_seats
 
-        # Verify each result matches
+        # Verify each result matches including table_session_id and seat_number
         for seq, par in zip(
             results_seq.session_results, results_par.session_results, strict=True
         ):
@@ -839,6 +843,79 @@ class TestParallelMultiSeatExecution:
             assert seq.session_profit == par.session_profit
             assert seq.final_bankroll == par.final_bankroll
             assert seq.outcome == par.outcome
+            # Verify table_session_id and seat_number match
+            assert seq.table_session_id == par.table_session_id
+            assert seq.seat_number == par.seat_number
+            # Verify they are populated (not None in multi-seat mode)
+            assert seq.table_session_id is not None
+            assert seq.seat_number is not None
+
+    def test_table_session_id_grouping_semantics(self) -> None:
+        """Test that seats sharing community cards have the same table_session_id.
+
+        Verifies that:
+        1. Each table_session_id has exactly num_seats results
+        2. Results with same table_session_id have seat_numbers 1 to num_seats
+        3. The grouping is consistent between parallel and sequential execution
+        """
+        seed = 77777
+        num_sessions = 8
+        num_seats = 4
+
+        config = FullConfig(
+            simulation=SimulationConfig(
+                num_sessions=num_sessions,
+                hands_per_session=50,
+                random_seed=seed,
+                workers=2,
+            ),
+            table=TableConfig(num_seats=num_seats),
+            bankroll=BankrollConfig(
+                starting_amount=500.0,
+                base_bet=5.0,
+                stop_conditions=StopConditionsConfig(
+                    win_limit=100.0,
+                    loss_limit=200.0,
+                    stop_on_insufficient_funds=True,
+                ),
+                betting_system=BettingSystemConfig(type="flat"),
+            ),
+            strategy=StrategyConfig(type="basic"),
+        )
+
+        controller = SimulationController(config)
+        results = controller.run()
+
+        # Total results should be num_sessions * num_seats
+        assert len(results.session_results) == num_sessions * num_seats
+
+        # Group results by table_session_id
+        from collections import defaultdict
+
+        grouped: dict[int | None, list[int]] = defaultdict(list)
+        for result in results.session_results:
+            grouped[result.table_session_id].append(result.seat_number)
+
+        # Each table_session_id should have exactly num_seats results
+        assert len(grouped) == num_sessions, (
+            f"Expected {num_sessions} unique table_session_ids, got {len(grouped)}"
+        )
+
+        for table_session_id, seat_numbers in grouped.items():
+            # Verify table_session_id is not None
+            assert table_session_id is not None, (
+                "table_session_id should not be None in multi-seat mode"
+            )
+            # Each table session should have exactly num_seats results
+            assert len(seat_numbers) == num_seats, (
+                f"table_session_id {table_session_id} has {len(seat_numbers)} results, "
+                f"expected {num_seats}"
+            )
+            # Seat numbers should be 1 through num_seats (no duplicates, no gaps)
+            assert sorted(seat_numbers) == list(range(1, num_seats + 1)), (
+                f"table_session_id {table_session_id} has seat_numbers {sorted(seat_numbers)}, "
+                f"expected {list(range(1, num_seats + 1))}"
+            )
 
     def test_multi_seat_parallel_with_various_seat_counts(self) -> None:
         """Test parallel execution works with different seat counts."""

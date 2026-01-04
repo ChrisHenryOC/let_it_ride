@@ -253,16 +253,27 @@ class SessionResult:
 
         Used by:
         - SimulationController._run_sequential() for sequential multi-seat runs
-        - parallel._run_single_table_session() for parallel multi-seat runs
+        - parallel.run_worker_sessions() for parallel multi-seat runs
 
         Args:
             table_session_id: The table session ID (0-based) to assign.
-                Groups seats that shared community cards.
-            seat_number: The seat position (1-based) to assign.
+                Groups seats that shared community cards. Must be non-negative.
+            seat_number: The seat position (1-based) to assign. Must be 1-6.
 
         Returns:
             New SessionResult with table_session_id and seat_number set.
+
+        Raises:
+            ValueError: If table_session_id is negative or seat_number is not 1-6.
         """
+        if table_session_id < 0:
+            raise ValueError(
+                f"table_session_id must be non-negative, got {table_session_id}"
+            )
+        if not 1 <= seat_number <= 6:
+            raise ValueError(
+                f"seat_number must be between 1 and 6, got {seat_number}"
+            )
         return SessionResult(
             outcome=self.outcome,
             stop_reason=self.stop_reason,
