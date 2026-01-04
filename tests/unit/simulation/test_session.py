@@ -377,6 +377,91 @@ class TestSessionResult:
         with pytest.raises(FrozenInstanceError):
             result.hands_played = 100  # type: ignore[misc]
 
+    def test_with_table_session_info(self) -> None:
+        """Verify with_table_session_info creates copy with table info attached."""
+        original = SessionResult(
+            outcome=SessionOutcome.WIN,
+            stop_reason=StopReason.WIN_LIMIT,
+            hands_played=50,
+            starting_bankroll=1000.0,
+            final_bankroll=1500.0,
+            session_profit=500.0,
+            total_wagered=3750.0,
+            total_bonus_wagered=0.0,
+            peak_bankroll=1550.0,
+            max_drawdown=100.0,
+            max_drawdown_pct=6.45,
+        )
+        # Original should have no table info
+        assert original.table_session_id is None
+        assert original.seat_number is None
+
+        # Create copy with table session info
+        with_info = original.with_table_session_info(table_session_id=5, seat_number=3)
+
+        # New result should have table info
+        assert with_info.table_session_id == 5
+        assert with_info.seat_number == 3
+
+        # Other fields should be preserved
+        assert with_info.outcome == SessionOutcome.WIN
+        assert with_info.stop_reason == StopReason.WIN_LIMIT
+        assert with_info.hands_played == 50
+        assert with_info.session_profit == 500.0
+        assert with_info.starting_bankroll == 1000.0
+        assert with_info.final_bankroll == 1500.0
+        assert with_info.total_wagered == 3750.0
+        assert with_info.total_bonus_wagered == 0.0
+        assert with_info.peak_bankroll == 1550.0
+        assert with_info.max_drawdown == 100.0
+        assert with_info.max_drawdown_pct == 6.45
+
+        # Original should be unchanged (immutable)
+        assert original.table_session_id is None
+        assert original.seat_number is None
+
+    def test_to_dict_includes_table_session_id(self) -> None:
+        """Verify to_dict includes table_session_id field."""
+        result = SessionResult(
+            outcome=SessionOutcome.WIN,
+            stop_reason=StopReason.WIN_LIMIT,
+            hands_played=50,
+            starting_bankroll=1000.0,
+            final_bankroll=1500.0,
+            session_profit=500.0,
+            total_wagered=3750.0,
+            total_bonus_wagered=0.0,
+            peak_bankroll=1550.0,
+            max_drawdown=100.0,
+            max_drawdown_pct=6.45,
+            table_session_id=7,
+            seat_number=2,
+        )
+        d = result.to_dict()
+        assert d["table_session_id"] == 7
+        assert d["seat_number"] == 2
+        assert d["outcome"] == "win"
+        assert d["stop_reason"] == "win_limit"
+
+    def test_to_dict_table_session_id_none(self) -> None:
+        """Verify to_dict handles None table_session_id correctly."""
+        result = SessionResult(
+            outcome=SessionOutcome.LOSS,
+            stop_reason=StopReason.LOSS_LIMIT,
+            hands_played=30,
+            starting_bankroll=1000.0,
+            final_bankroll=500.0,
+            session_profit=-500.0,
+            total_wagered=2250.0,
+            total_bonus_wagered=0.0,
+            peak_bankroll=1050.0,
+            max_drawdown=550.0,
+            max_drawdown_pct=52.38,
+        )
+        d = result.to_dict()
+        assert d["table_session_id"] is None
+        assert d["seat_number"] is None
+
 
 # --- Session Initialization Tests ---
 

@@ -965,9 +965,7 @@ class TestCSVExporter:
 
         # Should raise ValueError because no seat_number data in results
         with pytest.raises(ValueError, match="No seat data found"):
-            exporter.export_all(
-                results, include_seat_aggregate=True, num_seats=2
-            )
+            exporter.export_all(results, include_seat_aggregate=True, num_seats=2)
 
 
 class TestSeatNumberInSessionResult:
@@ -1008,10 +1006,10 @@ class TestSeatNumberInSessionResult:
         )
         assert result.seat_number is None
 
-    def test_with_seat_number_creates_copy(self) -> None:
-        """Verify with_seat_number returns new SessionResult with seat_number.
+    def test_with_table_session_info_creates_copy(self) -> None:
+        """Verify with_table_session_info returns new SessionResult with table info.
 
-        All 12 fields must be correctly copied to the new instance.
+        All 13 fields must be correctly copied to the new instance.
         """
         original = SessionResult(
             outcome=SessionOutcome.WIN,
@@ -1026,26 +1024,28 @@ class TestSeatNumberInSessionResult:
             max_drawdown=50.0,
             max_drawdown_pct=0.08,
         )
-        with_seat = original.with_seat_number(2)
+        with_info = original.with_table_session_info(table_session_id=5, seat_number=2)
 
         # Verify original is unchanged
+        assert original.table_session_id is None
         assert original.seat_number is None
 
-        # Verify seat_number is set on copy
-        assert with_seat.seat_number == 2
+        # Verify table info is set on copy
+        assert with_info.table_session_id == 5
+        assert with_info.seat_number == 2
 
-        # Verify ALL fields are correctly copied (all 12 fields)
-        assert with_seat.outcome == original.outcome
-        assert with_seat.stop_reason == original.stop_reason
-        assert with_seat.hands_played == original.hands_played
-        assert with_seat.starting_bankroll == original.starting_bankroll
-        assert with_seat.final_bankroll == original.final_bankroll
-        assert with_seat.session_profit == original.session_profit
-        assert with_seat.total_wagered == original.total_wagered
-        assert with_seat.total_bonus_wagered == original.total_bonus_wagered
-        assert with_seat.peak_bankroll == original.peak_bankroll
-        assert with_seat.max_drawdown == original.max_drawdown
-        assert with_seat.max_drawdown_pct == original.max_drawdown_pct
+        # Verify ALL fields are correctly copied (all 11 base fields)
+        assert with_info.outcome == original.outcome
+        assert with_info.stop_reason == original.stop_reason
+        assert with_info.hands_played == original.hands_played
+        assert with_info.starting_bankroll == original.starting_bankroll
+        assert with_info.final_bankroll == original.final_bankroll
+        assert with_info.session_profit == original.session_profit
+        assert with_info.total_wagered == original.total_wagered
+        assert with_info.total_bonus_wagered == original.total_bonus_wagered
+        assert with_info.peak_bankroll == original.peak_bankroll
+        assert with_info.max_drawdown == original.max_drawdown
+        assert with_info.max_drawdown_pct == original.max_drawdown_pct
 
     def test_to_dict_includes_seat_number(self) -> None:
         """Verify to_dict includes seat_number field."""
@@ -1137,28 +1137,32 @@ class TestSeatNumberInSessionResult:
 
         assert rows[0]["seat_number"] == ""
 
-    def test_session_result_fields_includes_seat_number(self) -> None:
-        """Verify SESSION_RESULT_FIELDS list includes seat_number."""
+    def test_session_result_fields_includes_table_session_id_and_seat_number(
+        self,
+    ) -> None:
+        """Verify SESSION_RESULT_FIELDS includes table_session_id and seat_number."""
+        assert "table_session_id" in SESSION_RESULT_FIELDS
         assert "seat_number" in SESSION_RESULT_FIELDS
-        # Should be first for easy identification in CSV
-        assert SESSION_RESULT_FIELDS[0] == "seat_number"
+        # table_session_id should be first, then seat_number for easy identification
+        assert SESSION_RESULT_FIELDS[0] == "table_session_id"
+        assert SESSION_RESULT_FIELDS[1] == "seat_number"
 
     @pytest.mark.parametrize(
         "seat_number,expected",
         [
             (1, 1),  # Minimum valid seat
             (6, 6),  # Maximum valid seat (TableConfig max)
-            (0, 0),  # Edge case: zero (no validation in with_seat_number)
-            (-1, -1),  # Edge case: negative (no validation in with_seat_number)
-            (100, 100),  # Edge case: large value (no validation in with_seat_number)
+            (0, 0),  # Edge case: zero (no validation in with_table_session_info)
+            (-1, -1),  # Edge case: negative (no validation)
+            (100, 100),  # Edge case: large value (no validation)
         ],
     )
-    def test_with_seat_number_boundary_values(
+    def test_with_table_session_info_boundary_values(
         self, seat_number: int, expected: int
     ) -> None:
-        """Verify with_seat_number accepts boundary values without error.
+        """Verify with_table_session_info accepts boundary seat values without error.
 
-        Note: with_seat_number() does not validate seat numbers. Validation
+        Note: with_table_session_info() does not validate seat numbers. Validation
         is handled at the TableConfig level (1-6 seats). This test documents
         that behavior and ensures no runtime errors occur.
         """
@@ -1175,8 +1179,11 @@ class TestSeatNumberInSessionResult:
             max_drawdown=50.0,
             max_drawdown_pct=0.08,
         )
-        with_seat = result.with_seat_number(seat_number)
-        assert with_seat.seat_number == expected
+        with_info = result.with_table_session_info(
+            table_session_id=0, seat_number=seat_number
+        )
+        assert with_info.seat_number == expected
+        assert with_info.table_session_id == 0
 
     def test_csv_export_with_max_seat_number(self, tmp_path: Path) -> None:
         """Verify CSV export works with maximum valid seat_number (6)."""
@@ -1447,14 +1454,18 @@ class TestSeatNumberE2EFlow:
         # Each seat (1, 2, 3) should appear num_sessions times
         for seat in range(1, num_seats + 1):
             count = seat_numbers.count(seat)
-            assert count == num_sessions, (
-                f"Seat {seat} should appear {num_sessions} times, got {count}"
-            )
+            assert (
+                count == num_sessions
+            ), f"Seat {seat} should appear {num_sessions} times, got {count}"
 
-        # Verify seat_number is the first column
-        assert next(iter(rows[0].keys())) == "seat_number"
+        # Verify table_session_id is the first column (then seat_number)
+        keys = list(rows[0].keys())
+        assert keys[0] == "table_session_id"
+        assert keys[1] == "seat_number"
 
-    def test_multi_seat_sequential_execution_to_csv_export(self, tmp_path: Path) -> None:
+    def test_multi_seat_sequential_execution_to_csv_export(
+        self, tmp_path: Path
+    ) -> None:
         """Verify seat_number flows correctly: sequential execution -> CSV export."""
         from let_it_ride.config.models import (
             BankrollConfig,
@@ -1521,9 +1532,7 @@ class TestSeatNumberE2EFlow:
 class TestSeatAggregateExportIntegration:
     """Integration tests for seat aggregate CSV export via export_all."""
 
-    def test_export_all_with_seat_aggregate_multi_seat(
-        self, tmp_path: Path
-    ) -> None:
+    def test_export_all_with_seat_aggregate_multi_seat(self, tmp_path: Path) -> None:
         """Verify export_all creates seat_aggregate.csv for multi-seat tables."""
         from datetime import datetime
 
@@ -1618,9 +1627,7 @@ class TestSeatAggregateExportIntegration:
         )
 
         exporter = CSVExporter(tmp_path, prefix="sim")
-        paths = exporter.export_all(
-            results, include_seat_aggregate=True, num_seats=2
-        )
+        paths = exporter.export_all(results, include_seat_aggregate=True, num_seats=2)
 
         # Should have sessions, aggregate, and seat_aggregate files
         assert len(paths) == 3
@@ -1698,9 +1705,7 @@ class TestSeatAggregateExportIntegration:
         )
 
         exporter = CSVExporter(tmp_path, prefix="sim")
-        paths = exporter.export_all(
-            results, include_seat_aggregate=True, num_seats=1
-        )
+        paths = exporter.export_all(results, include_seat_aggregate=True, num_seats=1)
 
         # Should only have sessions and aggregate files (no seat_aggregate)
         assert len(paths) == 2
@@ -1708,9 +1713,7 @@ class TestSeatAggregateExportIntegration:
         assert (tmp_path / "sim_aggregate.csv").exists()
         assert not (tmp_path / "sim_seat_aggregate.csv").exists()
 
-    def test_export_all_without_seat_aggregate_flag(
-        self, tmp_path: Path
-    ) -> None:
+    def test_export_all_without_seat_aggregate_flag(self, tmp_path: Path) -> None:
         """Verify export_all skips seat_aggregate.csv when flag is False."""
         from datetime import datetime
 
@@ -1776,9 +1779,7 @@ class TestSeatAggregateExportIntegration:
         )
 
         exporter = CSVExporter(tmp_path, prefix="sim")
-        paths = exporter.export_all(
-            results, include_seat_aggregate=False, num_seats=2
-        )
+        paths = exporter.export_all(results, include_seat_aggregate=False, num_seats=2)
 
         # Should only have sessions and aggregate files
         assert len(paths) == 2

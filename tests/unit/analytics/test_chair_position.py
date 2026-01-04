@@ -675,9 +675,9 @@ class TestAggregateSessionResultsBySeat:
     def test_basic_aggregation(self) -> None:
         """Test basic aggregation of flattened SessionResults."""
         results = [
-            create_session_result(profit=100.0).with_seat_number(1),
-            create_session_result(profit=-50.0).with_seat_number(1),
-            create_session_result(profit=200.0).with_seat_number(2),
+            create_session_result(profit=100.0).with_table_session_info(0, 1),
+            create_session_result(profit=-50.0).with_table_session_info(0, 1),
+            create_session_result(profit=200.0).with_table_session_info(0, 2),
         ]
 
         aggregations = _aggregate_session_results_by_seat(results)
@@ -695,7 +695,7 @@ class TestAggregateSessionResultsBySeat:
         """Test that results without seat_number are skipped."""
         results = [
             create_session_result(profit=100.0),  # No seat number (single-seat)
-            create_session_result(profit=200.0).with_seat_number(1),
+            create_session_result(profit=200.0).with_table_session_info(0, 1),
         ]
 
         aggregations = _aggregate_session_results_by_seat(results)
@@ -711,9 +711,9 @@ class TestAggregateSessionResultsBySeat:
     def test_push_outcome_aggregation(self) -> None:
         """Test that PUSH outcomes are correctly aggregated."""
         results = [
-            create_session_result(profit=0.0).with_seat_number(1),  # PUSH
-            create_session_result(profit=0.0).with_seat_number(1),  # PUSH
-            create_session_result(profit=100.0).with_seat_number(1),  # WIN
+            create_session_result(profit=0.0).with_table_session_info(0, 1),  # PUSH
+            create_session_result(profit=0.0).with_table_session_info(0, 1),  # PUSH
+            create_session_result(profit=100.0).with_table_session_info(0, 1),  # WIN
         ]
 
         aggregations = _aggregate_session_results_by_seat(results)
@@ -731,10 +731,10 @@ class TestAnalyzeSessionResultsBySeat:
     def test_basic_analysis(self) -> None:
         """Test basic analysis of flattened SessionResults."""
         results = [
-            create_session_result(profit=100.0).with_seat_number(1),
-            create_session_result(profit=-50.0).with_seat_number(1),
-            create_session_result(profit=200.0).with_seat_number(2),
-            create_session_result(profit=-100.0).with_seat_number(2),
+            create_session_result(profit=100.0).with_table_session_info(0, 1),
+            create_session_result(profit=-50.0).with_table_session_info(1, 1),
+            create_session_result(profit=200.0).with_table_session_info(0, 2),
+            create_session_result(profit=-100.0).with_table_session_info(1, 2),
         ]
 
         analysis = analyze_session_results_by_seat(results)
@@ -765,9 +765,12 @@ class TestAnalyzeSessionResultsBySeat:
     def test_confidence_level_parameter(self) -> None:
         """Custom confidence level should affect CI width."""
         results = [
-            create_session_result(profit=100.0).with_seat_number(1),
-            create_session_result(profit=-50.0).with_seat_number(1),
-        ] * 25  # 50 sessions at seat 1
+            create_session_result(profit=100.0).with_table_session_info(i, 1)
+            for i in range(25)
+        ] + [
+            create_session_result(profit=-50.0).with_table_session_info(i + 25, 1)
+            for i in range(25)
+        ]  # 50 sessions at seat 1
 
         analysis_95 = analyze_session_results_by_seat(results, confidence_level=0.95)
         analysis_99 = analyze_session_results_by_seat(results, confidence_level=0.99)
@@ -787,9 +790,13 @@ class TestAnalyzeSessionResultsBySeat:
         """Custom significance level should affect independence determination."""
         # Create moderately biased distribution
         results = []
-        for _ in range(50):
-            results.append(create_session_result(profit=100.0).with_seat_number(1))
-            results.append(create_session_result(profit=-50.0).with_seat_number(2))
+        for i in range(50):
+            results.append(
+                create_session_result(profit=100.0).with_table_session_info(i, 1)
+            )
+            results.append(
+                create_session_result(profit=-50.0).with_table_session_info(i, 2)
+            )
 
         # Both should have the same chi-square statistic
         analysis_01 = analyze_session_results_by_seat(results, significance_level=0.01)
@@ -802,22 +809,26 @@ class TestAnalyzeSessionResultsBySeat:
         """Test that results match analyze_chair_positions for same data."""
         # Create TableSessionResults
         table_results = [
-            create_table_session_result([
-                (1, SessionOutcome.WIN, 100.0),
-                (2, SessionOutcome.LOSS, -50.0),
-            ]),
-            create_table_session_result([
-                (1, SessionOutcome.LOSS, -30.0),
-                (2, SessionOutcome.WIN, 80.0),
-            ]),
+            create_table_session_result(
+                [
+                    (1, SessionOutcome.WIN, 100.0),
+                    (2, SessionOutcome.LOSS, -50.0),
+                ]
+            ),
+            create_table_session_result(
+                [
+                    (1, SessionOutcome.LOSS, -30.0),
+                    (2, SessionOutcome.WIN, 80.0),
+                ]
+            ),
         ]
 
         # Create equivalent flattened SessionResults
         flattened = [
-            create_session_result(profit=100.0).with_seat_number(1),
-            create_session_result(profit=-50.0).with_seat_number(2),
-            create_session_result(profit=-30.0).with_seat_number(1),
-            create_session_result(profit=80.0).with_seat_number(2),
+            create_session_result(profit=100.0).with_table_session_info(0, 1),
+            create_session_result(profit=-50.0).with_table_session_info(0, 2),
+            create_session_result(profit=-30.0).with_table_session_info(1, 1),
+            create_session_result(profit=80.0).with_table_session_info(1, 2),
         ]
 
         analysis_table = analyze_chair_positions(table_results)
