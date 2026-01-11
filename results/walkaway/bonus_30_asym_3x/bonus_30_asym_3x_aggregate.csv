@@ -1,0 +1,2 @@
+﻿total_sessions,winning_sessions,losing_sessions,push_sessions,session_win_rate,total_hands,total_wagered,total_won,net_result,expected_value_per_hand,main_wagered,main_won,main_ev_per_hand,bonus_wagered,bonus_won,bonus_ev_per_hand,session_profit_mean,session_profit_std,session_profit_median,session_profit_min,session_profit_max
+100000,13216,86784,0,0.13216,979160,35387150.0,33997950.0,-1389200.0,-1.4187671064994485,6012350.0,4623150.0,-1.4187671064994485,29374800.0,29374800.0,0.0,-13.892,316.2439619003569,-105.0,-135.0,16145.0
