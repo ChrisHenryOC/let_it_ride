@@ -1,4 +1,4 @@
-# Let It Ride Strategy Analysis
+## Let It Ride Strategy Analysis
 
 **Based on:** 5.1M+ simulated sessions across 51 strategy configurations
 **Dataset:** 100,000 sessions per configuration, $500 starting bankroll, $5 base bet
@@ -7,11 +7,7 @@
 
 ## Executive Summary
 
-| Question | Key Finding |
-|----------|-------------|
-| **Best betting strategy?** | No bonus betting + ultra-tight limits ($25/$25) = lowest losses (-$1.44/session avg) |
-| **Best seat position?** | **No difference** - chi-square tests confirm seat position has no effect (p > 0.79) |
-| **When to walk away cold?** | Use tight stop limits ($25-$50) as automatic cold table protection |
+![Executive Summary](images/table_executive_summary.png)
 
 ---
 
@@ -32,11 +28,7 @@ For example, an EV/Hand of **-$0.17** means:
 
 **Why EV matters:** It measures the true cost of playing regardless of session outcomes. A strategy with lower EV/Hand costs less to play over time, even if individual sessions vary wildly.
 
-| EV/Hand | Interpretation | 100 Hands Cost |
-|---------|----------------|----------------|
-| -$0.17 | Low house edge (no bonus) | ~$17 |
-| -$0.50 | Moderate (progressive betting) | ~$50 |
-| -$1.50 | High (large bonus bets) | ~$150 |
+![EV/Hand Interpretation](images/table_ev_hand.png)
 
 ---
 
@@ -46,50 +38,25 @@ For example, an EV/Hand of **-$0.17** means:
 
 The most reliable strategy depends on your goal:
 
-| Goal | Strategy | Win Rate | Avg Session Result | EV/Hand |
-|------|----------|----------|-------------------|---------|
-| **Minimize Losses** | No bonus, $25/$25 limits | 34.55% | **-$1.44** | -$0.17 |
-| **Highest Win Rate** | Fibonacci betting, $100/$100 | **36.00%** | -$6.04 | -$0.52 |
-| **Win Most Sessions** | Reverse asymmetric $50/$150 | **53.58%** | -$14.57 | -$0.19 |
+![Strategy Goals](images/table_strategy_goals.png)
 
 ### Key Insight: Avoid Bonus Bets
 
 The three-card bonus side bet dramatically increases your expected losses:
 
-| Configuration | EV Loss per Hand |
-|---------------|------------------|
-| No bonus | **-$0.17 to -$0.19** |
-| $5 bonus | -$0.37 to -$0.43 |
-| $15 bonus | -$0.78 to -$0.86 |
-| $30 bonus | -$1.40 to -$1.60 |
+![EV Loss per Hand](images/table_ev_loss.png)
 
 **The bonus bet roughly doubles (or triples) the house edge per hand.**
 
 ### Top 10 Strategies by Lowest Average Loss
 
-| Rank | Strategy | Limits | Avg Loss | Win Rate |
-|------|----------|--------|----------|----------|
-| 1 | No bonus, ultratight | $25/$25 | **-$1.44** | 34.55% |
-| 2 | No bonus, ultratight | $30/$30 | -$2.05 | 34.66% |
-| 3 | $15 bonus, verytight | $50/$50 | -$3.75 | 32.86% |
-| 4 | $30 bonus, verytight | $50/$50 | -$3.98 | 29.33% |
-| 5 | No bonus, short session | 50 hands max | -$4.08 | 34.21% |
-| 6 | No bonus, short session | 100 hands max | -$4.48 | 33.88% |
-| 7 | No bonus, verytight | $50/$50 | -$4.52 | 33.89% |
-| 8 | $5 bonus, verytight | $50/$50 | -$5.00 | 29.86% |
-| 9 | $30 bonus, verytight | $75/$75 | -$5.63 | 33.33% |
-| 10 | Fibonacci, no bonus | $100/$100 | -$6.04 | 36.00% |
+![Top 10 Strategies](images/table_top10_strategies.png)
 
 ### Progressive Betting Systems Comparison
 
 Progressive betting increases win rate but also increases per-hand expected loss:
 
-| System | Win Rate | Avg Loss | EV/Hand |
-|--------|----------|----------|---------|
-| Flat (baseline) | 32.27% | -$14.90 | **-$0.19** |
-| D'Alembert | 35.41% | -$6.88 | -$0.69 |
-| Martingale | 35.50% | -$6.11 | -$0.66 |
-| **Fibonacci** | **36.00%** | -$6.04 | -$0.52 |
+![Progressive Betting Systems](images/table_progressive_betting.png)
 
 #### How Each System Works
 
@@ -130,28 +97,14 @@ Statistical analysis of 1.2 million rounds across two datasets confirms that sea
 
 ### Dataset 1: With $5 Bonus Bet (600,000 rounds)
 
-| Seat | Win Rate | 95% CI | Total Profit |
-|------|----------|--------|--------------|
-| 1 | 29.20% | 28.92% - 29.48% | -$4,138,945 |
-| 2 | 29.07% | 28.79% - 29.35% | -$4,280,975 |
-| 3 | 28.99% | 28.71% - 29.27% | -$4,237,935 |
-| 4 | 28.87% | 28.59% - 29.15% | -$4,469,785 |
-| 5 | 28.93% | 28.65% - 29.22% | -$4,361,490 |
-| 6 | 28.94% | 28.66% - 29.22% | -$4,302,285 |
+![Seat Position Dataset 1](images/table_seat_dataset1.png)
 
 **Chi-Square Test:** X² = 2.37, p-value = **0.795**
 **Interpretation:** p > 0.05 means NO statistically significant difference between seats
 
 ### Dataset 2: No Bonus Bet (600,000 rounds)
 
-| Seat | Win Rate | 95% CI | Total Profit |
-|------|----------|--------|--------------|
-| 1 | 32.20% | 31.91% - 32.49% | -$1,456,440 |
-| 2 | 31.94% | 31.65% - 32.23% | -$1,603,875 |
-| 3 | 31.92% | 31.63% - 32.21% | -$1,508,055 |
-| 4 | 31.96% | 31.67% - 32.25% | -$1,589,635 |
-| 5 | 32.06% | 31.77% - 32.34% | -$1,539,405 |
-| 6 | 32.05% | 31.76% - 32.34% | -$1,555,655 |
+![Seat Position Dataset 2](images/table_seat_dataset2.png)
 
 **Chi-Square Test:** X² = 1.68, p-value = **0.892**
 **Interpretation:** p > 0.05 confirms NO seat position effect
@@ -176,12 +129,7 @@ Since Let It Ride outcomes are independent (each hand is a fresh deal), there's 
 
 ### How Stop Limits Act as Cold Table Protection
 
-| Limit Style | Limits | Effect | Avg Loss |
-|-------------|--------|--------|----------|
-| Ultra-tight | $25/$25 | Exit after 2-3 losses | -$1.44 |
-| Very tight | $50/$50 | Exit after 4-5 losses | -$4.52 |
-| Tight | $100/$100 | Exit after 7-10 losses | -$14.90 |
-| Loose | $500/$400 | Stay through long streaks | -$72.14 |
+![Stop Limits](images/table_stop_limits.png)
 
 ### The Math Behind "Cold" Protection
 
@@ -195,23 +143,13 @@ Tighter limits automatically pull you away before a "cold" streak compounds.
 
 ### Comparison: Session Length vs Losses
 
-| Strategy | Avg Hands Played | Avg Loss | Loss per Hand |
-|----------|------------------|----------|---------------|
-| Ultratight $25/$25 | ~8 hands | -$1.44 | -$0.18 |
-| Verytight $50/$50 | ~26 hands | -$4.52 | -$0.17 |
-| Tight $100/$100 | ~78 hands | -$14.90 | -$0.19 |
-| Loose $500/$400 | ~175 hands | -$72.14 | -$0.41 |
+![Session Length vs Losses](images/table_session_length.png)
 
 **Key insight:** Per-hand EV is similar across strategies (~$0.17-0.19), but total exposure time determines total losses.
 
 ### When to Walk Away - Practical Guidelines
 
-| Situation | Recommendation |
-|-----------|----------------|
-| **Down $25-$30** | Walk away - you've hit a typical "cold streak" |
-| **Down $50** | Definitely walk away - continuing increases exposure |
-| **Up $25-$50** | Consider locking in the win and leaving |
-| **Any winning session** | Take the money - only 32-35% of sessions are winners |
+![Practical Guidelines](images/table_practical_guidelines.png)
 
 ### The Gambler's Fallacy Warning
 
