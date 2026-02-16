@@ -6,6 +6,13 @@ from unittest.mock import Mock
 import pytest
 
 from let_it_ride.bankroll.betting_systems import BettingContext, FlatBetting
+from let_it_ride.core.card import Card, Rank, Suit
+from let_it_ride.core.game_engine import GameHandResult
+from let_it_ride.core.hand_evaluator import FiveCardHandRank
+from let_it_ride.core.progressive_jackpot import (
+    ProgressiveJackpot,
+    standard_progressive_paytable,
+)
 from let_it_ride.simulation.session import (
     Session,
     SessionConfig,
@@ -13,6 +20,7 @@ from let_it_ride.simulation.session import (
     SessionResult,
     StopReason,
 )
+from let_it_ride.strategy.base import Decision
 
 # --- Test Fixtures ---
 
@@ -104,6 +112,7 @@ class TestSessionConfigInitialization:
         assert config.max_hands is None
         assert config.stop_on_insufficient_funds is True
         assert config.bonus_bet == 0.0
+        assert config.progressive_bet == 0.0
 
     def test_create_full_config(self) -> None:
         """Verify SessionConfig can be created with all fields."""
@@ -1370,3 +1379,211 @@ class TestHandCallback:
 
         with pytest.raises(RuntimeError, match="Callback failed on hand 2"):
             session.run_to_completion()
+
+
+# --- Progressive Side Bet Tests ---
+
+# Dummy cards for constructing real GameHandResult objects
+_DUMMY_PLAYER_CARDS = (
+    Card(Rank.TWO, Suit.HEARTS),
+    Card(Rank.THREE, Suit.HEARTS),
+    Card(Rank.FOUR, Suit.HEARTS),
+)
+_DUMMY_COMMUNITY_CARDS = (
+    Card(Rank.FIVE, Suit.HEARTS),
+    Card(Rank.SIX, Suit.HEARTS),
+)
+
+
+def create_mock_engine_with_hand_ranks(
+    results: list[tuple[float, FiveCardHandRank]],
+) -> Mock:
+    """Create a mock engine returning real GameHandResult objects.
+
+    Needed for progressive tests because dataclasses.replace() requires
+    actual dataclass instances, not Mock objects.
+
+    Args:
+        results: List of (net_result, final_hand_rank) tuples.
+
+    Returns:
+        A mock GameEngine.
+    """
+    mock = Mock()
+    result_iter = iter(results)
+
+    def play_hand_side_effect(
+        hand_id: int,
+        base_bet: float,
+        bonus_bet: float = 0.0,
+        context=None,  # noqa: ARG001
+    ):
+        net_result, hand_rank = next(result_iter)
+        return GameHandResult(
+            hand_id=hand_id,
+            player_cards=_DUMMY_PLAYER_CARDS,
+            community_cards=_DUMMY_COMMUNITY_CARDS,
+            decision_bet1=Decision.RIDE,
+            decision_bet2=Decision.RIDE,
+            final_hand_rank=hand_rank,
+            base_bet=base_bet,
+            bets_at_risk=base_bet * 3,
+            main_payout=max(0.0, net_result),
+            bonus_bet=bonus_bet,
+            bonus_hand_rank=None,
+            bonus_payout=0.0,
+            net_result=net_result,
+        )
+
+    mock.play_hand.side_effect = play_hand_side_effect
+    return mock
+
+
+class TestSessionProgressiveIntegration:
+    """Tests for Session.play_hand() with progressive side bet enabled."""
+
+    def test_progressive_bet_deducted_from_bankroll(self) -> None:
+        """Bankroll decreases by progressive bet cost when no payout occurs."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=1,
+            progressive_bet=1.0,
+        )
+        # HIGH_CARD = no progressive payout. Main net_result = -15 (lost all 3 bets)
+        engine = create_mock_engine_with_hand_ranks(
+            [(-15.0, FiveCardHandRank.HIGH_CARD)]
+        )
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+
+        session = Session(config, engine, betting, progressive_jackpot=jackpot)
+        result = session.play_hand()
+
+        # net_result should include progressive: -15 + (0 - 1) = -16
+        assert result.net_result == pytest.approx(-16.0)
+        assert result.progressive_bet == pytest.approx(1.0)
+        assert result.progressive_payout == pytest.approx(0.0)
+        assert session.bankroll == pytest.approx(1000.0 - 16.0)
+
+    def test_progressive_payout_credited_to_bankroll(self) -> None:
+        """Bankroll reflects correct net when a progressive payout occurs."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=1,
+            progressive_bet=1.0,
+        )
+        # FLUSH = $75 fixed progressive payout. Main net_result = +35
+        engine = create_mock_engine_with_hand_ranks([(35.0, FiveCardHandRank.FLUSH)])
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+
+        session = Session(config, engine, betting, progressive_jackpot=jackpot)
+        result = session.play_hand()
+
+        # net_result: 35 + (75 - 1) = 109
+        assert result.net_result == pytest.approx(109.0)
+        assert result.progressive_bet == pytest.approx(1.0)
+        assert result.progressive_payout == pytest.approx(75.0)
+        assert session.bankroll == pytest.approx(1000.0 + 109.0)
+
+    def test_total_progressive_wagered_tracked(self) -> None:
+        """total_progressive_wagered accumulates across hands."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=3,
+            progressive_bet=2.0,
+        )
+        engine = create_mock_engine_with_hand_ranks(
+            [
+                (0.0, FiveCardHandRank.HIGH_CARD),
+                (0.0, FiveCardHandRank.HIGH_CARD),
+                (0.0, FiveCardHandRank.HIGH_CARD),
+            ]
+        )
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+
+        session = Session(config, engine, betting, progressive_jackpot=jackpot)
+        session_result = session.run_to_completion()
+
+        assert session_result.total_progressive_wagered == pytest.approx(6.0)
+
+    def test_progressive_fields_on_game_hand_result(self) -> None:
+        """GameHandResult has progressive_bet and progressive_payout populated."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=1,
+            progressive_bet=1.0,
+        )
+        engine = create_mock_engine_with_hand_ranks([(0.0, FiveCardHandRank.STRAIGHT)])
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+
+        session = Session(config, engine, betting, progressive_jackpot=jackpot)
+        result = session.play_hand()
+
+        assert isinstance(result, GameHandResult)
+        assert result.progressive_bet == pytest.approx(1.0)
+        assert result.progressive_payout == pytest.approx(50.0)
+
+
+class TestProgressiveBetInsufficientFunds:
+    """Tests for progressive_bet affecting should_stop() via insufficient funds."""
+
+    def test_progressive_bet_included_in_minimum(self) -> None:
+        """Session stops when bankroll insufficient for base + bonus + progressive."""
+        config = SessionConfig(
+            starting_bankroll=100.0,
+            base_bet=25.0,  # Min = 75 + 0 + 2 = 77
+            progressive_bet=2.0,
+        )
+        # Lose $25 -> bankroll = 75, which < 77
+        engine = create_mock_engine_with_hand_ranks(
+            [(-25.0, FiveCardHandRank.HIGH_CARD)]
+        )
+        betting = FlatBetting(25.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+
+        session = Session(config, engine, betting, progressive_jackpot=jackpot)
+        session.play_hand()
+
+        assert session.should_stop() is True
+        assert session.stop_reason == StopReason.INSUFFICIENT_FUNDS
+
+    def test_validate_session_config_includes_progressive_bet(self) -> None:
+        """Config validation rejects bankroll too low for progressive bet."""
+        with pytest.raises(ValueError, match="progressive_bet"):
+            SessionConfig(
+                starting_bankroll=15.0,  # Exactly 3*5 = 15, but needs +2 for prog
+                base_bet=5.0,
+                progressive_bet=2.0,
+            )

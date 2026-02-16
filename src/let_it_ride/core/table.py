@@ -38,6 +38,8 @@ class PlayerSeat:
         bonus_hand_rank: The 3-card bonus hand rank (None if no bonus bet).
         bonus_payout: Profit from the bonus bet (0 for losing or no bet).
         net_result: Total profit/loss for the hand.
+        progressive_bet: Progressive side bet amount (0 if not playing progressive).
+        progressive_payout: Payout from progressive side bet (0 if no qualifying hand).
     """
 
     seat_number: int

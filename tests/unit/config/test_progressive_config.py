@@ -40,6 +40,21 @@ class TestProgressivePayoutEntryConfig:
         with pytest.raises(ValidationError):
             ProgressivePayoutEntryConfig(type="invalid", value=100.0)  # type: ignore[arg-type]
 
+    def test_jackpot_percentage_over_one_rejected(self) -> None:
+        """Jackpot percentage value > 1.0 is rejected."""
+        with pytest.raises(ValidationError, match="jackpot_percentage"):
+            ProgressivePayoutEntryConfig(type="jackpot_percentage", value=1.5)
+
+    def test_jackpot_percentage_exactly_one_valid(self) -> None:
+        """Jackpot percentage value of exactly 1.0 is valid (100% of pool)."""
+        entry = ProgressivePayoutEntryConfig(type="jackpot_percentage", value=1.0)
+        assert entry.value == 1.0
+
+    def test_fixed_large_value_valid(self) -> None:
+        """Fixed type with large value is valid (no upper bound for fixed)."""
+        entry = ProgressivePayoutEntryConfig(type="fixed", value=50000.0)
+        assert entry.value == 50000.0
+
 
 class TestProgressiveSideBetConfig:
     """Tests for ProgressiveSideBetConfig validation."""

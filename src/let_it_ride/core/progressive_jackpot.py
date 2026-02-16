@@ -34,7 +34,7 @@ class ProgressivePayout:
     value: float
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ProgressivePaytable:
     """Maps FiveCardHandRank to ProgressivePayout entries.
 
@@ -51,9 +51,10 @@ class ProgressiveJackpot:
     """Manages the progressive jackpot pool.
 
     The pool grows with each bet (contribution_rate * bet_amount) and pays
-    out based on the final 5-card hand. When a jackpot percentage payout
-    is triggered, the corresponding fraction is deducted from the pool.
-    A full jackpot hit (100%) resets the pool to the seed amount.
+    out based on the final 5-card hand. Fixed-dollar payouts do not affect
+    the pool. Percentage payouts deduct the paid fraction from the pool.
+    A full jackpot hit (value >= 1.0) resets the pool to the seed amount
+    if reset_to_seed is True; otherwise the pool drops to zero.
     """
 
     __slots__ = (
@@ -97,7 +98,12 @@ class ProgressiveJackpot:
 
         Args:
             bet_amount: The bet amount placed by the player.
+
+        Raises:
+            ValueError: If bet_amount is negative.
         """
+        if bet_amount < 0:
+            raise ValueError(f"bet_amount must be non-negative, got {bet_amount}")
         self._pool += self._contribution_rate * bet_amount
 
     def evaluate_payout(self, hand_rank: FiveCardHandRank) -> float:
@@ -136,8 +142,26 @@ class ProgressiveJackpot:
         self._pool = self._seed_amount
 
 
+# Module-level cached paytable (immutable, safe to share across sessions)
+_STANDARD_PROGRESSIVE_PAYTABLE = ProgressivePaytable(
+    name="standard_progressive",
+    payouts={
+        FiveCardHandRank.ROYAL_FLUSH: ProgressivePayout(
+            type="jackpot_percentage", value=1.0
+        ),
+        FiveCardHandRank.STRAIGHT_FLUSH: ProgressivePayout(
+            type="jackpot_percentage", value=0.10
+        ),
+        FiveCardHandRank.FOUR_OF_A_KIND: ProgressivePayout(type="fixed", value=500.0),
+        FiveCardHandRank.FULL_HOUSE: ProgressivePayout(type="fixed", value=100.0),
+        FiveCardHandRank.FLUSH: ProgressivePayout(type="fixed", value=75.0),
+        FiveCardHandRank.STRAIGHT: ProgressivePayout(type="fixed", value=50.0),
+    },
+)
+
+
 def standard_progressive_paytable() -> ProgressivePaytable:
-    """Create the standard progressive jackpot paytable.
+    """Return the standard progressive jackpot paytable.
 
     Standard payouts:
         Royal Flush:     100% of jackpot
@@ -148,25 +172,9 @@ def standard_progressive_paytable() -> ProgressivePaytable:
         Straight:        $50 fixed
 
     Returns:
-        A ProgressivePaytable with standard payouts.
+        A ProgressivePaytable with standard payouts (cached, immutable).
     """
-    return ProgressivePaytable(
-        name="standard_progressive",
-        payouts={
-            FiveCardHandRank.ROYAL_FLUSH: ProgressivePayout(
-                type="jackpot_percentage", value=1.0
-            ),
-            FiveCardHandRank.STRAIGHT_FLUSH: ProgressivePayout(
-                type="jackpot_percentage", value=0.10
-            ),
-            FiveCardHandRank.FOUR_OF_A_KIND: ProgressivePayout(
-                type="fixed", value=500.0
-            ),
-            FiveCardHandRank.FULL_HOUSE: ProgressivePayout(type="fixed", value=100.0),
-            FiveCardHandRank.FLUSH: ProgressivePayout(type="fixed", value=75.0),
-            FiveCardHandRank.STRAIGHT: ProgressivePayout(type="fixed", value=50.0),
-        },
-    )
+    return _STANDARD_PROGRESSIVE_PAYTABLE
 
 
 def create_progressive_jackpot(
@@ -185,9 +193,16 @@ def create_progressive_jackpot(
     """
     if config.paytable:
         # Build paytable from config
+        valid_names = [r.name for r in FiveCardHandRank]
         payouts: dict[FiveCardHandRank, ProgressivePayout] = {}
         for hand_name, entry in config.paytable.items():
-            hand_rank = FiveCardHandRank[hand_name.upper()]
+            try:
+                hand_rank = FiveCardHandRank[hand_name.upper()]
+            except KeyError:
+                raise ValueError(
+                    f"Invalid hand rank name '{hand_name}'. "
+                    f"Valid names: {', '.join(valid_names)}"
+                ) from None
             payouts[hand_rank] = ProgressivePayout(type=entry.type, value=entry.value)
         paytable = ProgressivePaytable(name="custom_progressive", payouts=payouts)
     else:

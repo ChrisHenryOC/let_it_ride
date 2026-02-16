@@ -47,6 +47,7 @@ from let_it_ride.config.paytables import (
     bonus_paytable_c,
     standard_main_paytable,
 )
+from let_it_ride.core.progressive_jackpot import ProgressiveJackpot
 from let_it_ride.simulation.controller import (
     _BETTING_SYSTEM_FACTORIES,
     _STRATEGY_FACTORIES,
@@ -59,6 +60,8 @@ from let_it_ride.simulation.utils import (
     create_table_session_config,
     get_bonus_paytable,
     get_main_paytable,
+    get_progressive_bet,
+    get_progressive_jackpot,
 )
 from let_it_ride.strategy import (
     AlwaysPullStrategy,
@@ -944,3 +947,42 @@ class TestCreateTableSessionConfig:
             )
             result = create_table_session_config(config, bonus_bet=0.0)
             assert result.max_hands == hands
+
+
+class TestGetProgressiveJackpot:
+    """Tests for get_progressive_jackpot() factory function."""
+
+    def test_returns_none_when_disabled(self) -> None:
+        """Returns None when progressive is not enabled."""
+        config = FullConfig()  # progressive.enabled defaults to False
+        result = get_progressive_jackpot(config)
+        assert result is None
+
+    def test_returns_jackpot_when_enabled(self) -> None:
+        """Returns a ProgressiveJackpot instance when enabled."""
+        config = FullConfig(progressive={"enabled": True})
+        result = get_progressive_jackpot(config)
+        assert isinstance(result, ProgressiveJackpot)
+
+    def test_jackpot_has_configured_pool(self) -> None:
+        """Returned jackpot has the configured starting pool."""
+        config = FullConfig(progressive={"enabled": True, "starting_jackpot": 25000.0})
+        result = get_progressive_jackpot(config)
+        assert result is not None
+        assert result.current_pool == pytest.approx(25000.0)
+
+
+class TestGetProgressiveBet:
+    """Tests for get_progressive_bet() factory function."""
+
+    def test_returns_zero_when_disabled(self) -> None:
+        """Returns 0.0 when progressive is not enabled."""
+        config = FullConfig()
+        result = get_progressive_bet(config)
+        assert result == 0.0
+
+    def test_returns_bet_amount_when_enabled(self) -> None:
+        """Returns configured bet amount when enabled."""
+        config = FullConfig(progressive={"enabled": True, "bet_amount": 5.0})
+        result = get_progressive_bet(config)
+        assert result == 5.0

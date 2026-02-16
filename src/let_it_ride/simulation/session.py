@@ -10,7 +10,7 @@ This module provides session lifecycle management with stop conditions:
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
 
@@ -34,6 +34,7 @@ def validate_session_config(
     max_hands: int | None,
     bonus_bet: float,
     stop_on_insufficient_funds: bool,
+    progressive_bet: float = 0.0,
 ) -> None:
     """Validate session configuration values.
 
@@ -48,6 +49,7 @@ def validate_session_config(
         max_hands: Maximum hands to play. None for unlimited.
         bonus_bet: Fixed bonus bet amount per hand.
         stop_on_insufficient_funds: If True, stop when bankroll is too low.
+        progressive_bet: Fixed progressive side bet amount per hand.
 
     Raises:
         ValueError: If any validation fails.
@@ -64,6 +66,8 @@ def validate_session_config(
         raise ValueError("max_hands must be positive if set")
     if bonus_bet < 0:
         raise ValueError("bonus_bet cannot be negative")
+    if progressive_bet < 0:
+        raise ValueError("progressive_bet cannot be negative")
 
     # Validate at least one stop condition is configured
     has_stop_condition = (
@@ -79,11 +83,11 @@ def validate_session_config(
         )
 
     # Validate starting bankroll covers minimum bet
-    min_bet_required = (base_bet * 3) + bonus_bet
+    min_bet_required = (base_bet * 3) + bonus_bet + progressive_bet
     if starting_bankroll < min_bet_required:
         raise ValueError(
             f"starting_bankroll ({starting_bankroll}) must be at least "
-            f"base_bet * 3 + bonus_bet ({min_bet_required})"
+            f"base_bet * 3 + bonus_bet + progressive_bet ({min_bet_required})"
         )
 
 
@@ -156,8 +160,9 @@ class SessionConfig:
             None to disable.
         max_hands: Maximum hands to play. None for unlimited.
         stop_on_insufficient_funds: If True, stop when bankroll cannot
-            cover the minimum bet (base_bet * 3).
+            cover the minimum bet (base_bet * 3 + bonus_bet + progressive_bet).
         bonus_bet: Fixed bonus bet amount per hand. 0 to disable bonus.
+        progressive_bet: Fixed progressive side bet amount per hand. 0 to disable.
     """
 
     starting_bankroll: float
@@ -179,6 +184,7 @@ class SessionConfig:
             max_hands=self.max_hands,
             bonus_bet=self.bonus_bet,
             stop_on_insufficient_funds=self.stop_on_insufficient_funds,
+            progressive_bet=self.progressive_bet,
         )
 
 
@@ -524,19 +530,8 @@ class Session:
             # Compute progressive net: payout minus bet cost
             progressive_net = progressive_payout - progressive_bet
             # Create updated result with progressive fields and adjusted net_result
-            result = GameHandResult(
-                hand_id=result.hand_id,
-                player_cards=result.player_cards,
-                community_cards=result.community_cards,
-                decision_bet1=result.decision_bet1,
-                decision_bet2=result.decision_bet2,
-                final_hand_rank=result.final_hand_rank,
-                base_bet=result.base_bet,
-                bets_at_risk=result.bets_at_risk,
-                main_payout=result.main_payout,
-                bonus_bet=result.bonus_bet,
-                bonus_hand_rank=result.bonus_hand_rank,
-                bonus_payout=result.bonus_payout,
+            result = replace(
+                result,
                 net_result=result.net_result + progressive_net,
                 progressive_bet=progressive_bet,
                 progressive_payout=progressive_payout,

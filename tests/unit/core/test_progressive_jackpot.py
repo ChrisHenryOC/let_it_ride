@@ -250,3 +250,45 @@ class TestCreateProgressiveJackpotFromConfig:
         initial = jackpot.current_pool
         jackpot.contribute(1.0)
         assert jackpot.current_pool == pytest.approx(initial + 0.50)
+
+    def test_invalid_hand_rank_raises_value_error(self) -> None:
+        """Invalid hand rank name in custom paytable raises ValueError."""
+        config = ProgressiveSideBetConfig(
+            enabled=True,
+            paytable={
+                "ROYAL_FLUSHH": ProgressivePayoutEntryConfig(
+                    type="jackpot_percentage", value=1.0
+                ),
+            },
+        )
+        with pytest.raises(ValueError, match="Invalid hand rank name 'ROYAL_FLUSHH'"):
+            create_progressive_jackpot(config)
+
+
+class TestProgressiveJackpotContributeValidation:
+    """Tests for contribute() input validation."""
+
+    def test_negative_bet_raises_value_error(self) -> None:
+        """Negative bet amount raises ValueError."""
+        paytable = standard_progressive_paytable()
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=paytable,
+        )
+        with pytest.raises(ValueError, match="non-negative"):
+            jackpot.contribute(-1.0)
+
+    def test_zero_bet_accepted(self) -> None:
+        """Zero bet amount is accepted (no contribution)."""
+        paytable = standard_progressive_paytable()
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=paytable,
+        )
+        initial = jackpot.current_pool
+        jackpot.contribute(0.0)
+        assert jackpot.current_pool == pytest.approx(initial)

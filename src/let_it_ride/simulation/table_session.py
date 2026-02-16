@@ -16,7 +16,7 @@ down). The table runs for the configured number of rounds, with seats
 cycling through multiple player sessions.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from let_it_ride.bankroll.betting_systems import BettingContext, BettingSystem
 from let_it_ride.bankroll.tracker import BankrollTracker
@@ -49,8 +49,9 @@ class TableSessionConfig:
         max_hands: Maximum hands per player session. None for unlimited.
             In seat replacement mode, this applies per-session, not globally.
         stop_on_insufficient_funds: If True, stop seat when bankroll cannot
-            cover the minimum bet (base_bet * 3 + bonus_bet).
+            cover the minimum bet (base_bet * 3 + bonus_bet + progressive_bet).
         bonus_bet: Fixed bonus bet amount per hand. 0 to disable bonus.
+        progressive_bet: Fixed progressive side bet amount per hand. 0 to disable.
         table_total_rounds: Total rounds to run the table. When set, enables
             seat replacement mode: seats hitting stop conditions are reset
             with fresh bankroll. None to use classic "all seats stop" mode.
@@ -77,6 +78,7 @@ class TableSessionConfig:
             max_hands=self.max_hands,
             bonus_bet=self.bonus_bet,
             stop_on_insufficient_funds=self.stop_on_insufficient_funds,
+            progressive_bet=self.progressive_bet,
         )
         # Validate table_total_rounds
         if self.table_total_rounds is not None and self.table_total_rounds <= 0:
@@ -510,22 +512,30 @@ class TableSession:
             context=strategy_context,
         )
 
-        # Evaluate progressive and update state for each seat
+        # Evaluate progressive and update state for each seat.
+        # Note: All seats share one ProgressiveJackpot instance. Each seat's
+        # contribution inflates the pool before the next seat's payout is
+        # evaluated, and a jackpot hit resets the pool for subsequent seats.
+        # This models sequential casino dealing where seat order matters.
         progressive_bet = self._config.progressive_bet
-        enhanced_seat_results: list[PlayerSeat] = []
+        progressive_enabled = (
+            self._progressive_jackpot is not None and progressive_bet > 0
+        )
+        enhanced_seat_results: list[PlayerSeat] = [] if progressive_enabled else []
         for seat_result in result.seat_results:
             seat_idx = seat_result.seat_number - 1
             seat_state = self._seat_states[seat_idx]
 
             # Skip seats that have already stopped (classic mode only)
             if seat_state.is_stopped:
-                enhanced_seat_results.append(seat_result)
+                if progressive_enabled:
+                    enhanced_seat_results.append(seat_result)
                 continue
 
             # Evaluate progressive side bet if enabled
             adjusted_net = seat_result.net_result
-            prog_payout = 0.0
-            if self._progressive_jackpot is not None and progressive_bet > 0:
+            if progressive_enabled:
+                assert self._progressive_jackpot is not None
                 self._progressive_jackpot.contribute(progressive_bet)
                 prog_payout = self._progressive_jackpot.evaluate_payout(
                     seat_result.final_hand_rank
@@ -534,24 +544,13 @@ class TableSession:
                 adjusted_net += progressive_net
                 seat_state.total_progressive_wagered += progressive_bet
                 # Create enhanced seat result with progressive fields
-                seat_result = PlayerSeat(
-                    seat_number=seat_result.seat_number,
-                    player_cards=seat_result.player_cards,
-                    decision_bet1=seat_result.decision_bet1,
-                    decision_bet2=seat_result.decision_bet2,
-                    final_hand_rank=seat_result.final_hand_rank,
-                    base_bet=seat_result.base_bet,
-                    bets_at_risk=seat_result.bets_at_risk,
-                    main_payout=seat_result.main_payout,
-                    bonus_bet=seat_result.bonus_bet,
-                    bonus_hand_rank=seat_result.bonus_hand_rank,
-                    bonus_payout=seat_result.bonus_payout,
+                seat_result = replace(
+                    seat_result,
                     net_result=adjusted_net,
                     progressive_bet=progressive_bet,
                     progressive_payout=prog_payout,
                 )
-
-            enhanced_seat_results.append(seat_result)
+                enhanced_seat_results.append(seat_result)
 
             # Update seat state
             seat_state.total_wagered += seat_result.bets_at_risk
@@ -563,8 +562,14 @@ class TableSession:
         self._rounds_played += 1
 
         # Record result in betting system (using net result of first seat)
-        if enhanced_seat_results:
-            self._betting_system.record_result(enhanced_seat_results[0].net_result)
+        first_seat_net = (
+            enhanced_seat_results[0].net_result
+            if progressive_enabled and enhanced_seat_results
+            else result.seat_results[0].net_result
+            if result.seat_results
+            else 0.0
+        )
+        self._betting_system.record_result(first_seat_net)
 
         # In seat replacement mode, check stop conditions after playing
         if self.seat_replacement_mode:
@@ -572,7 +577,7 @@ class TableSession:
                 self._check_seat_stop_condition(seat_idx)
 
         # Return enhanced result with progressive fields if applicable
-        if self._progressive_jackpot is not None and progressive_bet > 0:
+        if progressive_enabled:
             return TableRoundResult(
                 round_id=result.round_id,
                 community_cards=result.community_cards,
