@@ -1,0 +1,126 @@
+# =============================================================================
+# Progressive Jackpot Side Bet Configuration
+# =============================================================================
+# Simulates the $1 progressive jackpot side bet found at many Let It Ride
+# tables. Unlike the three-card bonus (evaluated on 3 player cards), the
+# progressive is evaluated on the final 5-card hand and pays from a growing
+# jackpot pool.
+#
+# The jackpot pool starts at $10,000 and grows by $0.71 per $1 bet.
+# Royal Flush wins 100% of the jackpot, Straight Flush wins 10%, and
+# lower qualifying hands receive fixed dollar payouts.
+#
+# Expected behavior:
+# - Each hand costs an additional $1 for the progressive bet
+# - The jackpot pool grows throughout the session
+# - Royal flush jackpot hits are rare but impactful when they occur
+# - Overall EV of the progressive is negative but adds excitement
+# =============================================================================
+
+metadata:
+  name: "Progressive Jackpot Side Bet"
+  description: "Basic strategy with $1 progressive jackpot side bet enabled"
+  version: "1.0"
+
+simulation:
+  num_sessions: 100000
+  hands_per_session: 200
+  random_seed: 42
+  workers: "auto"
+
+deck:
+  shuffle_algorithm: "fisher_yates"
+
+bankroll:
+  starting_amount: 500.00
+  base_bet: 5.00
+
+  stop_conditions:
+    win_limit: 250.00
+    loss_limit: 200.00
+    max_hands: 200
+    stop_on_insufficient_funds: true
+
+  betting_system:
+    type: "flat"
+
+strategy:
+  type: "basic"
+
+bonus_strategy:
+  enabled: false
+  type: "never"
+
+# -----------------------------------------------------------------------------
+# Progressive Jackpot Side Bet
+# -----------------------------------------------------------------------------
+# Standard progressive paytable (used when paytable section is omitted):
+#
+#   Hand              Payout Type         Value
+#   Royal Flush       Jackpot Percentage  100% of pool
+#   Straight Flush    Jackpot Percentage  10% of pool
+#   Four of a Kind    Fixed               $500
+#   Full House        Fixed               $100
+#   Flush             Fixed               $75
+#   Straight          Fixed               $50
+#
+# The contribution_rate of 0.71 means 71 cents of each $1 bet goes to the
+# jackpot pool (the rest is house profit on the side bet).
+progressive:
+  enabled: true
+  bet_amount: 1.00
+  seed_amount: 10000.00
+  starting_jackpot: 10000.00
+  contribution_rate: 0.71
+  reset_to_seed: true
+  # Omit paytable to use the standard progressive paytable above.
+  # To customize, specify hand ranks and payout types:
+  # paytable:
+  #   ROYAL_FLUSH:
+  #     type: "jackpot_percentage"
+  #     value: 1.0
+  #   STRAIGHT_FLUSH:
+  #     type: "jackpot_percentage"
+  #     value: 0.10
+  #   FOUR_OF_A_KIND:
+  #     type: "fixed"
+  #     value: 500.0
+
+paytables:
+  main_game:
+    type: "standard"
+  bonus:
+    type: "paytable_b"
+
+output:
+  directory: "./results/progressive_jackpot"
+  prefix: "progressive"
+
+  formats:
+    csv:
+      enabled: true
+      include_hands: false
+      include_sessions: true
+      include_aggregate: true
+    json:
+      enabled: true
+      pretty: true
+      include_config: true
+    html:
+      enabled: false
+
+  visualizations:
+    enabled: true
+    charts:
+      - type: "session_outcomes_histogram"
+        title: "Progressive Jackpot - Session Outcomes"
+      - type: "bankroll_trajectory"
+        title: "Progressive Jackpot - Bankroll Trajectories"
+        sample_sessions: 50
+    format: "png"
+    dpi: 150
+
+  console:
+    progress_bar: true
+    verbosity: 1
+    show_summary: true

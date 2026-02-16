@@ -16,6 +16,10 @@ from let_it_ride.config.paytables import (
     bonus_paytable_c,
     standard_main_paytable,
 )
+from let_it_ride.core.progressive_jackpot import (
+    ProgressiveJackpot,
+    create_progressive_jackpot,
+)
 from let_it_ride.simulation.session import SessionConfig
 from let_it_ride.simulation.table_session import TableSessionConfig
 
@@ -96,6 +100,34 @@ def calculate_bonus_bet(config: FullConfig) -> float:
     return 0.0
 
 
+def get_progressive_jackpot(config: FullConfig) -> ProgressiveJackpot | None:
+    """Create a ProgressiveJackpot from configuration if enabled.
+
+    Args:
+        config: The full simulation configuration.
+
+    Returns:
+        A ProgressiveJackpot instance, or None if progressive is disabled.
+    """
+    if not config.progressive.enabled:
+        return None
+    return create_progressive_jackpot(config.progressive)
+
+
+def get_progressive_bet(config: FullConfig) -> float:
+    """Get the progressive bet amount from configuration.
+
+    Args:
+        config: The full simulation configuration.
+
+    Returns:
+        The progressive bet amount (0.0 if disabled).
+    """
+    if not config.progressive.enabled:
+        return 0.0
+    return config.progressive.bet_amount
+
+
 def create_session_config(config: FullConfig, bonus_bet: float) -> SessionConfig:
     """Create a SessionConfig from FullConfig.
 
@@ -117,6 +149,7 @@ def create_session_config(config: FullConfig, bonus_bet: float) -> SessionConfig
         max_hands=config.simulation.hands_per_session,
         stop_on_insufficient_funds=stop_conditions.stop_on_insufficient_funds,
         bonus_bet=bonus_bet,
+        progressive_bet=get_progressive_bet(config),
     )
 
 
@@ -144,4 +177,5 @@ def create_table_session_config(
         max_hands=config.simulation.hands_per_session,
         stop_on_insufficient_funds=stop_conditions.stop_on_insufficient_funds,
         bonus_bet=bonus_bet,
+        progressive_bet=get_progressive_bet(config),
     )

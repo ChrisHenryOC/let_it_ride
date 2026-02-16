@@ -255,9 +255,7 @@ class TestConfigReadmeExists:
             ):  # sample_config may be mentioned differently
                 # Extract just the filename without directory path
                 filename = Path(config_file).name.replace(".yaml", "")
-                assert (
-                    filename in content
-                ), f"README.md should mention {config_file}"
+                assert filename in content, f"README.md should mention {config_file}"
 
 
 class TestSampleConfigsRunSimulation:

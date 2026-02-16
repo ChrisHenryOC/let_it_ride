@@ -215,12 +215,12 @@ class TestSimulationController:
 
         assert len(results.session_results) == 5
         for result in results.session_results:
-            assert result.table_session_id is None, (
-                "table_session_id should be None in single-seat mode"
-            )
-            assert result.seat_number is None, (
-                "seat_number should be None in single-seat mode"
-            )
+            assert (
+                result.table_session_id is None
+            ), "table_session_id should be None in single-seat mode"
+            assert (
+                result.seat_number is None
+            ), "seat_number should be None in single-seat mode"
 
 
 class TestProgressCallback:

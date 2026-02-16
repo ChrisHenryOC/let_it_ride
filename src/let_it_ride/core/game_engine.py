@@ -54,6 +54,8 @@ class GameHandResult:
     bonus_hand_rank: ThreeCardHandRank | None
     bonus_payout: float
     net_result: float
+    progressive_bet: float = 0.0
+    progressive_payout: float = 0.0
 
 
 class GameEngine:

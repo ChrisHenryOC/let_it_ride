@@ -40,6 +40,7 @@ from let_it_ride.simulation.utils import (
     create_table_session_config,
     get_bonus_paytable,
     get_main_paytable,
+    get_progressive_jackpot,
 )
 from let_it_ride.strategy.bonus import BonusStrategy, create_bonus_strategy
 
@@ -128,8 +129,13 @@ def _run_single_session(
 
     betting_system = betting_system_factory()
     bonus_strategy = bonus_strategy_factory()
+    progressive_jackpot = get_progressive_jackpot(config)
     session = Session(
-        session_config, engine, betting_system, bonus_strategy=bonus_strategy
+        session_config,
+        engine,
+        betting_system,
+        bonus_strategy=bonus_strategy,
+        progressive_jackpot=progressive_jackpot,
     )
 
     return session.run_to_completion()
@@ -173,10 +179,12 @@ def _run_single_table_session(
     )
 
     betting_system = betting_system_factory()
+    progressive_jackpot = get_progressive_jackpot(config)
     table_session = TableSession(
         config=table_session_config,
         table=table,
         betting_system=betting_system,
+        progressive_jackpot=progressive_jackpot,
     )
 
     table_result = table_session.run_to_completion()

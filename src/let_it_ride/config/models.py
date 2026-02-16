@@ -935,6 +935,48 @@ class ProgressiveJackpotConfig(BaseModel):
     reset_amount: Annotated[float, Field(gt=0)] = 10000.0
 
 
+class ProgressivePayoutEntryConfig(BaseModel):
+    """A single payout entry: maps a 5-card hand to a fixed or percentage payout.
+
+    Attributes:
+        type: Payout type — "fixed" for dollar amount, "jackpot_percentage" for pool %.
+        value: The payout value (dollars for fixed, fraction 0-1 for percentage).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["fixed", "jackpot_percentage"]
+    value: Annotated[float, Field(ge=0)]
+
+
+class ProgressiveSideBetConfig(BaseModel):
+    """Configuration for the 5-card progressive jackpot side bet.
+
+    Unlike the three-card bonus (evaluated on player cards only), this bet
+    is evaluated on the final 5-card hand and pays from a growing jackpot pool
+    with mixed payout types (fixed dollar amounts + percentages of jackpot).
+
+    Attributes:
+        enabled: Enable/disable progressive side bet.
+        bet_amount: Fixed bet amount per hand (typically $1).
+        seed_amount: Base amount the jackpot resets to after being hit.
+        starting_jackpot: Initial jackpot pool at session start.
+        contribution_rate: Fraction of each bet added to jackpot pool.
+        reset_to_seed: If True, reset pool to seed_amount after jackpot hit.
+        paytable: Maps 5-card hand rank names to payout entries.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    bet_amount: Annotated[float, Field(gt=0)] = 1.0
+    seed_amount: Annotated[float, Field(gt=0)] = 10000.0
+    starting_jackpot: Annotated[float, Field(gt=0)] = 10000.0
+    contribution_rate: Annotated[float, Field(gt=0, le=1.0)] = 0.71
+    reset_to_seed: bool = True
+    paytable: dict[str, ProgressivePayoutEntryConfig] = Field(default_factory=dict)
+
+
 class BonusPaytableConfig(BaseModel):
     """Configuration for bonus paytable.
 
@@ -1129,6 +1171,7 @@ class FullConfig(BaseModel):
         bankroll: Bankroll management configuration.
         strategy: Main game strategy configuration.
         bonus_strategy: Bonus betting strategy configuration.
+        progressive: Progressive jackpot side bet configuration.
         paytables: Paytable configuration.
         output: Output and reporting configuration.
     """
@@ -1143,6 +1186,9 @@ class FullConfig(BaseModel):
     bankroll: BankrollConfig = Field(default_factory=BankrollConfig)
     strategy: StrategyConfig = Field(default_factory=StrategyConfig)
     bonus_strategy: BonusStrategyConfig = Field(default_factory=BonusStrategyConfig)
+    progressive: ProgressiveSideBetConfig = Field(
+        default_factory=ProgressiveSideBetConfig
+    )
     paytables: PaytablesConfig = Field(default_factory=PaytablesConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
 

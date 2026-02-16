@@ -21,7 +21,8 @@ from dataclasses import dataclass
 from let_it_ride.bankroll.betting_systems import BettingContext, BettingSystem
 from let_it_ride.bankroll.tracker import BankrollTracker
 from let_it_ride.config.models import TableConfig
-from let_it_ride.core.table import Table, TableRoundResult
+from let_it_ride.core.progressive_jackpot import ProgressiveJackpot
+from let_it_ride.core.table import PlayerSeat, Table, TableRoundResult
 from let_it_ride.simulation.session import (
     SessionOutcome,
     SessionResult,
@@ -63,6 +64,7 @@ class TableSessionConfig:
     max_hands: int | None = None
     stop_on_insufficient_funds: bool = True
     bonus_bet: float = 0.0
+    progressive_bet: float = 0.0
     table_total_rounds: int | None = None
 
     def __post_init__(self) -> None:
@@ -134,6 +136,7 @@ class _SeatState:
         "bankroll",
         "total_wagered",
         "total_bonus_wagered",
+        "total_progressive_wagered",
         "last_result",
         "streak",
         "stop_reason",
@@ -153,6 +156,7 @@ class _SeatState:
         self.bankroll = BankrollTracker(starting_bankroll)
         self.total_wagered: float = 0.0
         self.total_bonus_wagered: float = 0.0
+        self.total_progressive_wagered: float = 0.0
         self.last_result: float | None = None
         self.streak: int = 0
         self.stop_reason: StopReason | None = None
@@ -198,6 +202,7 @@ class _SeatState:
         self.bankroll.reset(self._starting_bankroll)
         self.total_wagered = 0.0
         self.total_bonus_wagered = 0.0
+        self.total_progressive_wagered = 0.0
         self.last_result = None
         self.streak = 0
         self.stop_reason = None
@@ -228,6 +233,7 @@ class TableSession:
         "_config",
         "_table",
         "_betting_system",
+        "_progressive_jackpot",
         "_seat_states",
         "_rounds_played",
         "_stop_reason",
@@ -239,6 +245,7 @@ class TableSession:
         config: TableSessionConfig,
         table: Table,
         betting_system: BettingSystem,
+        progressive_jackpot: ProgressiveJackpot | None = None,
     ) -> None:
         """Initialize a new table session.
 
@@ -247,10 +254,12 @@ class TableSession:
             table: Table for playing rounds.
             betting_system: BettingSystem for determining bet sizes.
                 Shared across all seats.
+            progressive_jackpot: Optional progressive jackpot shared by all seats.
         """
         self._config = config
         self._table = table
         self._betting_system = betting_system
+        self._progressive_jackpot = progressive_jackpot
         self._rounds_played = 0
         self._stop_reason: StopReason | None = None
         # Cache seat replacement mode check for performance
@@ -284,9 +293,13 @@ class TableSession:
     def _minimum_bet_required(self) -> float:
         """Return the minimum amount needed to play a round.
 
-        A round requires 3 base bets plus any bonus bet.
+        A round requires 3 base bets plus any bonus and progressive bets.
         """
-        return (self._config.base_bet * 3) + self._config.bonus_bet
+        return (
+            (self._config.base_bet * 3)
+            + self._config.bonus_bet
+            + self._config.progressive_bet
+        )
 
     def _build_session_result_for_seat(
         self, seat_idx: int, stop_reason: StopReason
@@ -327,6 +340,7 @@ class TableSession:
             peak_bankroll=seat_state.bankroll.peak_balance,
             max_drawdown=seat_state.bankroll.max_drawdown,
             max_drawdown_pct=seat_state.bankroll.max_drawdown_pct,
+            total_progressive_wagered=seat_state.total_progressive_wagered,
         )
 
         return SeatSessionResult(
@@ -496,32 +510,75 @@ class TableSession:
             context=strategy_context,
         )
 
-        # Update state for each seat
+        # Evaluate progressive and update state for each seat
+        progressive_bet = self._config.progressive_bet
+        enhanced_seat_results: list[PlayerSeat] = []
         for seat_result in result.seat_results:
             seat_idx = seat_result.seat_number - 1
             seat_state = self._seat_states[seat_idx]
 
             # Skip seats that have already stopped (classic mode only)
             if seat_state.is_stopped:
+                enhanced_seat_results.append(seat_result)
                 continue
+
+            # Evaluate progressive side bet if enabled
+            adjusted_net = seat_result.net_result
+            prog_payout = 0.0
+            if self._progressive_jackpot is not None and progressive_bet > 0:
+                self._progressive_jackpot.contribute(progressive_bet)
+                prog_payout = self._progressive_jackpot.evaluate_payout(
+                    seat_result.final_hand_rank
+                )
+                progressive_net = prog_payout - progressive_bet
+                adjusted_net += progressive_net
+                seat_state.total_progressive_wagered += progressive_bet
+                # Create enhanced seat result with progressive fields
+                seat_result = PlayerSeat(
+                    seat_number=seat_result.seat_number,
+                    player_cards=seat_result.player_cards,
+                    decision_bet1=seat_result.decision_bet1,
+                    decision_bet2=seat_result.decision_bet2,
+                    final_hand_rank=seat_result.final_hand_rank,
+                    base_bet=seat_result.base_bet,
+                    bets_at_risk=seat_result.bets_at_risk,
+                    main_payout=seat_result.main_payout,
+                    bonus_bet=seat_result.bonus_bet,
+                    bonus_hand_rank=seat_result.bonus_hand_rank,
+                    bonus_payout=seat_result.bonus_payout,
+                    net_result=adjusted_net,
+                    progressive_bet=progressive_bet,
+                    progressive_payout=prog_payout,
+                )
+
+            enhanced_seat_results.append(seat_result)
 
             # Update seat state
             seat_state.total_wagered += seat_result.bets_at_risk
             seat_state.total_bonus_wagered += bonus_bet
-            seat_state.bankroll.apply_result(seat_result.net_result)
-            seat_state.last_result = seat_result.net_result
-            seat_state.update_streak(seat_result.net_result)
+            seat_state.bankroll.apply_result(adjusted_net)
+            seat_state.last_result = adjusted_net
+            seat_state.update_streak(adjusted_net)
 
         self._rounds_played += 1
 
         # Record result in betting system (using net result of first seat)
-        if result.seat_results:
-            self._betting_system.record_result(result.seat_results[0].net_result)
+        if enhanced_seat_results:
+            self._betting_system.record_result(enhanced_seat_results[0].net_result)
 
         # In seat replacement mode, check stop conditions after playing
         if self.seat_replacement_mode:
             for seat_idx in range(len(self._seat_states)):
                 self._check_seat_stop_condition(seat_idx)
+
+        # Return enhanced result with progressive fields if applicable
+        if self._progressive_jackpot is not None and progressive_bet > 0:
+            return TableRoundResult(
+                round_id=result.round_id,
+                community_cards=result.community_cards,
+                dealer_discards=result.dealer_discards,
+                seat_results=tuple(enhanced_seat_results),
+            )
 
         return result
 
