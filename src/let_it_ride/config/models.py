@@ -994,6 +994,71 @@ class ProgressiveSideBetConfig(BaseModel):
     paytable: dict[str, ProgressivePayoutEntryConfig] = Field(default_factory=dict)
 
 
+class JackpotThresholdConfig(BaseModel):
+    """Configuration for jackpot threshold progressive strategy.
+
+    Attributes:
+        min_jackpot: Minimum jackpot pool value to place the bet.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    min_jackpot: Annotated[float, Field(ge=0)] = 25000.0
+
+
+class BankrollConditionalProgressiveConfig(BaseModel):
+    """Configuration for bankroll-conditional progressive strategy.
+
+    Attributes:
+        min_session_profit: Only bet when session profit exceeds this.
+        min_bankroll_ratio: Only bet when bankroll ratio exceeds this.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    min_session_profit: float | None = 50.0
+    min_bankroll_ratio: Annotated[float, Field(gt=0)] | None = None
+
+
+class ProgressiveStrategyConfig(BaseModel):
+    """Configuration for progressive jackpot side bet strategy.
+
+    Determines when a player places the optional progressive side bet.
+    Unlike the bonus strategy, this considers jackpot size in decisions.
+
+    Attributes:
+        type: Strategy type selection.
+        jackpot_threshold: Config for jackpot threshold strategy.
+        bankroll_conditional: Config for bankroll-conditional strategy.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal[
+        "never",
+        "always",
+        "jackpot_threshold",
+        "bankroll_conditional",
+    ] = "never"
+
+    jackpot_threshold: JackpotThresholdConfig | None = None
+    bankroll_conditional: BankrollConditionalProgressiveConfig | None = None
+
+    @model_validator(mode="after")
+    def validate_type_config_match(self) -> ProgressiveStrategyConfig:
+        """Validate that required config is provided for strategies that need it."""
+        type_to_config: dict[str, object | None] = {
+            "jackpot_threshold": self.jackpot_threshold,
+            "bankroll_conditional": self.bankroll_conditional,
+        }
+        if self.type in type_to_config and type_to_config[self.type] is None:
+            raise ValueError(
+                f"'{self.type}' progressive strategy requires "
+                f"'{self.type}' config section"
+            )
+        return self
+
+
 class BonusPaytableConfig(BaseModel):
     """Configuration for bonus paytable.
 
@@ -1205,6 +1270,9 @@ class FullConfig(BaseModel):
     bonus_strategy: BonusStrategyConfig = Field(default_factory=BonusStrategyConfig)
     progressive: ProgressiveSideBetConfig = Field(
         default_factory=ProgressiveSideBetConfig
+    )
+    progressive_strategy: ProgressiveStrategyConfig = Field(
+        default_factory=ProgressiveStrategyConfig
     )
     paytables: PaytablesConfig = Field(default_factory=PaytablesConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
