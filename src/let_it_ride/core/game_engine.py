@@ -39,6 +39,8 @@ class GameHandResult:
         bonus_hand_rank: The 3-card bonus hand rank (None if no bonus bet).
         bonus_payout: Profit from the bonus bet (0 for losing or no bet).
         net_result: Total profit/loss for the hand.
+        progressive_bet: Progressive side bet amount (0 if not playing progressive).
+        progressive_payout: Payout from progressive side bet (0 if no qualifying hand).
     """
 
     hand_id: int
@@ -54,6 +56,8 @@ class GameHandResult:
     bonus_hand_rank: ThreeCardHandRank | None
     bonus_payout: float
     net_result: float
+    progressive_bet: float = 0.0
+    progressive_payout: float = 0.0
 
 
 class GameEngine:

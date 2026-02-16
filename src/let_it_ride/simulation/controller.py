@@ -38,6 +38,7 @@ from let_it_ride.simulation.utils import (
     create_table_session_config,
     get_bonus_paytable,
     get_main_paytable,
+    get_progressive_jackpot,
 )
 from let_it_ride.strategy import (
     AlwaysPullStrategy,
@@ -533,12 +534,16 @@ class SimulationController:
             def session_hand_callback(hand_id: int, result: GameHandResult) -> None:
                 callback(sid, hand_id, result)
 
+        # Progressive jackpot needs fresh state per session
+        progressive_jackpot = get_progressive_jackpot(self._config)
+
         return Session(
             session_config,
             engine,
             betting_system,
             bonus_strategy=bonus_strategy,
             hand_callback=session_hand_callback,
+            progressive_jackpot=progressive_jackpot,
         )
 
     def _create_table_session(
@@ -580,10 +585,14 @@ class SimulationController:
         # Betting system needs fresh state per session
         betting_system = betting_system_factory()
 
+        # Progressive jackpot needs fresh state per session
+        progressive_jackpot = get_progressive_jackpot(self._config)
+
         return TableSession(
             config=table_session_config,
             table=table,
             betting_system=betting_system,
+            progressive_jackpot=progressive_jackpot,
         )
 
     def _run_session(self, session: Session) -> SessionResult:

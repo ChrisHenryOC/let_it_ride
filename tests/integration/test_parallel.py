@@ -897,15 +897,15 @@ class TestParallelMultiSeatExecution:
             grouped[result.table_session_id].append(result.seat_number)
 
         # Each table_session_id should have exactly num_seats results
-        assert len(grouped) == num_sessions, (
-            f"Expected {num_sessions} unique table_session_ids, got {len(grouped)}"
-        )
+        assert (
+            len(grouped) == num_sessions
+        ), f"Expected {num_sessions} unique table_session_ids, got {len(grouped)}"
 
         for table_session_id, seat_numbers in grouped.items():
             # Verify table_session_id is not None
-            assert table_session_id is not None, (
-                "table_session_id should not be None in multi-seat mode"
-            )
+            assert (
+                table_session_id is not None
+            ), "table_session_id should not be None in multi-seat mode"
             # Each table session should have exactly num_seats results
             assert len(seat_numbers) == num_seats, (
                 f"table_session_id {table_session_id} has {len(seat_numbers)} results, "

@@ -1225,10 +1225,10 @@ class TestSeatNumberInSessionResult:
     @pytest.mark.parametrize(
         "seat_number",
         [
-            0,   # Edge case: zero (invalid)
+            0,  # Edge case: zero (invalid)
             -1,  # Edge case: negative (invalid)
-            7,   # Edge case: above max (invalid)
-            100, # Edge case: large value (invalid)
+            7,  # Edge case: above max (invalid)
+            100,  # Edge case: large value (invalid)
         ],
     )
     def test_with_table_session_info_invalid_seat_numbers(
@@ -1249,15 +1249,13 @@ class TestSeatNumberInSessionResult:
             max_drawdown_pct=0.08,
         )
         with pytest.raises(ValueError, match="seat_number must be between 1 and 6"):
-            result.with_table_session_info(
-                table_session_id=0, seat_number=seat_number
-            )
+            result.with_table_session_info(table_session_id=0, seat_number=seat_number)
 
     @pytest.mark.parametrize(
         "table_session_id",
         [
-            -1,   # Edge case: negative (invalid)
-            -100, # Edge case: large negative (invalid)
+            -1,  # Edge case: negative (invalid)
+            -100,  # Edge case: large negative (invalid)
         ],
     )
     def test_with_table_session_info_invalid_table_session_id(
@@ -1567,23 +1565,23 @@ class TestSeatNumberE2EFlow:
         for row in rows:
             table_session_id = row["table_session_id"]
             # table_session_id should not be empty in multi-seat mode
-            assert table_session_id != "", (
-                "table_session_id should be populated in multi-seat mode"
-            )
+            assert (
+                table_session_id != ""
+            ), "table_session_id should be populated in multi-seat mode"
             grouped[table_session_id].append(int(row["seat_number"]))
 
         # Each table_session_id should have exactly num_seats rows
-        assert len(grouped) == num_sessions, (
-            f"Expected {num_sessions} unique table_session_ids, got {len(grouped)}"
-        )
+        assert (
+            len(grouped) == num_sessions
+        ), f"Expected {num_sessions} unique table_session_ids, got {len(grouped)}"
         for table_session_id, seats in grouped.items():
-            assert len(seats) == num_seats, (
-                f"table_session_id {table_session_id} should have {num_seats} seats"
-            )
+            assert (
+                len(seats) == num_seats
+            ), f"table_session_id {table_session_id} should have {num_seats} seats"
             # Seats should be 1 through num_seats
-            assert sorted(seats) == list(range(1, num_seats + 1)), (
-                f"table_session_id {table_session_id} seats should be 1-{num_seats}"
-            )
+            assert sorted(seats) == list(
+                range(1, num_seats + 1)
+            ), f"table_session_id {table_session_id} seats should be 1-{num_seats}"
 
     def test_multi_seat_sequential_execution_to_csv_export(
         self, tmp_path: Path

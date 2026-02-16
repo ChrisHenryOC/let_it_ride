@@ -57,6 +57,7 @@ Key abstractions:
 - `Table`: multi-player table (1-6 seats) sharing community cards
 - `Session`: manages bankroll, stop conditions, runs hands to completion
 - `TableSession`: manages multi-seat table sessions with per-seat tracking
+- `ProgressiveJackpot`: manages progressive jackpot pool state (contributions, payouts, resets)
 - `DealerConfig`: optional dealer discard (burn cards) before community cards
 
 ## Game Rules
@@ -73,6 +74,7 @@ Simulations are configured via YAML files. Key sections:
 - `bankroll`: starting_amount, base_bet, stop_conditions, betting_system
 - `strategy`: type (basic/always_ride/always_pull/conservative/aggressive/custom)
 - `bonus_strategy`: type (never/always/static/bankroll_conditional)
+- `progressive`: enabled, bet_amount, seed_amount, starting_jackpot, contribution_rate, reset_to_seed, custom paytable
 - `paytables`: main_game and bonus payout tables
 - `output`: directory, formats (csv/json/html), visualizations
 

@@ -10,13 +10,14 @@ This module provides session lifecycle management with stop conditions:
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
 
 from let_it_ride.bankroll.betting_systems import BettingContext, BettingSystem
 from let_it_ride.bankroll.tracker import BankrollTracker
 from let_it_ride.core.game_engine import GameEngine, GameHandResult
+from let_it_ride.core.progressive_jackpot import ProgressiveJackpot
 from let_it_ride.strategy.base import StrategyContext
 from let_it_ride.strategy.bonus import BonusContext, BonusStrategy
 
@@ -33,6 +34,7 @@ def validate_session_config(
     max_hands: int | None,
     bonus_bet: float,
     stop_on_insufficient_funds: bool,
+    progressive_bet: float = 0.0,
 ) -> None:
     """Validate session configuration values.
 
@@ -47,6 +49,7 @@ def validate_session_config(
         max_hands: Maximum hands to play. None for unlimited.
         bonus_bet: Fixed bonus bet amount per hand.
         stop_on_insufficient_funds: If True, stop when bankroll is too low.
+        progressive_bet: Fixed progressive side bet amount per hand.
 
     Raises:
         ValueError: If any validation fails.
@@ -63,6 +66,8 @@ def validate_session_config(
         raise ValueError("max_hands must be positive if set")
     if bonus_bet < 0:
         raise ValueError("bonus_bet cannot be negative")
+    if progressive_bet < 0:
+        raise ValueError("progressive_bet cannot be negative")
 
     # Validate at least one stop condition is configured
     has_stop_condition = (
@@ -78,11 +83,11 @@ def validate_session_config(
         )
 
     # Validate starting bankroll covers minimum bet
-    min_bet_required = (base_bet * 3) + bonus_bet
+    min_bet_required = (base_bet * 3) + bonus_bet + progressive_bet
     if starting_bankroll < min_bet_required:
         raise ValueError(
             f"starting_bankroll ({starting_bankroll}) must be at least "
-            f"base_bet * 3 + bonus_bet ({min_bet_required})"
+            f"base_bet * 3 + bonus_bet + progressive_bet ({min_bet_required})"
         )
 
 
@@ -155,8 +160,9 @@ class SessionConfig:
             None to disable.
         max_hands: Maximum hands to play. None for unlimited.
         stop_on_insufficient_funds: If True, stop when bankroll cannot
-            cover the minimum bet (base_bet * 3).
+            cover the minimum bet (base_bet * 3 + bonus_bet + progressive_bet).
         bonus_bet: Fixed bonus bet amount per hand. 0 to disable bonus.
+        progressive_bet: Fixed progressive side bet amount per hand. 0 to disable.
     """
 
     starting_bankroll: float
@@ -166,6 +172,7 @@ class SessionConfig:
     max_hands: int | None = None
     stop_on_insufficient_funds: bool = True
     bonus_bet: float = 0.0
+    progressive_bet: float = 0.0
 
     def __post_init__(self) -> None:
         """Validate configuration values."""
@@ -177,6 +184,7 @@ class SessionConfig:
             max_hands=self.max_hands,
             bonus_bet=self.bonus_bet,
             stop_on_insufficient_funds=self.stop_on_insufficient_funds,
+            progressive_bet=self.progressive_bet,
         )
 
 
@@ -193,6 +201,7 @@ class SessionResult:
         session_profit: Net profit/loss (final - starting).
         total_wagered: Sum of all bets placed.
         total_bonus_wagered: Sum of all bonus bets placed.
+        total_progressive_wagered: Sum of all progressive bets placed.
         peak_bankroll: Highest bankroll reached during session.
         max_drawdown: Maximum peak-to-trough decline.
         max_drawdown_pct: Maximum drawdown as percentage of peak.
@@ -213,6 +222,7 @@ class SessionResult:
     peak_bankroll: float
     max_drawdown: float
     max_drawdown_pct: float
+    total_progressive_wagered: float = 0.0
     table_session_id: int | None = None
     seat_number: int | None = None
 
@@ -235,6 +245,7 @@ class SessionResult:
             "session_profit": self.session_profit,
             "total_wagered": self.total_wagered,
             "total_bonus_wagered": self.total_bonus_wagered,
+            "total_progressive_wagered": self.total_progressive_wagered,
             "peak_bankroll": self.peak_bankroll,
             "max_drawdown": self.max_drawdown,
             "max_drawdown_pct": self.max_drawdown_pct,
@@ -271,9 +282,7 @@ class SessionResult:
                 f"table_session_id must be non-negative, got {table_session_id}"
             )
         if not 1 <= seat_number <= 6:
-            raise ValueError(
-                f"seat_number must be between 1 and 6, got {seat_number}"
-            )
+            raise ValueError(f"seat_number must be between 1 and 6, got {seat_number}")
         return SessionResult(
             outcome=self.outcome,
             stop_reason=self.stop_reason,
@@ -286,6 +295,7 @@ class SessionResult:
             peak_bankroll=self.peak_bankroll,
             max_drawdown=self.max_drawdown,
             max_drawdown_pct=self.max_drawdown_pct,
+            total_progressive_wagered=self.total_progressive_wagered,
             table_session_id=table_session_id,
             seat_number=seat_number,
         )
@@ -304,10 +314,12 @@ class Session:
         "_engine",
         "_betting_system",
         "_bonus_strategy",
+        "_progressive_jackpot",
         "_bankroll",
         "_hands_played",
         "_total_wagered",
         "_total_bonus_wagered",
+        "_total_progressive_wagered",
         "_last_result",
         "_streak",
         "_bonus_streak",
@@ -322,6 +334,7 @@ class Session:
         betting_system: BettingSystem,
         bonus_strategy: BonusStrategy | None = None,
         hand_callback: HandCallback | None = None,
+        progressive_jackpot: ProgressiveJackpot | None = None,
     ) -> None:
         """Initialize a new session.
 
@@ -333,16 +346,20 @@ class Session:
                 If provided, overrides config.bonus_bet with dynamic amounts.
             hand_callback: Optional callback called after each hand completes.
                 Called with (hand_id, GameHandResult).
+            progressive_jackpot: Optional progressive jackpot for side bet.
+                Each session gets its own instance (not shared across sessions).
         """
         self._config = config
         self._engine = engine
         self._betting_system = betting_system
         self._bonus_strategy = bonus_strategy
+        self._progressive_jackpot = progressive_jackpot
         self._hand_callback = hand_callback
         self._bankroll = BankrollTracker(config.starting_bankroll)
         self._hands_played = 0
         self._total_wagered = 0.0
         self._total_bonus_wagered = 0.0
+        self._total_progressive_wagered = 0.0
         self._last_result: float | None = None
         self._streak = 0
         self._bonus_streak = 0
@@ -391,9 +408,13 @@ class Session:
     def _minimum_bet_required(self) -> float:
         """Return the minimum amount needed to play a hand.
 
-        A hand requires 3 base bets plus any bonus bet.
+        A hand requires 3 base bets plus any bonus and progressive bets.
         """
-        return (self._config.base_bet * 3) + self._config.bonus_bet
+        return (
+            (self._config.base_bet * 3)
+            + self._config.bonus_bet
+            + self._config.progressive_bet
+        )
 
     def should_stop(self) -> bool:
         """Check if any stop condition is met.
@@ -498,6 +519,25 @@ class Session:
             context=strategy_context,
         )
 
+        # Evaluate progressive side bet if enabled
+        progressive_bet = self._config.progressive_bet
+        progressive_payout = 0.0
+        if self._progressive_jackpot is not None and progressive_bet > 0:
+            self._progressive_jackpot.contribute(progressive_bet)
+            progressive_payout = self._progressive_jackpot.evaluate_payout(
+                result.final_hand_rank
+            )
+            # Compute progressive net: payout minus bet cost
+            progressive_net = progressive_payout - progressive_bet
+            # Create updated result with progressive fields and adjusted net_result
+            result = replace(
+                result,
+                net_result=result.net_result + progressive_net,
+                progressive_bet=progressive_bet,
+                progressive_payout=progressive_payout,
+            )
+            self._total_progressive_wagered += progressive_bet
+
         # Determine win/loss for main and bonus bets
         main_won = result.main_payout > 0
         bonus_won: bool | None = None
@@ -577,4 +617,5 @@ class Session:
             peak_bankroll=self._bankroll.peak_balance,
             max_drawdown=self._bankroll.max_drawdown,
             max_drawdown_pct=self._bankroll.max_drawdown_pct,
+            total_progressive_wagered=self._total_progressive_wagered,
         )

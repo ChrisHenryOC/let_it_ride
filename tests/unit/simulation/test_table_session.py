@@ -9,7 +9,13 @@ import pytest
 from let_it_ride.bankroll.betting_systems import FlatBetting
 from let_it_ride.config.models import TableConfig
 from let_it_ride.config.paytables import standard_main_paytable
+from let_it_ride.core.card import Card, Rank, Suit
 from let_it_ride.core.deck import Deck
+from let_it_ride.core.hand_evaluator import FiveCardHandRank
+from let_it_ride.core.progressive_jackpot import (
+    ProgressiveJackpot,
+    standard_progressive_paytable,
+)
 from let_it_ride.core.table import PlayerSeat, Table, TableRoundResult
 from let_it_ride.simulation.session import SessionOutcome, StopReason
 from let_it_ride.simulation.table_session import (
@@ -18,6 +24,7 @@ from let_it_ride.simulation.table_session import (
     TableSessionConfig,
     TableSessionResult,
 )
+from let_it_ride.strategy.base import Decision
 from let_it_ride.strategy.basic import BasicStrategy
 
 # --- Test Fixtures ---
@@ -1864,3 +1871,185 @@ class TestSeatReplacementConcurrentStopConditions:
         # Both have in-progress sessions
         assert seat1_sessions[1].session_result.stop_reason == StopReason.IN_PROGRESS
         assert seat2_sessions[1].session_result.stop_reason == StopReason.IN_PROGRESS
+
+
+# --- Progressive Jackpot Integration Tests ---
+
+# Dummy cards for real PlayerSeat construction
+_DUMMY_PLAYER_CARDS = (
+    Card(Rank.TWO, Suit.HEARTS),
+    Card(Rank.THREE, Suit.HEARTS),
+    Card(Rank.FOUR, Suit.HEARTS),
+)
+_DUMMY_COMMUNITY_CARDS = (
+    Card(Rank.FIVE, Suit.HEARTS),
+    Card(Rank.SIX, Suit.HEARTS),
+)
+
+
+def create_mock_table_with_hand_ranks(
+    results_per_round: list[list[tuple[float, FiveCardHandRank]]],
+) -> Mock:
+    """Create a mock Table returning real PlayerSeat objects with hand ranks.
+
+    Needed for progressive tests because dataclasses.replace() requires
+    actual dataclass instances, not Mock objects.
+
+    Args:
+        results_per_round: List of rounds, each containing (net_result, hand_rank)
+            per seat.
+
+    Returns:
+        A mock Table.
+    """
+    mock = Mock()
+    result_iter = iter(results_per_round)
+
+    def play_round_side_effect(
+        round_id: int,
+        base_bet: float,
+        bonus_bet: float = 0.0,
+        context=None,  # noqa: ARG001
+    ):
+        round_results = next(result_iter)
+        seat_results = []
+
+        for seat_idx, (net_result, hand_rank) in enumerate(round_results):
+            seat = PlayerSeat(
+                seat_number=seat_idx + 1,
+                player_cards=_DUMMY_PLAYER_CARDS,
+                decision_bet1=Decision.RIDE,
+                decision_bet2=Decision.RIDE,
+                final_hand_rank=hand_rank,
+                base_bet=base_bet,
+                bets_at_risk=base_bet * 3,
+                main_payout=max(0.0, net_result),
+                bonus_bet=bonus_bet,
+                bonus_hand_rank=None,
+                bonus_payout=0.0,
+                net_result=net_result,
+            )
+            seat_results.append(seat)
+
+        result = Mock(spec=TableRoundResult)
+        result.round_id = round_id
+        result.seat_results = tuple(seat_results)
+        result.community_cards = _DUMMY_COMMUNITY_CARDS
+        result.dealer_discards = ()
+        return result
+
+    mock.play_round.side_effect = play_round_side_effect
+    return mock
+
+
+class TestTableSessionProgressiveIntegration:
+    """Tests for TableSession.play_round() with progressive jackpot enabled."""
+
+    def test_progressive_contribution_and_payout(self) -> None:
+        """Each seat contributes to shared jackpot, payouts calculated correctly."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=1,
+            progressive_bet=1.0,
+        )
+        # Seat 1: HIGH_CARD (no prog payout), Seat 2: FLUSH ($75 fixed)
+        mock_table = create_mock_table_with_hand_ranks(
+            [
+                [(-15.0, FiveCardHandRank.HIGH_CARD), (35.0, FiveCardHandRank.FLUSH)],
+            ]
+        )
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+
+        session = TableSession(config, mock_table, betting, progressive_jackpot=jackpot)
+        result = session.play_round()
+
+        # Seat 1: net_result = -15 + (0 - 1) = -16
+        assert result.seat_results[0].net_result == pytest.approx(-16.0)
+        assert result.seat_results[0].progressive_bet == pytest.approx(1.0)
+        assert result.seat_results[0].progressive_payout == pytest.approx(0.0)
+
+        # Seat 2: net_result = 35 + (75 - 1) = 109
+        assert result.seat_results[1].net_result == pytest.approx(109.0)
+        assert result.seat_results[1].progressive_bet == pytest.approx(1.0)
+        assert result.seat_results[1].progressive_payout == pytest.approx(75.0)
+
+    def test_shared_jackpot_ordering(self) -> None:
+        """Seat 1's contribution inflates pool before seat 2's payout."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=1,
+            progressive_bet=1.0,
+        )
+        # Both seats get STRAIGHT_FLUSH (10% of pool)
+        mock_table = create_mock_table_with_hand_ranks(
+            [
+                [
+                    (0.0, FiveCardHandRank.STRAIGHT_FLUSH),
+                    (0.0, FiveCardHandRank.STRAIGHT_FLUSH),
+                ],
+            ]
+        )
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+
+        session = TableSession(config, mock_table, betting, progressive_jackpot=jackpot)
+        result = session.play_round()
+
+        # Seat 1: contributes 0.71, pool = 10000.71, pays 10% = 1000.071
+        seat1_payout = result.seat_results[0].progressive_payout
+        assert seat1_payout == pytest.approx(10000.71 * 0.10)
+
+        # Seat 2: pool after seat 1 = 10000.71 - 1000.071 = 9000.639
+        # then contribute 0.71 -> pool = 9001.349, pays 10% = 900.1349
+        seat2_payout = result.seat_results[1].progressive_payout
+        # Seat 2 payout is less than seat 1 due to ordering
+        assert seat2_payout < seat1_payout
+
+    def test_per_seat_progressive_wagered_tracking(self) -> None:
+        """total_progressive_wagered tracked per seat in session result."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=3,
+            progressive_bet=2.0,
+        )
+        mock_table = create_mock_table_with_hand_ranks(
+            [
+                [(0.0, FiveCardHandRank.HIGH_CARD), (0.0, FiveCardHandRank.HIGH_CARD)],
+                [(0.0, FiveCardHandRank.HIGH_CARD), (0.0, FiveCardHandRank.HIGH_CARD)],
+                [(0.0, FiveCardHandRank.HIGH_CARD), (0.0, FiveCardHandRank.HIGH_CARD)],
+            ]
+        )
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+
+        session = TableSession(config, mock_table, betting, progressive_jackpot=jackpot)
+        table_result = session.run_to_completion()
+
+        # Each seat wagered 2.0 * 3 rounds = 6.0
+        for seat_result in table_result.seat_results:
+            assert (
+                seat_result.session_result.total_progressive_wagered
+                == pytest.approx(6.0)
+            )

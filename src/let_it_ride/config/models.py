@@ -918,7 +918,11 @@ class CustomBonusPaytableConfig(BaseModel):
 
 
 class ProgressiveJackpotConfig(BaseModel):
-    """Configuration for progressive jackpot.
+    """Configuration for the 3-card bonus progressive jackpot.
+
+    This configures a progressive jackpot triggered by the 3-card bonus hand
+    (e.g., mini royal). Not to be confused with ProgressiveSideBetConfig,
+    which models the 5-card progressive side bet with a full paytable.
 
     Attributes:
         starting_jackpot: Starting jackpot amount.
@@ -933,6 +937,61 @@ class ProgressiveJackpotConfig(BaseModel):
     contribution_rate: Annotated[float, Field(gt=0, le=1.0)] = 0.15
     trigger: Literal["mini_royal"] = "mini_royal"
     reset_amount: Annotated[float, Field(gt=0)] = 10000.0
+
+
+class ProgressivePayoutEntryConfig(BaseModel):
+    """A single payout entry: maps a 5-card hand to a fixed or percentage payout.
+
+    Attributes:
+        type: Payout type — "fixed" for dollar amount, "jackpot_percentage" for pool %.
+        value: The payout value. For "fixed": dollar amount (>= 0).
+            For "jackpot_percentage": fraction of pool (0-1).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["fixed", "jackpot_percentage"]
+    value: Annotated[float, Field(ge=0)]
+
+    @model_validator(mode="after")
+    def validate_percentage_range(self) -> ProgressivePayoutEntryConfig:
+        """Ensure jackpot_percentage values are in 0-1 range."""
+        if self.type == "jackpot_percentage" and self.value > 1.0:
+            raise ValueError(
+                f"jackpot_percentage value must be between 0 and 1, got {self.value}"
+            )
+        return self
+
+
+class ProgressiveSideBetConfig(BaseModel):
+    """Configuration for the 5-card progressive jackpot side bet.
+
+    Unlike the three-card bonus (evaluated on player cards only), this bet
+    is evaluated on the final 5-card hand and pays from a growing jackpot pool
+    with mixed payout types (fixed dollar amounts + percentages of jackpot).
+
+    Not to be confused with ProgressiveJackpotConfig, which models the
+    3-card bonus progressive triggered by mini royal.
+
+    Attributes:
+        enabled: Enable/disable progressive side bet.
+        bet_amount: Fixed bet amount per hand (typically $1).
+        seed_amount: Base amount the jackpot resets to after being hit.
+        starting_jackpot: Initial jackpot pool at session start.
+        contribution_rate: Fraction of each bet added to jackpot pool.
+        reset_to_seed: If True, reset pool to seed_amount after jackpot hit.
+        paytable: Maps 5-card hand rank names to payout entries.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    bet_amount: Annotated[float, Field(gt=0)] = 1.0
+    seed_amount: Annotated[float, Field(gt=0)] = 10000.0
+    starting_jackpot: Annotated[float, Field(gt=0)] = 10000.0
+    contribution_rate: Annotated[float, Field(gt=0, le=1.0)] = 0.71
+    reset_to_seed: bool = True
+    paytable: dict[str, ProgressivePayoutEntryConfig] = Field(default_factory=dict)
 
 
 class BonusPaytableConfig(BaseModel):
@@ -1129,6 +1188,7 @@ class FullConfig(BaseModel):
         bankroll: Bankroll management configuration.
         strategy: Main game strategy configuration.
         bonus_strategy: Bonus betting strategy configuration.
+        progressive: Progressive jackpot side bet configuration.
         paytables: Paytable configuration.
         output: Output and reporting configuration.
     """
@@ -1143,6 +1203,9 @@ class FullConfig(BaseModel):
     bankroll: BankrollConfig = Field(default_factory=BankrollConfig)
     strategy: StrategyConfig = Field(default_factory=StrategyConfig)
     bonus_strategy: BonusStrategyConfig = Field(default_factory=BonusStrategyConfig)
+    progressive: ProgressiveSideBetConfig = Field(
+        default_factory=ProgressiveSideBetConfig
+    )
     paytables: PaytablesConfig = Field(default_factory=PaytablesConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
 
