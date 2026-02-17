@@ -400,6 +400,8 @@ class TestSessionResult:
             peak_bankroll=1550.0,
             max_drawdown=100.0,
             max_drawdown_pct=6.45,
+            total_progressive_wagered=25.0,
+            total_progressive_won=500.0,
         )
         # Original should have no table info
         assert original.table_session_id is None
@@ -424,13 +426,15 @@ class TestSessionResult:
         assert with_info.peak_bankroll == 1550.0
         assert with_info.max_drawdown == 100.0
         assert with_info.max_drawdown_pct == 6.45
+        assert with_info.total_progressive_wagered == 25.0
+        assert with_info.total_progressive_won == 500.0
 
         # Original should be unchanged (immutable)
         assert original.table_session_id is None
         assert original.seat_number is None
 
     def test_to_dict_includes_table_session_id(self) -> None:
-        """Verify to_dict includes table_session_id field."""
+        """Verify to_dict includes table_session_id and progressive fields."""
         result = SessionResult(
             outcome=SessionOutcome.WIN,
             stop_reason=StopReason.WIN_LIMIT,
@@ -443,6 +447,8 @@ class TestSessionResult:
             peak_bankroll=1550.0,
             max_drawdown=100.0,
             max_drawdown_pct=6.45,
+            total_progressive_wagered=25.0,
+            total_progressive_won=500.0,
             table_session_id=7,
             seat_number=2,
         )
@@ -451,6 +457,8 @@ class TestSessionResult:
         assert d["seat_number"] == 2
         assert d["outcome"] == "win"
         assert d["stop_reason"] == "win_limit"
+        assert d["total_progressive_wagered"] == 25.0
+        assert d["total_progressive_won"] == 500.0
 
     def test_to_dict_table_session_id_none(self) -> None:
         """Verify to_dict handles None table_session_id correctly."""

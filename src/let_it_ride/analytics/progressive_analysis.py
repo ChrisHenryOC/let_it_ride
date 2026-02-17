@@ -32,7 +32,7 @@ class BreakevenResult:
     Attributes:
         breakeven_jackpot: Jackpot amount where expected payout equals bet.
         bet_amount: The bet amount used in the calculation.
-        contribution_rate: The contribution rate used.
+        contribution_rate: The contribution rate (metadata only, not used in calculation).
         fixed_ev: Expected value from fixed-dollar payouts alone.
         percentage_ev_coefficient: Sum of (prob * percentage) for jackpot payouts.
         paytable_name: Name of the paytable used.
@@ -54,9 +54,10 @@ class HouseEdgeResult:
         jackpot_amount: The jackpot amount used in the calculation.
         bet_amount: The bet amount used.
         expected_payout: Expected payout per bet.
-        house_edge: House edge as a fraction (0-1). Negative means player advantage.
+        house_edge: House edge as a fraction. Positive means house advantage;
+            negative means player advantage (e.g., when jackpot exceeds breakeven).
         player_return: Player return as a fraction (expected_payout / bet_amount).
-        contribution_rate: The contribution rate used.
+        contribution_rate: The contribution rate (metadata only, not used in calculation).
     """
 
     jackpot_amount: float
@@ -121,9 +122,10 @@ def calculate_expected_payout(
         prob = _hand_rank_probability(rank)
         if payout.type == "fixed":
             expected += prob * payout.value
-        else:
-            # jackpot_percentage
+        elif payout.type == "jackpot_percentage":
             expected += prob * payout.value * jackpot_amount
+        else:
+            raise ValueError(f"Unknown payout type: {payout.type!r}")
     return expected
 
 
@@ -143,6 +145,8 @@ def calculate_breakeven_jackpot(
         paytable: The progressive paytable to evaluate.
         bet_amount: The side bet amount (default $1).
         contribution_rate: Fraction of bet added to jackpot pool (default 0.71).
+            Stored in the result as metadata for reporting; not used in the
+            breakeven calculation itself (which is purely algebraic).
 
     Returns:
         BreakevenResult with the breakeven jackpot amount and components.
@@ -157,8 +161,10 @@ def calculate_breakeven_jackpot(
         prob = _hand_rank_probability(rank)
         if payout.type == "fixed":
             fixed_ev += prob * payout.value
-        else:
+        elif payout.type == "jackpot_percentage":
             percentage_ev_coefficient += prob * payout.value
+        else:
+            raise ValueError(f"Unknown payout type: {payout.type!r}")
 
     if percentage_ev_coefficient == 0.0:
         raise ValueError(
@@ -195,6 +201,8 @@ def calculate_house_edge(
         jackpot_amount: Current jackpot pool amount.
         bet_amount: The side bet amount (default $1).
         contribution_rate: Fraction of bet added to jackpot pool (default 0.71).
+            Stored in the result as metadata for reporting; not used in the
+            house edge calculation itself.
 
     Returns:
         HouseEdgeResult with house edge and related metrics.

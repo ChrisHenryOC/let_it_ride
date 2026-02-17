@@ -1714,17 +1714,21 @@ class TestSeatStateReset:
         assert state.bankroll.session_profit == 0.0
 
     def test_reset_clears_wagering_totals(self) -> None:
-        """Verify reset clears wagering totals."""
+        """Verify reset clears wagering totals including progressive."""
         from let_it_ride.simulation.table_session import _SeatState
 
         state = _SeatState(1000.0, current_round=0)
         state.total_wagered = 500.0
         state.total_bonus_wagered = 50.0
+        state.total_progressive_wagered = 25.0
+        state.total_progressive_won = 1000.0
 
         state.reset(current_round=5)
 
         assert state.total_wagered == 0.0
         assert state.total_bonus_wagered == 0.0
+        assert state.total_progressive_wagered == 0.0
+        assert state.total_progressive_won == 0.0
 
     def test_reset_clears_streak(self) -> None:
         """Verify reset clears streak."""

@@ -234,6 +234,13 @@ class TestCalculateHouseEdge:
 
         assert result_high.house_edge < result_low.house_edge
 
+    def test_zero_bet_amount_returns_zero_return(self) -> None:
+        """bet_amount=0 should return 0 player_return and 1.0 house_edge."""
+        paytable = standard_progressive_paytable()
+        result = calculate_house_edge(paytable, jackpot_amount=50_000.0, bet_amount=0.0)
+        assert result.player_return == 0.0
+        assert result.house_edge == 1.0
+
     def test_custom_bet_amount(self) -> None:
         """House edge should work with non-default bet amount."""
         paytable = standard_progressive_paytable()

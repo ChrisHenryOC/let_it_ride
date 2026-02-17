@@ -15,6 +15,12 @@ from statistics import mean, median, stdev
 from let_it_ride.simulation.session import SessionOutcome, SessionResult
 
 
+def _calculate_ev_per_hand(won: float, wagered: float, total_hands: int) -> float:
+    """Calculate expected value per hand from won/wagered totals."""
+    profit = won - wagered
+    return profit / total_hands if total_hands > 0 else 0.0
+
+
 def _calculate_frequency_percentages(frequencies: dict[str, int]) -> dict[str, float]:
     """Calculate percentage for each frequency entry.
 
@@ -43,8 +49,8 @@ class AggregateStatistics:
 
         total_hands: Total hands played across all sessions.
 
-        total_wagered: Total amount wagered (main game only).
-        total_won: Total amount won (main game only).
+        total_wagered: Total amount wagered (main + bonus + progressive).
+        total_won: Total amount won (main + bonus + progressive).
         net_result: Net profit/loss across all sessions.
         expected_value_per_hand: Average profit/loss per hand.
 
@@ -171,12 +177,10 @@ def aggregate_results(results: list[SessionResult]) -> AggregateStatistics:
 
     # Expected value per hand
     expected_value_per_hand = net_result / total_hands if total_hands > 0 else 0.0
-    main_profit = main_won - main_wagered
-    main_ev_per_hand = main_profit / total_hands if total_hands > 0 else 0.0
+    main_ev_per_hand = _calculate_ev_per_hand(main_won, main_wagered, total_hands)
     bonus_ev_per_hand = 0.0  # Break-even assumption
-    progressive_profit = progressive_won - progressive_wagered
-    progressive_ev_per_hand = (
-        progressive_profit / total_hands if total_hands > 0 else 0.0
+    progressive_ev_per_hand = _calculate_ev_per_hand(
+        progressive_won, progressive_wagered, total_hands
     )
 
     # Hand frequencies - not available from SessionResult alone
@@ -257,21 +261,18 @@ def merge_aggregates(
     # Main game
     main_wagered = agg1.main_wagered + agg2.main_wagered
     main_won = agg1.main_won + agg2.main_won
-    main_profit = main_won - main_wagered
-    main_ev_per_hand = main_profit / total_hands if total_hands > 0 else 0.0
+    main_ev_per_hand = _calculate_ev_per_hand(main_won, main_wagered, total_hands)
 
     # Bonus
     bonus_wagered = agg1.bonus_wagered + agg2.bonus_wagered
     bonus_won = agg1.bonus_won + agg2.bonus_won
-    bonus_profit = bonus_won - bonus_wagered
-    bonus_ev_per_hand = bonus_profit / total_hands if total_hands > 0 else 0.0
+    bonus_ev_per_hand = _calculate_ev_per_hand(bonus_won, bonus_wagered, total_hands)
 
     # Progressive
     progressive_wagered = agg1.progressive_wagered + agg2.progressive_wagered
     progressive_won = agg1.progressive_won + agg2.progressive_won
-    progressive_profit = progressive_won - progressive_wagered
-    progressive_ev_per_hand = (
-        progressive_profit / total_hands if total_hands > 0 else 0.0
+    progressive_ev_per_hand = _calculate_ev_per_hand(
+        progressive_won, progressive_wagered, total_hands
     )
 
     # Merge hand frequencies using Counter for cleaner semantics
@@ -450,12 +451,10 @@ def aggregate_with_seats(
 
     # Expected value per hand
     expected_value_per_hand = net_result / total_hands if total_hands > 0 else 0.0
-    main_profit = main_won - main_wagered
-    main_ev_per_hand = main_profit / total_hands if total_hands > 0 else 0.0
+    main_ev_per_hand = _calculate_ev_per_hand(main_won, main_wagered, total_hands)
     bonus_ev_per_hand = 0.0
-    progressive_profit = progressive_won - progressive_wagered
-    progressive_ev_per_hand = (
-        progressive_profit / total_hands if total_hands > 0 else 0.0
+    progressive_ev_per_hand = _calculate_ev_per_hand(
+        progressive_won, progressive_wagered, total_hands
     )
 
     # Session profit statistics

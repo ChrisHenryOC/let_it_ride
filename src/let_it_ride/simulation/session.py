@@ -203,6 +203,7 @@ class SessionResult:
         total_wagered: Sum of all bets placed.
         total_bonus_wagered: Sum of all bonus bets placed.
         total_progressive_wagered: Sum of all progressive bets placed.
+        total_progressive_won: Sum of all progressive payouts received.
         peak_bankroll: Highest bankroll reached during session.
         max_drawdown: Maximum peak-to-trough decline.
         max_drawdown_pct: Maximum drawdown as percentage of peak.
@@ -286,20 +287,8 @@ class SessionResult:
             )
         if not 1 <= seat_number <= 6:
             raise ValueError(f"seat_number must be between 1 and 6, got {seat_number}")
-        return SessionResult(
-            outcome=self.outcome,
-            stop_reason=self.stop_reason,
-            hands_played=self.hands_played,
-            starting_bankroll=self.starting_bankroll,
-            final_bankroll=self.final_bankroll,
-            session_profit=self.session_profit,
-            total_wagered=self.total_wagered,
-            total_bonus_wagered=self.total_bonus_wagered,
-            peak_bankroll=self.peak_bankroll,
-            max_drawdown=self.max_drawdown,
-            max_drawdown_pct=self.max_drawdown_pct,
-            total_progressive_wagered=self.total_progressive_wagered,
-            total_progressive_won=self.total_progressive_won,
+        return replace(
+            self,
             table_session_id=table_session_id,
             seat_number=seat_number,
         )
