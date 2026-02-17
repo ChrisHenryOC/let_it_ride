@@ -112,7 +112,7 @@ class AlwaysProgressiveStrategy:
 
 
 class JackpotThresholdStrategy:
-    """Strategy that only bets when the jackpot exceeds a threshold.
+    """Strategy that only bets when the jackpot meets or exceeds a threshold.
 
     This is the most strategically interesting progressive strategy. It allows
     simulating "smart" progressive play where the player only places the bet
@@ -192,7 +192,10 @@ class BankrollConditionalProgressiveStrategy:
         ):
             return 0.0
 
-        if self._min_bankroll_ratio is not None and context.starting_bankroll > 0:
+        if self._min_bankroll_ratio is not None:
+            if context.starting_bankroll <= 0:
+                # Fail-closed: cannot compute ratio, skip bet
+                return 0.0
             current_ratio = context.bankroll / context.starting_bankroll
             if current_ratio < self._min_bankroll_ratio:
                 return 0.0
@@ -222,6 +225,9 @@ def create_progressive_strategy(
     if strategy_type == "always":
         return AlwaysProgressiveStrategy()
 
+    # Note: The None checks below duplicate Pydantic's model_validator on
+    # ProgressiveStrategyConfig. They are intentionally defensive to guard
+    # against callers using model_construct() which bypasses validation.
     if strategy_type == "jackpot_threshold":
         if config.jackpot_threshold is None:
             raise ValueError(

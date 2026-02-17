@@ -1587,3 +1587,143 @@ class TestProgressiveBetInsufficientFunds:
                 base_bet=5.0,
                 progressive_bet=2.0,
             )
+
+    def test_minimum_bet_excludes_progressive_when_strategy_active(self) -> None:
+        """When progressive_strategy is set, _minimum_bet_required excludes static bet."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=1,
+            progressive_bet=5.0,
+        )
+        engine = create_mock_engine_with_hand_ranks(
+            [(-15.0, FiveCardHandRank.HIGH_CARD)]
+        )
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+        # NeverProgressiveStrategy always returns 0
+        from let_it_ride.strategy.progressive import NeverProgressiveStrategy
+
+        strategy = NeverProgressiveStrategy()
+        session = Session(
+            config,
+            engine,
+            betting,
+            progressive_jackpot=jackpot,
+            progressive_strategy=strategy,
+        )
+        # With strategy active, min bet = 3*5 + 0 + 0 = 15 (not 20)
+        assert session._minimum_bet_required() == pytest.approx(15.0)
+
+
+class TestSessionProgressiveStrategy:
+    """Tests for Session.play_hand() with a progressive_strategy."""
+
+    def test_strategy_determines_bet_amount(self) -> None:
+        """Progressive strategy return value overrides config.progressive_bet."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=1,
+            progressive_bet=1.0,
+        )
+        engine = create_mock_engine_with_hand_ranks(
+            [(-15.0, FiveCardHandRank.HIGH_CARD)]
+        )
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+        # Use AlwaysProgressiveStrategy which returns progressive_bet_amount
+        from let_it_ride.strategy.progressive import AlwaysProgressiveStrategy
+
+        strategy = AlwaysProgressiveStrategy()
+        session = Session(
+            config,
+            engine,
+            betting,
+            progressive_jackpot=jackpot,
+            progressive_strategy=strategy,
+        )
+        result = session.play_hand()
+
+        assert result.progressive_bet == pytest.approx(1.0)
+        # net_result: -15 + (0 - 1) = -16
+        assert result.net_result == pytest.approx(-16.0)
+
+    def test_never_strategy_skips_progressive_bet(self) -> None:
+        """NeverProgressiveStrategy returns 0, so no progressive bet is placed."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=1,
+            progressive_bet=1.0,
+        )
+        engine = create_mock_engine_with_hand_ranks(
+            [(-15.0, FiveCardHandRank.HIGH_CARD)]
+        )
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+        from let_it_ride.strategy.progressive import NeverProgressiveStrategy
+
+        strategy = NeverProgressiveStrategy()
+        session = Session(
+            config,
+            engine,
+            betting,
+            progressive_jackpot=jackpot,
+            progressive_strategy=strategy,
+        )
+        result = session.play_hand()
+
+        # No progressive bet placed: net_result is just main game result
+        assert result.progressive_bet == pytest.approx(0.0)
+        assert result.net_result == pytest.approx(-15.0)
+
+    def test_negative_strategy_return_clamped_to_zero(self) -> None:
+        """Strategy returning negative value is clamped to 0."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=1,
+            progressive_bet=1.0,
+        )
+        engine = create_mock_engine_with_hand_ranks(
+            [(-15.0, FiveCardHandRank.HIGH_CARD)]
+        )
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+        # Create a mock strategy returning negative
+        mock_strategy = Mock()
+        mock_strategy.get_progressive_bet = Mock(return_value=-5.0)
+
+        session = Session(
+            config,
+            engine,
+            betting,
+            progressive_jackpot=jackpot,
+            progressive_strategy=mock_strategy,
+        )
+        result = session.play_hand()
+
+        # Negative return clamped to 0, so no progressive bet
+        assert result.progressive_bet == pytest.approx(0.0)
+        assert result.net_result == pytest.approx(-15.0)

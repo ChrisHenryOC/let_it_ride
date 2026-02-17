@@ -282,7 +282,8 @@ class TestBankrollConditionalProgressiveStrategy:
         strategy = BankrollConditionalProgressiveStrategy()
         assert strategy.get_progressive_bet(default_context) == 1.0
 
-    def test_zero_starting_bankroll_skips_ratio_check(self) -> None:
+    def test_zero_starting_bankroll_skips_bet_when_ratio_required(self) -> None:
+        """Fail-closed: cannot compute ratio when starting_bankroll <= 0."""
         context = ProgressiveContext(
             bankroll=100.0,
             starting_bankroll=0.0,
@@ -295,7 +296,7 @@ class TestBankrollConditionalProgressiveStrategy:
             progressive_bet_amount=1.0,
         )
         strategy = BankrollConditionalProgressiveStrategy(min_bankroll_ratio=1.1)
-        assert strategy.get_progressive_bet(context) == 1.0
+        assert strategy.get_progressive_bet(context) == 0.0
 
     def test_satisfies_protocol(self) -> None:
         strategy: ProgressiveStrategy = BankrollConditionalProgressiveStrategy(
@@ -416,3 +417,35 @@ class TestProgressiveStrategyConfig:
     def test_extra_fields_forbidden(self) -> None:
         with pytest.raises(ValueError):
             ProgressiveStrategyConfig(type="never", unknown_field="value")  # type: ignore[call-arg]
+
+
+class TestJackpotThresholdConfigValidation:
+    """Tests for JackpotThresholdConfig Pydantic validation."""
+
+    def test_negative_min_jackpot_rejected(self) -> None:
+        with pytest.raises(ValueError):
+            JackpotThresholdConfig(min_jackpot=-1.0)
+
+    def test_zero_min_jackpot_accepted(self) -> None:
+        config = JackpotThresholdConfig(min_jackpot=0.0)
+        assert config.min_jackpot == 0.0
+
+
+class TestBankrollConditionalProgressiveConfigValidation:
+    """Tests for BankrollConditionalProgressiveConfig Pydantic validation."""
+
+    def test_negative_bankroll_ratio_rejected(self) -> None:
+        with pytest.raises(ValueError):
+            BankrollConditionalProgressiveConfig(min_bankroll_ratio=-0.5)
+
+    def test_zero_bankroll_ratio_rejected(self) -> None:
+        with pytest.raises(ValueError):
+            BankrollConditionalProgressiveConfig(min_bankroll_ratio=0.0)
+
+    def test_both_none_accepted(self) -> None:
+        """Both conditions can be None (bet unconditionally)."""
+        config = BankrollConditionalProgressiveConfig(
+            min_session_profit=None, min_bankroll_ratio=None
+        )
+        assert config.min_session_profit is None
+        assert config.min_bankroll_ratio is None

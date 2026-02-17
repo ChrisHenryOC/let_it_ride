@@ -416,12 +416,15 @@ class Session:
         """Return the minimum amount needed to play a hand.
 
         A hand requires 3 base bets plus any bonus and progressive bets.
+        When a progressive strategy is active, the strategy may return 0,
+        so we exclude the static progressive_bet from the minimum.
         """
-        return (
-            (self._config.base_bet * 3)
-            + self._config.bonus_bet
-            + self._config.progressive_bet
+        progressive = (
+            0.0
+            if self._progressive_strategy is not None
+            else self._config.progressive_bet
         )
+        return (self._config.base_bet * 3) + self._config.bonus_bet + progressive
 
     def should_stop(self) -> bool:
         """Check if any stop condition is met.
@@ -526,8 +529,11 @@ class Session:
             context=strategy_context,
         )
 
-        # Evaluate progressive side bet if enabled
-        # Use progressive strategy if available, otherwise fall back to config
+        # Evaluate progressive side bet if enabled.
+        # Context reflects pre-result bankroll state: bankroll.apply_result()
+        # has not been called yet, so balance/profit reflect the state before
+        # the current hand's main/bonus outcome. This matches real-world
+        # semantics where the side bet is placed before cards are dealt.
         if (
             self._progressive_strategy is not None
             and self._progressive_jackpot is not None
@@ -543,8 +549,9 @@ class Session:
                 seed_amount=self._progressive_jackpot.seed_amount,
                 progressive_bet_amount=self._config.progressive_bet,
             )
-            progressive_bet = self._progressive_strategy.get_progressive_bet(
-                progressive_context
+            progressive_bet = max(
+                0.0,
+                self._progressive_strategy.get_progressive_bet(progressive_context),
             )
         else:
             progressive_bet = self._config.progressive_bet

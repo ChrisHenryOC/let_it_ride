@@ -31,6 +31,7 @@ from let_it_ride.simulation.session import (
     validate_session_config,
 )
 from let_it_ride.strategy.base import StrategyContext
+from let_it_ride.strategy.progressive import ProgressiveContext, ProgressiveStrategy
 
 
 @dataclass(frozen=True, slots=True)
@@ -236,6 +237,7 @@ class TableSession:
         "_table",
         "_betting_system",
         "_progressive_jackpot",
+        "_progressive_strategy",
         "_seat_states",
         "_rounds_played",
         "_stop_reason",
@@ -248,6 +250,7 @@ class TableSession:
         table: Table,
         betting_system: BettingSystem,
         progressive_jackpot: ProgressiveJackpot | None = None,
+        progressive_strategy: ProgressiveStrategy | None = None,
     ) -> None:
         """Initialize a new table session.
 
@@ -257,11 +260,14 @@ class TableSession:
             betting_system: BettingSystem for determining bet sizes.
                 Shared across all seats.
             progressive_jackpot: Optional progressive jackpot shared by all seats.
+            progressive_strategy: Optional strategy for dynamic progressive
+                bet decisions. If provided, overrides config.progressive_bet.
         """
         self._config = config
         self._table = table
         self._betting_system = betting_system
         self._progressive_jackpot = progressive_jackpot
+        self._progressive_strategy = progressive_strategy
         self._rounds_played = 0
         self._stop_reason: StopReason | None = None
         # Cache seat replacement mode check for performance
@@ -517,9 +523,9 @@ class TableSession:
         # contribution inflates the pool before the next seat's payout is
         # evaluated, and a jackpot hit resets the pool for subsequent seats.
         # This models sequential casino dealing where seat order matters.
-        progressive_bet = self._config.progressive_bet
-        progressive_enabled = (
-            self._progressive_jackpot is not None and progressive_bet > 0
+        progressive_bet_default = self._config.progressive_bet
+        progressive_enabled = self._progressive_jackpot is not None and (
+            progressive_bet_default > 0 or self._progressive_strategy is not None
         )
         enhanced_seat_results: list[PlayerSeat] = [] if progressive_enabled else []
         for seat_result in result.seat_results:
@@ -532,9 +538,35 @@ class TableSession:
                     enhanced_seat_results.append(seat_result)
                 continue
 
+            # Determine progressive bet: use strategy if available, else config
+            # Context reflects pre-result state (bankroll not yet updated).
+            if (
+                self._progressive_strategy is not None
+                and self._progressive_jackpot is not None
+            ):
+                progressive_context = ProgressiveContext(
+                    bankroll=seat_state.bankroll.balance,
+                    starting_bankroll=self._config.starting_bankroll,
+                    session_profit=seat_state.bankroll.session_profit,
+                    hands_played=seat_state.hands_played_this_session(
+                        self._rounds_played
+                    ),
+                    main_streak=seat_state.streak,
+                    base_bet=base_bet,
+                    current_jackpot=self._progressive_jackpot.current_pool,
+                    seed_amount=self._progressive_jackpot.seed_amount,
+                    progressive_bet_amount=self._config.progressive_bet,
+                )
+                progressive_bet = max(
+                    0.0,
+                    self._progressive_strategy.get_progressive_bet(progressive_context),
+                )
+            else:
+                progressive_bet = progressive_bet_default
+
             # Evaluate progressive side bet if enabled
             adjusted_net = seat_result.net_result
-            if progressive_enabled:
+            if progressive_enabled and progressive_bet > 0:
                 assert self._progressive_jackpot is not None
                 self._progressive_jackpot.contribute(progressive_bet)
                 prog_payout = self._progressive_jackpot.evaluate_payout(
@@ -550,6 +582,7 @@ class TableSession:
                     progressive_bet=progressive_bet,
                     progressive_payout=prog_payout,
                 )
+            if progressive_enabled:
                 enhanced_seat_results.append(seat_result)
 
             # Update seat state
