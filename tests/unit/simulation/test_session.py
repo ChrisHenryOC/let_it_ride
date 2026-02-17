@@ -1526,6 +1526,76 @@ class TestSessionProgressiveIntegration:
 
         assert session_result.total_progressive_wagered == pytest.approx(6.0)
 
+    def test_total_progressive_won_tracked(self) -> None:
+        """total_progressive_won tracks payout accumulation."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=1,
+            progressive_bet=1.0,
+        )
+        # FLUSH = $75 fixed progressive payout
+        engine = create_mock_engine_with_hand_ranks([(35.0, FiveCardHandRank.FLUSH)])
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+
+        session = Session(config, engine, betting, progressive_jackpot=jackpot)
+        session_result = session.run_to_completion()
+
+        assert session_result.total_progressive_won == pytest.approx(75.0)
+
+    def test_total_progressive_won_accumulates_multiple_wins(self) -> None:
+        """total_progressive_won accumulates across multiple winning hands."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=3,
+            progressive_bet=1.0,
+        )
+        # Hand 1: FLUSH ($75), Hand 2: HIGH_CARD ($0), Hand 3: STRAIGHT ($50)
+        engine = create_mock_engine_with_hand_ranks(
+            [
+                (35.0, FiveCardHandRank.FLUSH),
+                (-15.0, FiveCardHandRank.HIGH_CARD),
+                (0.0, FiveCardHandRank.STRAIGHT),
+            ]
+        )
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+
+        session = Session(config, engine, betting, progressive_jackpot=jackpot)
+        session_result = session.run_to_completion()
+
+        assert session_result.total_progressive_won == pytest.approx(
+            125.0
+        )  # 75 + 0 + 50
+        assert session_result.total_progressive_wagered == pytest.approx(3.0)
+
+    def test_total_progressive_won_zero_without_jackpot(self) -> None:
+        """total_progressive_won defaults to 0 when no progressive jackpot."""
+        config = SessionConfig(
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=1,
+        )
+        engine = create_mock_engine_with_hand_ranks([(0.0, FiveCardHandRank.HIGH_CARD)])
+        betting = FlatBetting(5.0)
+
+        session = Session(config, engine, betting)
+        session_result = session.run_to_completion()
+
+        assert session_result.total_progressive_won == 0.0
+
     def test_progressive_fields_on_game_hand_result(self) -> None:
         """GameHandResult has progressive_bet and progressive_payout populated."""
         config = SessionConfig(

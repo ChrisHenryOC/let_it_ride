@@ -2053,3 +2053,36 @@ class TestTableSessionProgressiveIntegration:
                 seat_result.session_result.total_progressive_wagered
                 == pytest.approx(6.0)
             )
+
+    def test_per_seat_progressive_won_tracking(self) -> None:
+        """total_progressive_won tracked per seat in session result."""
+        config = TableSessionConfig(
+            table_config=TableConfig(num_seats=2),
+            starting_bankroll=1000.0,
+            base_bet=5.0,
+            max_hands=1,
+            progressive_bet=1.0,
+        )
+        # Seat 1: HIGH_CARD (no payout), Seat 2: FLUSH ($75 fixed)
+        mock_table = create_mock_table_with_hand_ranks(
+            [
+                [(-15.0, FiveCardHandRank.HIGH_CARD), (35.0, FiveCardHandRank.FLUSH)],
+            ]
+        )
+        betting = FlatBetting(5.0)
+        jackpot = ProgressiveJackpot(
+            seed_amount=10000.0,
+            starting_pool=10000.0,
+            contribution_rate=0.71,
+            paytable=standard_progressive_paytable(),
+        )
+
+        session = TableSession(config, mock_table, betting, progressive_jackpot=jackpot)
+        table_result = session.run_to_completion()
+
+        assert table_result.seat_results[
+            0
+        ].session_result.total_progressive_won == pytest.approx(0.0)
+        assert table_result.seat_results[
+            1
+        ].session_result.total_progressive_won == pytest.approx(75.0)

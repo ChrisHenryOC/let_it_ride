@@ -224,6 +224,7 @@ class SessionResult:
     max_drawdown: float
     max_drawdown_pct: float
     total_progressive_wagered: float = 0.0
+    total_progressive_won: float = 0.0
     table_session_id: int | None = None
     seat_number: int | None = None
 
@@ -247,6 +248,7 @@ class SessionResult:
             "total_wagered": self.total_wagered,
             "total_bonus_wagered": self.total_bonus_wagered,
             "total_progressive_wagered": self.total_progressive_wagered,
+            "total_progressive_won": self.total_progressive_won,
             "peak_bankroll": self.peak_bankroll,
             "max_drawdown": self.max_drawdown,
             "max_drawdown_pct": self.max_drawdown_pct,
@@ -297,6 +299,7 @@ class SessionResult:
             max_drawdown=self.max_drawdown,
             max_drawdown_pct=self.max_drawdown_pct,
             total_progressive_wagered=self.total_progressive_wagered,
+            total_progressive_won=self.total_progressive_won,
             table_session_id=table_session_id,
             seat_number=seat_number,
         )
@@ -322,6 +325,7 @@ class Session:
         "_total_wagered",
         "_total_bonus_wagered",
         "_total_progressive_wagered",
+        "_total_progressive_won",
         "_last_result",
         "_streak",
         "_bonus_streak",
@@ -367,6 +371,7 @@ class Session:
         self._total_wagered = 0.0
         self._total_bonus_wagered = 0.0
         self._total_progressive_wagered = 0.0
+        self._total_progressive_won = 0.0
         self._last_result: float | None = None
         self._streak = 0
         self._bonus_streak = 0
@@ -571,6 +576,7 @@ class Session:
                 progressive_payout=progressive_payout,
             )
             self._total_progressive_wagered += progressive_bet
+            self._total_progressive_won += progressive_payout
 
         # Determine win/loss for main and bonus bets
         main_won = result.main_payout > 0
@@ -652,4 +658,5 @@ class Session:
             max_drawdown=self._bankroll.max_drawdown,
             max_drawdown_pct=self._bankroll.max_drawdown_pct,
             total_progressive_wagered=self._total_progressive_wagered,
+            total_progressive_won=self._total_progressive_won,
         )
