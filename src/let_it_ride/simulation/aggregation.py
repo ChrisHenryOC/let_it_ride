@@ -56,6 +56,10 @@ class AggregateStatistics:
         bonus_won: Total bonus amount won.
         bonus_ev_per_hand: Bonus expected value per hand.
 
+        progressive_wagered: Total progressive side bet amount wagered.
+        progressive_won: Total progressive side bet amount won.
+        progressive_ev_per_hand: Progressive expected value per hand.
+
         hand_frequencies: Count of each hand rank type.
         hand_frequency_pct: Percentage of each hand rank type.
 
@@ -94,6 +98,11 @@ class AggregateStatistics:
     bonus_wagered: float
     bonus_won: float
     bonus_ev_per_hand: float
+
+    # Progressive breakdown
+    progressive_wagered: float
+    progressive_won: float
+    progressive_ev_per_hand: float
 
     # Hand distribution
     hand_frequencies: dict[str, int]
@@ -145,7 +154,9 @@ def aggregate_results(results: list[SessionResult]) -> AggregateStatistics:
     # Financial metrics
     main_wagered = sum(r.total_wagered for r in results)
     bonus_wagered = sum(r.total_bonus_wagered for r in results)
-    total_wagered = main_wagered + bonus_wagered
+    progressive_wagered = sum(r.total_progressive_wagered for r in results)
+    progressive_won = sum(r.total_progressive_won for r in results)
+    total_wagered = main_wagered + bonus_wagered + progressive_wagered
 
     # Net result is sum of session profits
     net_result = sum(r.session_profit for r in results)
@@ -156,13 +167,17 @@ def aggregate_results(results: list[SessionResult]) -> AggregateStatistics:
     # Main/bonus breakdown: without separate payout tracking in SessionResult,
     # we assume bonus is break-even and attribute all profit/loss to main game
     bonus_won = bonus_wagered
-    main_won = total_won - bonus_won
+    main_won = total_won - bonus_won - progressive_won
 
     # Expected value per hand
     expected_value_per_hand = net_result / total_hands if total_hands > 0 else 0.0
     main_profit = main_won - main_wagered
     main_ev_per_hand = main_profit / total_hands if total_hands > 0 else 0.0
     bonus_ev_per_hand = 0.0  # Break-even assumption
+    progressive_profit = progressive_won - progressive_wagered
+    progressive_ev_per_hand = (
+        progressive_profit / total_hands if total_hands > 0 else 0.0
+    )
 
     # Hand frequencies - not available from SessionResult alone
     # Would need HandRecord data; return empty for now
@@ -194,6 +209,9 @@ def aggregate_results(results: list[SessionResult]) -> AggregateStatistics:
         bonus_wagered=bonus_wagered,
         bonus_won=bonus_won,
         bonus_ev_per_hand=bonus_ev_per_hand,
+        progressive_wagered=progressive_wagered,
+        progressive_won=progressive_won,
+        progressive_ev_per_hand=progressive_ev_per_hand,
         hand_frequencies=hand_frequencies,
         hand_frequency_pct=hand_frequency_pct,
         session_profit_mean=session_profit_mean,
@@ -248,6 +266,14 @@ def merge_aggregates(
     bonus_profit = bonus_won - bonus_wagered
     bonus_ev_per_hand = bonus_profit / total_hands if total_hands > 0 else 0.0
 
+    # Progressive
+    progressive_wagered = agg1.progressive_wagered + agg2.progressive_wagered
+    progressive_won = agg1.progressive_won + agg2.progressive_won
+    progressive_profit = progressive_won - progressive_wagered
+    progressive_ev_per_hand = (
+        progressive_profit / total_hands if total_hands > 0 else 0.0
+    )
+
     # Merge hand frequencies using Counter for cleaner semantics
     hand_frequencies = dict(
         Counter(agg1.hand_frequencies) + Counter(agg2.hand_frequencies)
@@ -279,6 +305,9 @@ def merge_aggregates(
         bonus_wagered=bonus_wagered,
         bonus_won=bonus_won,
         bonus_ev_per_hand=bonus_ev_per_hand,
+        progressive_wagered=progressive_wagered,
+        progressive_won=progressive_won,
+        progressive_ev_per_hand=progressive_ev_per_hand,
         hand_frequencies=hand_frequencies,
         hand_frequency_pct=hand_frequency_pct,
         session_profit_mean=session_profit_mean,
@@ -368,6 +397,8 @@ def aggregate_with_seats(
     total_hands = 0
     main_wagered = 0.0
     bonus_wagered = 0.0
+    progressive_wagered = 0.0
+    progressive_won = 0.0
     net_result = 0.0
     session_profits: list[float] = []
     seat_aggregations: dict[int, _SeatAggregation] = {}
@@ -386,6 +417,8 @@ def aggregate_with_seats(
         total_hands += r.hands_played
         main_wagered += r.total_wagered
         bonus_wagered += r.total_bonus_wagered
+        progressive_wagered += r.total_progressive_wagered
+        progressive_won += r.total_progressive_won
         net_result += r.session_profit
         session_profits.append(r.session_profit)
 
@@ -408,18 +441,22 @@ def aggregate_with_seats(
     # Compute derived statistics
     total_sessions = len(results)
     session_win_rate = winning_sessions / total_sessions
-    total_wagered = main_wagered + bonus_wagered
+    total_wagered = main_wagered + bonus_wagered + progressive_wagered
     total_won = net_result + total_wagered
 
     # Main/bonus breakdown (bonus break-even assumption)
     bonus_won = bonus_wagered
-    main_won = total_won - bonus_won
+    main_won = total_won - bonus_won - progressive_won
 
     # Expected value per hand
     expected_value_per_hand = net_result / total_hands if total_hands > 0 else 0.0
     main_profit = main_won - main_wagered
     main_ev_per_hand = main_profit / total_hands if total_hands > 0 else 0.0
     bonus_ev_per_hand = 0.0
+    progressive_profit = progressive_won - progressive_wagered
+    progressive_ev_per_hand = (
+        progressive_profit / total_hands if total_hands > 0 else 0.0
+    )
 
     # Session profit statistics
     session_profits_tuple = tuple(session_profits)
@@ -446,6 +483,9 @@ def aggregate_with_seats(
         bonus_wagered=bonus_wagered,
         bonus_won=bonus_won,
         bonus_ev_per_hand=bonus_ev_per_hand,
+        progressive_wagered=progressive_wagered,
+        progressive_won=progressive_won,
+        progressive_ev_per_hand=progressive_ev_per_hand,
         hand_frequencies={},
         hand_frequency_pct={},
         session_profit_mean=session_profit_mean,
