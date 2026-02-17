@@ -93,6 +93,11 @@ class ProgressiveJackpot:
         """Return the current jackpot pool value."""
         return self._pool
 
+    @property
+    def seed_amount(self) -> float:
+        """Return the jackpot seed amount."""
+        return self._seed_amount
+
     def contribute(self, bet_amount: float) -> None:
         """Add a contribution to the jackpot pool.
 

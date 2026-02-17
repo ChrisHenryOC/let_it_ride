@@ -20,6 +20,7 @@ from let_it_ride.core.game_engine import GameEngine, GameHandResult
 from let_it_ride.core.progressive_jackpot import ProgressiveJackpot
 from let_it_ride.strategy.base import StrategyContext
 from let_it_ride.strategy.bonus import BonusContext, BonusStrategy
+from let_it_ride.strategy.progressive import ProgressiveContext, ProgressiveStrategy
 
 # Type alias for per-hand callback function.
 # Called with (hand_id, GameHandResult) after each hand completes.
@@ -314,6 +315,7 @@ class Session:
         "_engine",
         "_betting_system",
         "_bonus_strategy",
+        "_progressive_strategy",
         "_progressive_jackpot",
         "_bankroll",
         "_hands_played",
@@ -335,6 +337,7 @@ class Session:
         bonus_strategy: BonusStrategy | None = None,
         hand_callback: HandCallback | None = None,
         progressive_jackpot: ProgressiveJackpot | None = None,
+        progressive_strategy: ProgressiveStrategy | None = None,
     ) -> None:
         """Initialize a new session.
 
@@ -348,11 +351,15 @@ class Session:
                 Called with (hand_id, GameHandResult).
             progressive_jackpot: Optional progressive jackpot for side bet.
                 Each session gets its own instance (not shared across sessions).
+            progressive_strategy: Optional ProgressiveStrategy for dynamic
+                progressive bet decisions. If provided, overrides
+                config.progressive_bet with dynamic amounts.
         """
         self._config = config
         self._engine = engine
         self._betting_system = betting_system
         self._bonus_strategy = bonus_strategy
+        self._progressive_strategy = progressive_strategy
         self._progressive_jackpot = progressive_jackpot
         self._hand_callback = hand_callback
         self._bankroll = BankrollTracker(config.starting_bankroll)
@@ -409,12 +416,15 @@ class Session:
         """Return the minimum amount needed to play a hand.
 
         A hand requires 3 base bets plus any bonus and progressive bets.
+        When a progressive strategy is active, the strategy may return 0,
+        so we exclude the static progressive_bet from the minimum.
         """
-        return (
-            (self._config.base_bet * 3)
-            + self._config.bonus_bet
-            + self._config.progressive_bet
+        progressive = (
+            0.0
+            if self._progressive_strategy is not None
+            else self._config.progressive_bet
         )
+        return (self._config.base_bet * 3) + self._config.bonus_bet + progressive
 
     def should_stop(self) -> bool:
         """Check if any stop condition is met.
@@ -519,8 +529,32 @@ class Session:
             context=strategy_context,
         )
 
-        # Evaluate progressive side bet if enabled
-        progressive_bet = self._config.progressive_bet
+        # Evaluate progressive side bet if enabled.
+        # Context reflects pre-result bankroll state: bankroll.apply_result()
+        # has not been called yet, so balance/profit reflect the state before
+        # the current hand's main/bonus outcome. This matches real-world
+        # semantics where the side bet is placed before cards are dealt.
+        if (
+            self._progressive_strategy is not None
+            and self._progressive_jackpot is not None
+        ):
+            progressive_context = ProgressiveContext(
+                bankroll=self._bankroll.balance,
+                starting_bankroll=self._config.starting_bankroll,
+                session_profit=self._bankroll.session_profit,
+                hands_played=self._hands_played,
+                main_streak=self._streak,
+                base_bet=base_bet,
+                current_jackpot=self._progressive_jackpot.current_pool,
+                seed_amount=self._progressive_jackpot.seed_amount,
+                progressive_bet_amount=self._config.progressive_bet,
+            )
+            progressive_bet = max(
+                0.0,
+                self._progressive_strategy.get_progressive_bet(progressive_context),
+            )
+        else:
+            progressive_bet = self._config.progressive_bet
         progressive_payout = 0.0
         if self._progressive_jackpot is not None and progressive_bet > 0:
             self._progressive_jackpot.contribute(progressive_bet)

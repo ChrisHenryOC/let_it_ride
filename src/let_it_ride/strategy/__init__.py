@@ -28,12 +28,23 @@ from let_it_ride.strategy.custom import (
     StrategyRule,
 )
 from let_it_ride.strategy.presets import aggressive_strategy, conservative_strategy
+from let_it_ride.strategy.progressive import (
+    AlwaysProgressiveStrategy,
+    BankrollConditionalProgressiveStrategy,
+    JackpotThresholdStrategy,
+    NeverProgressiveStrategy,
+    ProgressiveContext,
+    ProgressiveStrategy,
+    create_progressive_strategy,
+)
 
 __all__ = [
     "AlwaysBonusStrategy",
+    "AlwaysProgressiveStrategy",
     "AlwaysPullStrategy",
     "AlwaysRideStrategy",
     "BankrollConditionalBonusStrategy",
+    "BankrollConditionalProgressiveStrategy",
     "BasicStrategy",
     "BonusContext",
     "BonusStrategy",
@@ -41,7 +52,11 @@ __all__ = [
     "CustomStrategy",
     "Decision",
     "InvalidFieldError",
+    "JackpotThresholdStrategy",
     "NeverBonusStrategy",
+    "NeverProgressiveStrategy",
+    "ProgressiveContext",
+    "ProgressiveStrategy",
     "StaticBonusStrategy",
     "StreakBasedBonusStrategy",
     "Strategy",
@@ -50,4 +65,5 @@ __all__ = [
     "aggressive_strategy",
     "conservative_strategy",
     "create_bonus_strategy",
+    "create_progressive_strategy",
 ]

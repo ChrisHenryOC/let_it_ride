@@ -52,6 +52,10 @@ from let_it_ride.strategy import (
 )
 from let_it_ride.strategy.base import Decision
 from let_it_ride.strategy.bonus import BonusStrategy, create_bonus_strategy
+from let_it_ride.strategy.progressive import (
+    ProgressiveStrategy,
+    create_progressive_strategy,
+)
 
 if TYPE_CHECKING:
     from let_it_ride.config.models import (
@@ -402,6 +406,11 @@ class SimulationController:
         def bonus_strategy_factory() -> BonusStrategy:
             return create_bonus_strategy(self._config.bonus_strategy)
 
+        def progressive_strategy_factory() -> ProgressiveStrategy | None:
+            if self._config.progressive.enabled:
+                return create_progressive_strategy(self._config.progressive_strategy)
+            return None
+
         # Use RNGManager for centralized seed management
         rng_manager = RNGManager(base_seed=self._base_seed)
         session_seeds = rng_manager.create_session_seeds(num_sessions)
@@ -430,6 +439,7 @@ class SimulationController:
                     bonus_paytable,
                     betting_system_factory,
                     table_session_config,
+                    progressive_strategy_factory,
                 )
                 table_result = table_session.run_to_completion()
                 # Extract per-seat SessionResults with table_session_id and seat_number
@@ -454,6 +464,7 @@ class SimulationController:
                     bonus_paytable,
                     betting_system_factory,
                     bonus_strategy_factory,
+                    progressive_strategy_factory,
                 )
                 result = self._run_session(session)
                 session_results.append(result)
@@ -482,6 +493,7 @@ class SimulationController:
         bonus_paytable: BonusPaytable | None,
         betting_system_factory: Callable[[], BettingSystem],
         bonus_strategy_factory: Callable[[], BonusStrategy],
+        progressive_strategy_factory: Callable[[], ProgressiveStrategy | None],
     ) -> Session:
         """Create a new session with fresh state.
 
@@ -493,6 +505,7 @@ class SimulationController:
             bonus_paytable: Bonus paytable or None (reused across sessions).
             betting_system_factory: Factory to create fresh betting system per session.
             bonus_strategy_factory: Factory to create fresh bonus strategy per session.
+            progressive_strategy_factory: Factory to create progressive strategy per session.
 
         Returns:
             A new Session instance ready to run.
@@ -537,6 +550,9 @@ class SimulationController:
         # Progressive jackpot needs fresh state per session
         progressive_jackpot = get_progressive_jackpot(self._config)
 
+        # Progressive strategy needs fresh state per session
+        progressive_strategy = progressive_strategy_factory()
+
         return Session(
             session_config,
             engine,
@@ -544,6 +560,7 @@ class SimulationController:
             bonus_strategy=bonus_strategy,
             hand_callback=session_hand_callback,
             progressive_jackpot=progressive_jackpot,
+            progressive_strategy=progressive_strategy,
         )
 
     def _create_table_session(
@@ -554,6 +571,7 @@ class SimulationController:
         bonus_paytable: BonusPaytable | None,
         betting_system_factory: Callable[[], BettingSystem],
         table_session_config: TableSessionConfig,
+        progressive_strategy_factory: Callable[[], ProgressiveStrategy | None],
     ) -> TableSession:
         """Create a new multi-seat table session with fresh state.
 
@@ -564,6 +582,7 @@ class SimulationController:
             bonus_paytable: Bonus paytable or None (reused across sessions).
             betting_system_factory: Factory to create fresh betting system per session.
             table_session_config: Pre-computed config (constant across all sessions).
+            progressive_strategy_factory: Factory to create progressive strategy per session.
 
         Returns:
             A new TableSession instance ready to run.
@@ -588,11 +607,15 @@ class SimulationController:
         # Progressive jackpot needs fresh state per session
         progressive_jackpot = get_progressive_jackpot(self._config)
 
+        # Progressive strategy (stateless, but using factory for consistency)
+        progressive_strategy = progressive_strategy_factory()
+
         return TableSession(
             config=table_session_config,
             table=table,
             betting_system=betting_system,
             progressive_jackpot=progressive_jackpot,
+            progressive_strategy=progressive_strategy,
         )
 
     def _run_session(self, session: Session) -> SessionResult:

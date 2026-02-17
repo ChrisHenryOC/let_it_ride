@@ -32,6 +32,23 @@ def jackpot(standard_paytable: ProgressivePaytable) -> ProgressiveJackpot:
     )
 
 
+class TestProgressiveJackpotProperties:
+    """Tests for ProgressiveJackpot read-only properties."""
+
+    def test_seed_amount_returns_configured_value(
+        self, jackpot: ProgressiveJackpot
+    ) -> None:
+        """seed_amount property returns the value set at construction."""
+        assert jackpot.seed_amount == pytest.approx(10000.0)
+
+    def test_seed_amount_unchanged_after_contributions(
+        self, jackpot: ProgressiveJackpot
+    ) -> None:
+        """seed_amount remains constant regardless of pool changes."""
+        jackpot.contribute(100.0)
+        assert jackpot.seed_amount == pytest.approx(10000.0)
+
+
 class TestProgressiveJackpotContribution:
     """Tests for pool contribution mechanics."""
 

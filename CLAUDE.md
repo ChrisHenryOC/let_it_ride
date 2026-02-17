@@ -41,7 +41,7 @@ poetry run let-it-ride validate configs/sample_config.yaml
 ```
 src/let_it_ride/
 ├── core/           # Game engine: Card, Deck, Table, hand evaluators, hand processing
-├── strategy/       # Strategy implementations: basic, baseline, custom, bonus
+├── strategy/       # Strategy implementations: basic, baseline, custom, bonus, progressive
 ├── bankroll/       # Bankroll tracking and betting systems
 ├── simulation/     # Session and TableSession management, parallel execution, RNG
 ├── analytics/      # Statistics, validation, export (CSV/JSON/HTML), visualizations
@@ -52,6 +52,7 @@ src/let_it_ride/
 Key abstractions:
 - `Strategy` protocol: `decide_bet1()` and `decide_bet2()` methods for pull/ride decisions
 - `BonusStrategy` protocol: `get_bonus_bet()` for three-card bonus betting
+- `ProgressiveStrategy` protocol: `get_progressive_bet()` for progressive jackpot side bet decisions
 - `BettingSystem` protocol: betting progression systems (Flat, Martingale, Paroli, D'Alembert, Fibonacci, Reverse Martingale)
 - `GameEngine`: orchestrates deck, strategy, paytables for single-player hands
 - `Table`: multi-player table (1-6 seats) sharing community cards
@@ -75,6 +76,7 @@ Simulations are configured via YAML files. Key sections:
 - `strategy`: type (basic/always_ride/always_pull/conservative/aggressive/custom)
 - `bonus_strategy`: type (never/always/static/bankroll_conditional)
 - `progressive`: enabled, bet_amount, seed_amount, starting_jackpot, contribution_rate, reset_to_seed, custom paytable
+- `progressive_strategy`: type (never/always/jackpot_threshold/bankroll_conditional)
 - `paytables`: main_game and bonus payout tables
 - `output`: directory, formats (csv/json/html), visualizations
 
