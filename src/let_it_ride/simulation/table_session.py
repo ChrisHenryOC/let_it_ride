@@ -140,6 +140,7 @@ class _SeatState:
         "total_wagered",
         "total_bonus_wagered",
         "total_progressive_wagered",
+        "total_progressive_won",
         "last_result",
         "streak",
         "stop_reason",
@@ -160,6 +161,7 @@ class _SeatState:
         self.total_wagered: float = 0.0
         self.total_bonus_wagered: float = 0.0
         self.total_progressive_wagered: float = 0.0
+        self.total_progressive_won: float = 0.0
         self.last_result: float | None = None
         self.streak: int = 0
         self.stop_reason: StopReason | None = None
@@ -206,6 +208,7 @@ class _SeatState:
         self.total_wagered = 0.0
         self.total_bonus_wagered = 0.0
         self.total_progressive_wagered = 0.0
+        self.total_progressive_won = 0.0
         self.last_result = None
         self.streak = 0
         self.stop_reason = None
@@ -349,6 +352,7 @@ class TableSession:
             max_drawdown=seat_state.bankroll.max_drawdown,
             max_drawdown_pct=seat_state.bankroll.max_drawdown_pct,
             total_progressive_wagered=seat_state.total_progressive_wagered,
+            total_progressive_won=seat_state.total_progressive_won,
         )
 
         return SeatSessionResult(
@@ -575,6 +579,7 @@ class TableSession:
                 progressive_net = prog_payout - progressive_bet
                 adjusted_net += progressive_net
                 seat_state.total_progressive_wagered += progressive_bet
+                seat_state.total_progressive_won += prog_payout
                 # Create enhanced seat result with progressive fields
                 seat_result = replace(
                     seat_result,

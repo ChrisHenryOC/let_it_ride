@@ -41,6 +41,7 @@ SESSION_RESULT_FIELDS = [
     "total_wagered",
     "total_bonus_wagered",
     "total_progressive_wagered",
+    "total_progressive_won",
     "peak_bankroll",
     "max_drawdown",
     "max_drawdown_pct",

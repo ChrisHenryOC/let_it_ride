@@ -22,6 +22,8 @@ def create_session_result(
     peak_bankroll: float = 1200.0,
     max_drawdown: float = 50.0,
     max_drawdown_pct: float = 0.05,
+    total_progressive_wagered: float = 0.0,
+    total_progressive_won: float = 0.0,
 ) -> SessionResult:
     """Create a SessionResult for testing."""
     return SessionResult(
@@ -36,6 +38,8 @@ def create_session_result(
         peak_bankroll=peak_bankroll,
         max_drawdown=max_drawdown,
         max_drawdown_pct=max_drawdown_pct,
+        total_progressive_wagered=total_progressive_wagered,
+        total_progressive_won=total_progressive_won,
     )
 
 
@@ -792,3 +796,135 @@ class TestReviewFindings:
         assert stats.total_sessions == 10000
         assert stats.total_hands == 1000000  # 10000 * 100
         assert elapsed < 1.0  # Should complete in under 1 second
+
+
+class TestProgressiveAggregation:
+    """Tests for progressive breakdown in aggregation."""
+
+    def test_progressive_fields_in_aggregate_results(self) -> None:
+        """aggregate_results should compute progressive totals."""
+        results = [
+            create_session_result(
+                outcome=SessionOutcome.WIN,
+                hands_played=100,
+                session_profit=100.0,
+                total_wagered=3000.0,
+                total_bonus_wagered=100.0,
+                total_progressive_wagered=50.0,
+                total_progressive_won=75.0,
+            ),
+            create_session_result(
+                outcome=SessionOutcome.LOSS,
+                hands_played=100,
+                session_profit=-50.0,
+                total_wagered=3000.0,
+                total_bonus_wagered=100.0,
+                total_progressive_wagered=50.0,
+                total_progressive_won=0.0,
+            ),
+        ]
+        stats = aggregate_results(results)
+
+        assert stats.progressive_wagered == pytest.approx(100.0)
+        assert stats.progressive_won == pytest.approx(75.0)
+        # progressive_profit = 75 - 100 = -25, total_hands = 200
+        assert stats.progressive_ev_per_hand == pytest.approx(-25.0 / 200)
+
+    def test_progressive_included_in_total_wagered(self) -> None:
+        """total_wagered should include progressive wagered."""
+        results = [
+            create_session_result(
+                outcome=SessionOutcome.WIN,
+                hands_played=100,
+                session_profit=100.0,
+                total_wagered=3000.0,
+                total_bonus_wagered=100.0,
+                total_progressive_wagered=50.0,
+                total_progressive_won=75.0,
+            ),
+        ]
+        stats = aggregate_results(results)
+
+        # total_wagered = main + bonus + progressive = 3000 + 100 + 50
+        assert stats.total_wagered == pytest.approx(3150.0)
+
+    def test_progressive_zero_when_not_used(self) -> None:
+        """Progressive fields should be 0 when no progressive bets placed."""
+        results = [
+            create_session_result(
+                outcome=SessionOutcome.WIN,
+                hands_played=100,
+                session_profit=100.0,
+            ),
+        ]
+        stats = aggregate_results(results)
+
+        assert stats.progressive_wagered == 0.0
+        assert stats.progressive_won == 0.0
+        assert stats.progressive_ev_per_hand == 0.0
+
+    def test_progressive_fields_in_merge_aggregates(self) -> None:
+        """merge_aggregates should merge progressive fields."""
+        results1 = [
+            create_session_result(
+                outcome=SessionOutcome.WIN,
+                hands_played=100,
+                session_profit=100.0,
+                total_progressive_wagered=50.0,
+                total_progressive_won=75.0,
+            ),
+        ]
+        results2 = [
+            create_session_result(
+                outcome=SessionOutcome.LOSS,
+                hands_played=100,
+                session_profit=-50.0,
+                total_progressive_wagered=50.0,
+                total_progressive_won=0.0,
+            ),
+        ]
+        agg1 = aggregate_results(results1)
+        agg2 = aggregate_results(results2)
+
+        merged = merge_aggregates(agg1, agg2)
+
+        assert merged.progressive_wagered == pytest.approx(100.0)
+        assert merged.progressive_won == pytest.approx(75.0)
+        assert merged.progressive_ev_per_hand == pytest.approx(-25.0 / 200)
+
+    def test_progressive_ev_calculation(self) -> None:
+        """Progressive EV per hand should be (won - wagered) / total_hands."""
+        results = [
+            create_session_result(
+                outcome=SessionOutcome.WIN,
+                hands_played=50,
+                session_profit=100.0,
+                total_progressive_wagered=25.0,
+                total_progressive_won=50.0,
+            ),
+        ]
+        stats = aggregate_results(results)
+
+        # progressive_profit = 50 - 25 = 25, total_hands = 50
+        assert stats.progressive_ev_per_hand == pytest.approx(0.5)
+
+    def test_progressive_fields_in_aggregate_with_seats(self) -> None:
+        """aggregate_with_seats should include progressive fields."""
+        from let_it_ride.simulation.aggregation import aggregate_with_seats
+
+        results = [
+            create_session_result(
+                outcome=SessionOutcome.WIN,
+                hands_played=100,
+                session_profit=100.0,
+                total_wagered=3000.0,
+                total_bonus_wagered=100.0,
+                total_progressive_wagered=50.0,
+                total_progressive_won=75.0,
+            ),
+        ]
+        # No seat_number set, so no seat aggregations
+        stats, _seats = aggregate_with_seats(results)
+
+        assert stats.progressive_wagered == pytest.approx(50.0)
+        assert stats.progressive_won == pytest.approx(75.0)

@@ -41,6 +41,13 @@ from let_it_ride.analytics.export_json import (
     export_json,
     load_json,
 )
+from let_it_ride.analytics.progressive_analysis import (
+    BreakevenResult,
+    HouseEdgeResult,
+    calculate_breakeven_jackpot,
+    calculate_expected_payout,
+    calculate_house_edge,
+)
 from let_it_ride.analytics.risk_of_ruin import (
     RiskOfRuinReport,
     RiskOfRuinResult,
@@ -88,6 +95,13 @@ __all__ = [
     "compare_multiple_strategies",
     "compare_strategies",
     "format_comparison_report",
+    # Progressive analysis types
+    "BreakevenResult",
+    "HouseEdgeResult",
+    # Progressive analysis functions
+    "calculate_breakeven_jackpot",
+    "calculate_expected_payout",
+    "calculate_house_edge",
     # CSV export
     "CSVExporter",
     "export_aggregate_csv",
